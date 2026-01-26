@@ -1,38 +1,58 @@
 # tailrelay
 
-A container image designed to run on [Start9](https://start9.com) that exposes
-local services to your Tailscale network, using **Caddy** as an HTTP reverse 
-proxy and **socat** for other non‑HTTP protocols.
+A self-contained Docker image that securely exposes local services (especially [Start9](https://start9.com) services) to your Tailscale network. Combines **Tailscale VPN**, **Caddy reverse proxy**, **socat TCP relays**, and a comprehensive **Web UI** for zero-configuration management.
 
-**New in v0.2.0:** Now includes a comprehensive **Web UI** for managing Tailscale, Caddy proxies, socat relays, and backups through your browser!
+**✨ Now with Web UI (v0.2.0):** Manage everything through your browser - no more manual configuration file editing! Control Tailscale connections, configure HTTP/HTTPS proxies, manage TCP relays, and handle backups all from a modern dark-themed interface.
+
+[![Docker Pulls](https://img.shields.io/docker/pulls/sudocarlos/tailrelay)](https://hub.docker.com/r/sudocarlos/tailrelay)
+[![GitHub Release](https://img.shields.io/github/v/release/sudocarlos/tailscale-socaddy-proxy)](https://github.com/sudocarlos/tailscale-socaddy-proxy/releases)
+[![License](https://img.shields.io/github/license/sudocarlos/tailscale-socaddy-proxy)](https://github.com/sudocarlos/tailscale-socaddy-proxy/blob/main/LICENSE)
+
+## 🚀 Key Capabilities
+
+- **🖥️ Web UI Management** - Complete browser-based control (port 8021)
+- **🔐 Automatic TLS** - Tailscale HTTPS certificates via Caddy
+- **🌐 HTTP/HTTPS Proxies** - Visual configuration for web services
+- **🔌 TCP Relays** - socat-based forwarding for non-HTTP protocols
+- **💾 Backup & Restore** - One-click configuration snapshots
+- **🔒 Dual Authentication** - Token + Tailscale network auto-auth
+- **📱 Responsive Design** - Works on desktop, tablet, and mobile
+- **🐳 Multi-Platform** - Docker images for amd64 and arm64
 
 ![](images/tailrelay.svg)
 
 ## Table of Contents
 
+- [🚀 Key Capabilities](#-key-capabilities)
 - [Why?](#why)
 - [Technology Stack](#technology-stack)
 - [Web UI](#web-ui)
     - [Features](#features)
-    - [Access](#access)
+    - [Quick Start](#quick-start)
     - [Authentication](#authentication)
 - [Getting Started](#getting-started)
     - [Prerequisites](#prerequisites)
-    - [Tailscale](#tailscale)
+    - [Tailscale Setup](#tailscale)
     - [Caddy (Manual Configuration)](#caddy-manual-configuration)
-        - [Caddyfile](#caddyfile)
-    - [Start9](#start9)
+    - [Start9 Deployment](#start9)
 - [Testing with Docker‑Compose](#testing-with-docker-compose)
+- [Troubleshooting](#troubleshooting)
+- [Version History](#version-history)
+- [Contributing](#contributing)
 
 
 ## Why?
 
-Accessing **Start9** services such as **BTCPayServer** and **electrs RPC** requires Tor today.
-**Tailscale** lets you privately and securely expose your services, while 
-**Caddy** takes care of obtaining and renewing TLS certificates.
-**`socat`** relays the non-HTTP ports Caddy can’t reverse‑proxy.
+Modern self-hosted infrastructure requires secure remote access. **tailrelay** solves this elegantly:
 
-This container image combines them 
+- **🔒 Secure Access**: Tailscale's zero-trust VPN eliminates port forwarding and firewall complexity
+- **🚀 Zero Configuration**: Web UI handles all setup - no manual config files
+- **🔐 Automatic TLS**: Caddy obtains and renews certificates automatically via Tailscale HTTPS
+- **🌐 Universal Protocol Support**: HTTP/HTTPS proxies for web services, TCP relays for everything else
+- **💾 Backup & Restore**: One-click configuration backups for disaster recovery
+- **📱 Modern Interface**: Dark-themed responsive Web UI accessible from any device on your Tailnet
+
+Perfect for accessing **Start9** services like **BTCPayServer**, **LND**, **electrs RPC**, **Mempool**, and more without Tor.
 
 
 ## Technology Stack
@@ -48,19 +68,66 @@ This container image combines them
 
 ## Web UI
 
-The Web UI provides a comprehensive browser-based interface for managing all aspects of tailrelay without manual configuration file editing.
+The Web UI is the centerpiece of v0.2.0, providing complete browser-based management without touching configuration files.
 
 ### Features
 
-- **Dashboard**: Overview of Tailscale connection status and system health
-- **Tailscale Management**: Connect/disconnect, view peers, check status
-- **Caddy Proxy Management**: Add, edit, delete, and toggle HTTP/HTTPS reverse proxies
-- **Socat Relay Management**: Add, edit, delete, and manage TCP relay processes
-- **Backup & Restore**: Create, download, upload, and restore configuration backups
-- **Auto-configuration**: Automatically generates Caddyfile from GUI settings
-- **Dark Theme**: Modern, responsive interface optimized for readability
+#### 📊 Dashboard
+- Real-time Tailscale connection status
+- System health monitoring
+- Quick access to all management functions
+- Auto-refresh for live updates
 
-### Access
+#### 🔗 Tailscale Management
+- One-click connect/disconnect
+- View all connected peers on your Tailnet
+- Monitor connection health and status
+- Interactive peer information display
+
+#### 🌐 Caddy Proxy Management
+- Add/edit/delete HTTP and HTTPS reverse proxies
+- Visual proxy configuration (no Caddyfile editing needed)
+- Toggle proxies on/off without deletion
+- Automatic Caddyfile regeneration and Caddy reload
+- Support for custom headers and TLS configurations
+
+#### 🔌 Socat Relay Management
+- Full CRUD operations for TCP relays
+- Start/stop/restart individual relay processes
+- Real-time process status with PID tracking
+- Bulk operations for multiple relays
+- Port conflict detection
+
+#### 💾 Backup & Restore
+- Create compressed tar.gz backups (configs + certificates)
+- Download backups to local machine
+- Upload existing backups for restoration
+- One-click restore functionality
+- Automatic retention policy (configurable)
+- Includes: Caddyfile, proxies.json, relays.json, certificates/
+
+### Quick Start
+
+```bash
+# Pull the latest image
+docker pull sudocarlos/tailrelay:latest
+
+# Run with Web UI enabled
+docker run -d --name tailrelay \
+  -v /path/to/data:/var/lib/tailscale \
+  -e TS_HOSTNAME=my-server \
+  -p 8021:8021 \
+  --net bridge \
+  sudocarlos/tailrelay:latest
+
+# Get your Web UI token
+docker exec tailrelay cat /var/lib/tailscale/.webui_token
+
+# Access the Web UI
+open http://localhost:8021
+```
+
+For Start9 users, see the [Start9 section](#start9) below for specific instructions.
 
 The Web UI runs on **port 8021** by default. After starting the container:
 
@@ -310,22 +377,64 @@ python docker-compose-test.py
 
 ## Version History
 
-- **v0.2.0** (2026-01-26)
-  - Added comprehensive Web UI for browser-based management
-  - Web UI features: Dashboard, Tailscale control, Caddy proxy management, socat relay management, backup/restore
-  - Auto-migration from RELAY_LIST environment variable to JSON configuration
-  - Dual authentication (token + Tailscale network)
-  - Dark theme with responsive design
+### v0.2.0 (2026-01-26) - Current Release ✨
 
-- **v0.1.1** (Previous)
-  - Initial release with Tailscale, Caddy, and socat integration
-  - Manual Caddyfile configuration
-  - Environment variable-based socat relay configuration
+**Major Feature: Web UI Integration**
+
+- ✅ Comprehensive browser-based management interface
+- ✅ Dashboard with real-time Tailscale status
+- ✅ Full CRUD for Caddy proxies and socat relays
+- ✅ Backup/restore with tar.gz compression
+- ✅ Dual authentication (token + Tailscale network)
+- ✅ Dark theme, responsive design
+- ✅ Auto-migration from RELAY_LIST env var
+- ✅ Multi-platform Docker images (amd64, arm64)
+
+**Docker Images:**
+```bash
+docker pull sudocarlos/tailrelay:v0.2.0
+docker pull sudocarlos/tailrelay:latest
+```
+
+See [CHANGELOG.md](CHANGELOG.md) for complete details and upgrade instructions.
+
+### v0.1.1 (Previous)
+
+- Initial release with Tailscale, Caddy, and socat
+- Manual Caddyfile configuration
+- Environment variable-based relay configuration
 
 ## Contributing
 
-Contributions are welcome! Please submit issues or pull requests on the GitHub repository.
+Contributions are welcome! 
+
+- **Issues**: Report bugs or request features on [GitHub Issues](https://github.com/sudocarlos/tailscale-socaddy-proxy/issues)
+- **Pull Requests**: Submit improvements via [Pull Requests](https://github.com/sudocarlos/tailscale-socaddy-proxy/pulls)
+- **Documentation**: Help improve docs or add examples
+
+### Development
+
+```bash
+# Clone the repository
+git clone https://github.com/sudocarlos/tailscale-socaddy-proxy.git
+cd tailscale-socaddy-proxy
+
+# Build locally
+docker build -t tailrelay:dev .
+
+# Run tests
+docker-compose -f compose-test.yml up
+```
+
+See [AGENTS.md](AGENTS.md) for detailed development guidelines.
 
 ## License
 
 This project is open source. See the repository for license details.
+
+## Acknowledgments
+
+- [Tailscale](https://tailscale.com) for the amazing VPN platform
+- [Caddy](https://caddyserver.com) for the reverse proxy
+- [Start9](https://start9.com) for inspiring this project
+- Original project by [@hollie](https://github.com/hollie/tailscale-caddy-proxy)
