@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Caddy Proxies - Tailrelay Web UI</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <h1>⚡ Tailrelay Web UI</h1>
+            <ul>
+                <li><a href="/">Dashboard</a></li>
+                <li><a href="/tailscale">Tailscale</a></li>
+                <li><a href="/caddy">Caddy</a></li>
+                <li><a href="/socat">Socat</a></li>
+                <li><a href="/backup">Backup</a></li>
+                <li><a href="/logout">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2>Caddy Reverse Proxies</h2>
+            <div>
+                <button class="btn" onclick="showAddModal()">+ Add Proxy</button>
+                <button class="btn btn-secondary" onclick="reloadCaddy()">🔄 Reload Caddy</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="status-grid" style="margin-bottom: 1.5rem;">
+                <div class="status-card">
+                    <h3>
+                        {{if .Running}}
+                            <span class="status-indicator active"></span>Caddy Status
+                        {{else}}
+                            <span class="status-indicator inactive"></span>Caddy Status
+                        {{end}}
+                    </h3>
+                    <div class="status-value">
+                        {{if .Running}}Running{{else}}Stopped{{end}}
+                    </div>
+                </div>
+                <div class="status-card">
+                    <h3>Total Proxies</h3>
+                    <div class="status-value">{{len .Proxies}}</div>
+                </div>
+                <div class="status-card">
+                    <h3>Enabled Proxies</h3>
+                    <div class="status-value" id="enabled-count">{{.EnabledCount}}</div>
+                </div>
+            </div>
+
+            <h3>Proxy List</h3>
+            {{if .Proxies}}
+            <table id="proxy-table">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Hostname</th>
+                        <th>Port</th>
+                        <th>Target</th>
+                        <th>TLS</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Proxies}}
+                    <tr data-id="{{.ID}}">
+                        <td>
+                            {{if .Enabled}}
+                                <span class="status-indicator active" title="Enabled"></span>
+                            {{else}}
+                                <span class="status-indicator inactive" title="Disabled"></span>
+                            {{end}}
+                        </td>
+                        <td><strong>{{.Hostname}}</strong></td>
+                        <td>{{.Port}}</td>
+                        <td><code>{{.Target}}</code></td>
+                        <td>
+                            {{if .TLS}}
+                                <span style="color: #4ade80;">✓ HTTPS</span>
+                            {{else}}
+                                <span style="color: #888;">HTTP</span>
+                            {{end}}
+                        </td>
+                        <td>
+                            <button class="btn-small" onclick="editProxy('{{.ID}}')">Edit</button>
+                            <button class="btn-small btn-secondary" onclick="toggleProxy('{{.ID}}', {{.Enabled}})">
+                                {{if .Enabled}}Disable{{else}}Enable{{end}}
+                            </button>
+                            <button class="btn-small" style="background: #dc2626;" onclick="deleteProxy('{{.ID}}')">Delete</button>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+            {{else}}
+            <p style="text-align: center; color: #888; padding: 2rem;">
+                No proxies configured. Click "Add Proxy" to create your first reverse proxy.
+            </p>
+            {{end}}
+        </div>
+    </div>
+
+    <!-- Add/Edit Modal -->
+    <div id="proxyModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2 id="modalTitle">Add Proxy</h2>
+            <form id="proxyForm" onsubmit="saveProxy(event)">
+                <input type="hidden" id="proxyId" name="id">
+                
+                <div class="form-group">
+                    <label for="hostname">Hostname *</label>
+                    <input type="text" id="hostname" name="hostname" required placeholder="e.g., myservice.tailnet.ts.net">
+                    <small>Full hostname including tailnet domain</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="port">Listen Port *</label>
+                    <input type="number" id="port" name="port" required min="1" max="65535" placeholder="e.g., 8080">
+                    <small>Port to listen on (1-65535)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="target">Target URL *</label>
+                    <input type="text" id="target" name="target" required placeholder="e.g., http://service.embassy:80">
+                    <small>Full URL including protocol (http:// or https://)</small>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="tls" name="tls">
+                        Enable TLS/HTTPS
+                    </label>
+                    <small>Enable HTTPS for this proxy (requires Tailscale HTTPS enabled)</small>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="trustedProxies" name="trusted_proxies">
+                        Trust Private Ranges
+                    </label>
+                    <small>Enable trusted_proxies for private IP ranges</small>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="enabled" name="enabled" checked>
+                        Enabled
+                    </label>
+                </div>
+
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn">Save Proxy</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.7);
+        }
+        .modal-content {
+            background-color: #1a1a1a;
+            margin: 5% auto;
+            padding: 2rem;
+            border: 1px solid #333;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+        }
+        .close {
+            color: #888;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover { color: #fff; }
+        .btn-small {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #3b82f6;
+            color: white;
+        }
+        .btn-small:hover { background: #2563eb; }
+        .btn-small.btn-secondary { background: #6b7280; }
+        .btn-small.btn-secondary:hover { background: #4b5563; }
+    </style>
+
+    <script>
+        let editingProxyId = null;
+
+        function showAddModal() {
+            document.getElementById('modalTitle').textContent = 'Add Proxy';
+            document.getElementById('proxyForm').reset();
+            document.getElementById('proxyId').value = '';
+            document.getElementById('enabled').checked = true;
+            editingProxyId = null;
+            document.getElementById('proxyModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('proxyModal').style.display = 'none';
+        }
+
+        async function editProxy(id) {
+            try {
+                const response = await fetch(`/api/caddy/proxy?id=${id}`);
+                if (!response.ok) throw new Error('Failed to load proxy');
+                
+                const proxy = await response.json();
+                
+                document.getElementById('modalTitle').textContent = 'Edit Proxy';
+                document.getElementById('proxyId').value = proxy.id;
+                document.getElementById('hostname').value = proxy.hostname;
+                document.getElementById('port').value = proxy.port;
+                document.getElementById('target').value = proxy.target;
+                document.getElementById('tls').checked = proxy.tls || false;
+                document.getElementById('trustedProxies').checked = proxy.trusted_proxies || false;
+                document.getElementById('enabled').checked = proxy.enabled;
+                
+                editingProxyId = id;
+                document.getElementById('proxyModal').style.display = 'block';
+            } catch (error) {
+                alert('Error loading proxy: ' + error.message);
+            }
+        }
+
+        async function saveProxy(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const proxy = {
+                id: formData.get('id') || undefined,
+                hostname: formData.get('hostname'),
+                port: parseInt(formData.get('port')),
+                target: formData.get('target'),
+                tls: document.getElementById('tls').checked,
+                trusted_proxies: document.getElementById('trustedProxies').checked,
+                enabled: document.getElementById('enabled').checked,
+            };
+
+            const url = editingProxyId ? '/api/caddy/update' : '/api/caddy/create';
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(proxy)
+                });
+
+                if (!response.ok) throw new Error('Failed to save proxy');
+                
+                alert(editingProxyId ? 'Proxy updated!' : 'Proxy created!');
+                closeModal();
+                location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function deleteProxy(id) {
+            if (!confirm('Are you sure you want to delete this proxy?')) return;
+            
+            try {
+                const response = await fetch(`/api/caddy/delete?id=${id}`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) throw new Error('Failed to delete proxy');
+                
+                alert('Proxy deleted!');
+                location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function toggleProxy(id, currentState) {
+            try {
+                const response = await fetch('/api/caddy/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id, enabled: !currentState })
+                });
+
+                if (!response.ok) throw new Error('Failed to toggle proxy');
+                
+                location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function reloadCaddy() {
+            if (!confirm('Reload Caddy configuration?')) return;
+            
+            try {
+                const response = await fetch('/api/caddy/reload', {
+                    method: 'POST'
+                });
+
+                if (!response.ok) throw new Error('Failed to reload Caddy');
+                
+                alert('Caddy reloaded successfully!');
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('proxyModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+start9.your-tailnet.ts.net:21000 {
+	reverse_proxy https://lnd.embassy:8080 {
+		header_up Host {upstream_hostport}
+		transport http {
+			tls_trust_pool file /var/lib/tailscale/tls.cert
+		}
+	}
+}
+
+start9.your-tailnet.ts.net:21001 {
+	reverse_proxy http://mempool.embassy:8080 {
+		header_up Host {upstream_hostport}
+	}
+}
+
+start9.your-tailnet.ts.net:21002 {
+	reverse_proxy http://btcpayserver.embassy:80 {
+		header_up Host {upstream_hostport}
+		trusted_proxies private_ranges
+	}
+}
+
+start9.your-tailnet.ts.net:21003 {
+	reverse_proxy http://jam.embassy:80 {
+		header_up Host {upstream_hostport}
+	}
+}

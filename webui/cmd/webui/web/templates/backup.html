@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backup & Restore - Tailrelay Web UI</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <h1>⚡ Tailrelay Web UI</h1>
+            <ul>
+                <li><a href="/">Dashboard</a></li>
+                <li><a href="/tailscale">Tailscale</a></li>
+                <li><a href="/caddy">Caddy</a></li>
+                <li><a href="/socat">Socat</a></li>
+                <li><a href="/backup">Backup</a></li>
+                <li><a href="/logout">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2>Backup & Restore</h2>
+
+        <div class="card">
+            <h3>Create Backup</h3>
+            <p style="color: #888; margin-bottom: 1rem;">
+                Create a backup of your configurations including Caddyfile, socat relays, Caddy proxies, and TLS certificates.
+            </p>
+            <div style="display: flex; gap: 0.5rem;">
+                <button class="btn" onclick="createBackup()">📦 Create Full Backup</button>
+                <button class="btn" onclick="uploadBackup()">📤 Upload Backup</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Available Backups</h3>
+            {{if .Backups}}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Filename</th>
+                        <th>Created</th>
+                        <th>Size</th>
+                        <th>Type</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Backups}}
+                    <tr>
+                        <td><strong>{{.Filename}}</strong></td>
+                        <td>{{.Timestamp.Format "2006-01-02 15:04:05"}}</td>
+                        <td>{{formatSize .Size}}</td>
+                        <td>
+                            {{if .Metadata.BackupType}}
+                                {{.Metadata.BackupType}}
+                            {{else}}
+                                full
+                            {{end}}
+                        </td>
+                        <td>
+                            <button class="btn-small" onclick="downloadBackup('{{.Filename}}')">⬇️ Download</button>
+                            <button class="btn-small" onclick="restoreBackup('{{.Filename}}')">🔄 Restore</button>
+                            <button class="btn-small" style="background: #dc2626;" onclick="deleteBackup('{{.Filename}}')">🗑️ Delete</button>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+            {{else}}
+            <p style="text-align: center; color: #888; padding: 2rem;">
+                No backups available. Create your first backup to protect your configuration.
+            </p>
+            {{end}}
+        </div>
+
+        <div class="card" style="background: #1e293b; border-color: #334155;">
+            <h3>⚠️ Important Notes</h3>
+            <ul style="color: #94a3b8; margin-left: 1.5rem;">
+                <li>Backups include: Caddyfile, socat relays, Caddy proxies, and TLS certificates</li>
+                <li>After restoring a backup, services may need to be restarted</li>
+                <li>Keep your backups in a safe location outside the container</li>
+                <li>Regular backups are recommended before making configuration changes</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeUploadModal()">&times;</span>
+            <h2>Upload Backup</h2>
+            <form id="uploadForm" onsubmit="submitUpload(event)">
+                <div class="form-group">
+                    <label for="backupFile">Select Backup File (.tar.gz)</label>
+                    <input type="file" id="backupFile" name="backup" accept=".tar.gz" required>
+                    <small>Select a backup file to upload</small>
+                </div>
+
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeUploadModal()">Cancel</button>
+                    <button type="submit" class="btn">Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.7);
+        }
+        .modal-content {
+            background-color: #1a1a1a;
+            margin: 10% auto;
+            padding: 2rem;
+            border: 1px solid #333;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+        }
+        .close {
+            color: #888;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover { color: #fff; }
+        .btn-small {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #3b82f6;
+            color: white;
+            margin-right: 0.25rem;
+        }
+        .btn-small:hover { background: #2563eb; }
+    </style>
+
+    <script>
+        async function createBackup() {
+            if (!confirm('Create a full backup of your configuration?')) return;
+            
+            try {
+                const response = await fetch('/api/backup/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ backup_type: 'full' })
+                });
+
+                if (!response.ok) throw new Error('Failed to create backup');
+                
+                const result = await response.json();
+                alert('Backup created: ' + result.filename);
+                location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function restoreBackup(filename) {
+            if (!confirm('Restore from backup "' + filename + '"?\n\nThis will overwrite your current configuration. Services may need to be restarted.')) return;
+            
+            try {
+                const response = await fetch('/api/backup/restore', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: filename })
+                });
+
+                if (!response.ok) throw new Error('Failed to restore backup');
+                
+                const result = await response.json();
+                alert(result.message);
+                location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function deleteBackup(filename) {
+            if (!confirm('Delete backup "' + filename + '"?\n\nThis action cannot be undone.')) return;
+            
+            try {
+                const response = await fetch(`/api/backup/delete?filename=${encodeURIComponent(filename)}`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) throw new Error('Failed to delete backup');
+                
+                alert('Backup deleted successfully');
+                location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        function downloadBackup(filename) {
+            window.location.href = `/api/backup/download?filename=${encodeURIComponent(filename)}`;
+        }
+
+        function uploadBackup() {
+            document.getElementById('uploadModal').style.display = 'block';
+        }
+
+        function closeUploadModal() {
+            document.getElementById('uploadModal').style.display = 'none';
+            document.getElementById('uploadForm').reset();
+        }
+
+        async function submitUpload(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            
+            try {
+                const response = await fetch('/api/backup/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error('Failed to upload backup');
+                
+                const result = await response.json();
+                alert('Backup uploaded: ' + result.filename);
+                closeUploadModal();
+                location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('uploadModal');
+            if (event.target == modal) {
+                closeUploadModal();
+            }
+        }
+    </script>
+</body>
+</html>

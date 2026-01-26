@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="5">
+    <title>Dashboard - Tailrelay Web UI</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <h1>⚡ Tailrelay Web UI</h1>
+            <ul>
+                <li><a href="/">Dashboard</a></li>
+                <li><a href="/tailscale">Tailscale</a></li>
+                <li><a href="/caddy">Caddy</a></li>
+                <li><a href="/socat">Socat</a></li>
+                <li><a href="/backup">Backup</a></li>
+                <li><a href="/logout">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2>System Status</h2>
+        
+        <div class="status-grid">
+            <div class="status-card">
+                <h3>
+                    {{if .TsSummary.Connected}}
+                        <span class="status-indicator active"></span>Tailscale
+                    {{else}}
+                        <span class="status-indicator inactive"></span>Tailscale
+                    {{end}}
+                </h3>
+                <div class="status-value">{{.StateFormatted}}</div>
+                <small>{{.TsSummary.IPv4}}</small>
+            </div>
+            
+            <div class="status-card">
+                <h3><span class="status-indicator active"></span>Caddy</h3>
+                <div class="status-value">{{.ProxyCount}}</div>
+                <small>Active Proxies</small>
+            </div>
+            
+            <div class="status-card">
+                <h3><span class="status-indicator active"></span>Socat</h3>
+                <div class="status-value">{{.RelayCount}}</div>
+                <small>Active Relays</small>
+            </div>
+
+            <div class="status-card">
+                <h3>Version</h3>
+                <div class="status-value" style="font-size: 1.5rem;">{{.Version}}</div>
+                <small>Tailrelay</small>
+            </div>
+        </div>
+
+        {{if .TsSummary.Health}}
+        <div class="alert alert-error">
+            <strong>Tailscale Health Issues:</strong>
+            <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                {{range .TsSummary.Health}}
+                <li>{{.}}</li>
+                {{end}}
+            </ul>
+        </div>
+        {{end}}
+
+        <div class="card">
+            <h2>Tailscale Info</h2>
+            <table>
+                <tr>
+                    <th>Hostname</th>
+                    <td>{{.TsSummary.Hostname}}</td>
+                </tr>
+                <tr>
+                    <th>MagicDNS</th>
+                    <td>{{.TsSummary.MagicDNSName}}</td>
+                </tr>
+                <tr>
+                    <th>Tailnet</th>
+                    <td>{{.TsSummary.TailnetName}}</td>
+                </tr>
+                <tr>
+                    <th>Peers</th>
+                    <td>{{.TsSummary.ActivePeers}}/{{.TsSummary.PeerCount}} active</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Quick Actions</h2>
+            <a href="/caddy" class="btn">Manage Caddy Proxies</a>
+            <a href="/socat" class="btn">Manage Socat Relays</a>
+            <a href="/backup" class="btn btn-secondary">Create Backup</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,25 @@
+server:
+  port: 8021
+  host: "0.0.0.0"
+
+auth:
+  token_file: "/var/lib/tailscale/.webui_token"
+  enable_tailscale_auth: true
+  enable_token_auth: true
+
+paths:
+  caddy_config: "/etc/caddy/Caddyfile"
+  socat_relay_config: "/var/lib/tailscale/relays.json"
+  caddy_proxy_config: "/var/lib/tailscale/proxies.json"
+  state_dir: "/var/lib/tailscale"
+  backup_dir: "/var/lib/tailscale/backups"
+  certificates_dir: "/var/lib/tailscale/certificates"
+
+backup:
+  auto_backup_enabled: false
+  auto_backup_schedule: "0 2 * * *"
+  retention_count: 10
+
+logging:
+  level: "info"
+  format: "text"

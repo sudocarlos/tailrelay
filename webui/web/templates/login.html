@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Tailrelay Web UI</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="login-container">
+        <h1>⚡ Tailrelay</h1>
+        <p class="text-center mb-3">Web UI Login</p>
+        
+        {{if .Error}}
+        <div class="alert alert-error">
+            {{.Error}}
+        </div>
+        {{end}}
+
+        <form method="POST" action="/login">
+            <div class="form-group">
+                <label for="token">Authentication Token</label>
+                <input type="password" id="token" name="token" required autofocus>
+                <small style="color: #888; display: block; margin-top: 0.5rem;">
+                    Check container logs for the authentication token
+                </small>
+            </div>
+            
+            <button type="submit" style="width: 100%;">Login</button>
+        </form>
+    </div>
+</body>
+</html>

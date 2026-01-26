@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socat Relays - Tailrelay Web UI</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <h1>⚡ Tailrelay Web UI</h1>
+            <ul>
+                <li><a href="/">Dashboard</a></li>
+                <li><a href="/tailscale">Tailscale</a></li>
+                <li><a href="/caddy">Caddy</a></li>
+                <li><a href="/socat">Socat</a></li>
+                <li><a href="/backup">Backup</a></li>
+                <li><a href="/logout">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2>Socat TCP Relays</h2>
+            <div>
+                <button class="btn" onclick="showAddModal()">+ Add Relay</button>
+                <button class="btn btn-secondary" onclick="restartAll()">🔄 Restart All</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="status-grid" style="margin-bottom: 1.5rem;">
+                <div class="status-card">
+                    <h3>Total Relays</h3>
+                    <div class="status-value">{{len .Statuses}}</div>
+                </div>
+                <div class="status-card">
+                    <h3>Running</h3>
+                    <div class="status-value">{{.RunningCount}}</div>
+                </div>
+                <div class="status-card">
+                    <h3>Enabled</h3>
+                    <div class="status-value">{{.EnabledCount}}</div>
+                </div>
+            </div>
+
+            <h3>Relay List</h3>
+            {{if .Statuses}}
+            <table id="relay-table">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Listen Port</th>
+                        <th>Target</th>
+                        <th>PID</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Statuses}}
+                    <tr data-id="{{.Relay.ID}}">
+                        <td>
+                            {{if .Running}}
+                                <span class="status-indicator active" title="Running"></span>
+                            {{else if .Relay.Enabled}}
+                                <span class="status-indicator inactive" title="Enabled but not running"></span>
+                            {{else}}
+                                <span class="status-indicator" style="background: #6b7280;" title="Disabled"></span>
+                            {{end}}
+                        </td>
+                        <td><strong>{{.Relay.ListenPort}}</strong></td>
+                        <td><code>{{.Relay.TargetHost}}:{{.Relay.TargetPort}}</code></td>
+                        <td>
+                            {{if .Relay.PID}}
+                                <code>{{.Relay.PID}}</code>
+                            {{else}}
+                                <span style="color: #888;">-</span>
+                            {{end}}
+                        </td>
+                        <td>
+                            <button class="btn-small" onclick="editRelay('{{.Relay.ID}}')">Edit</button>
+                            {{if .Running}}
+                                <button class="btn-small btn-secondary" onclick="stopRelay('{{.Relay.ID}}')">Stop</button>
+                                <button class="btn-small" onclick="restartRelay('{{.Relay.ID}}')">Restart</button>
+                            {{else if .Relay.Enabled}}
+                                <button class="btn-small" onclick="startRelay('{{.Relay.ID}}')">Start</button>
+                            {{end}}
+                            <button class="btn-small btn-secondary" onclick="toggleRelay('{{.Relay.ID}}', {{.Relay.Enabled}})">
+                                {{if .Relay.Enabled}}Disable{{else}}Enable{{end}}
+                            </button>
+                            <button class="btn-small" style="background: #dc2626;" onclick="deleteRelay('{{.Relay.ID}}')">Delete</button>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+            {{else}}
+            <p style="text-align: center; color: #888; padding: 2rem;">
+                No relays configured. Click "Add Relay" to create your first TCP relay.
+            </p>
+            {{end}}
+        </div>
+    </div>
+
+    <!-- Add/Edit Modal -->
+    <div id="relayModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2 id="modalTitle">Add Relay</h2>
+            <form id="relayForm" onsubmit="saveRelay(event)">
+                <input type="hidden" id="relayId" name="id">
+                
+                <div class="form-group">
+                    <label for="listenPort">Listen Port *</label>
+                    <input type="number" id="listenPort" name="listen_port" required min="1" max="65535" placeholder="e.g., 50001">
+                    <small>Port to listen on for incoming connections (1-65535)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="targetHost">Target Host *</label>
+                    <input type="text" id="targetHost" name="target_host" required placeholder="e.g., electrs.embassy">
+                    <small>Hostname or IP address to relay to</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="targetPort">Target Port *</label>
+                    <input type="number" id="targetPort" name="target_port" required min="1" max="65535" placeholder="e.g., 50001">
+                    <small>Port on target host (1-65535)</small>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="enabled" name="enabled" checked>
+                        Enabled
+                    </label>
+                    <small>Start relay automatically</small>
+                </div>
+
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn">Save Relay</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.7);
+        }
+        .modal-content {
+            background-color: #1a1a1a;
+            margin: 5% auto;
+            padding: 2rem;
+            border: 1px solid #333;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+        }
+        .close {
+            color: #888;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover { color: #fff; }
+        .btn-small {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #3b82f6;
+            color: white;
+        }
+        .btn-small:hover { background: #2563eb; }
+        .btn-small.btn-secondary { background: #6b7280; }
+        .btn-small.btn-secondary:hover { background: #4b5563; }
+    </style>
+
+    <script>
+        let editingRelayId = null;
+
+        function showAddModal() {
+            document.getElementById('modalTitle').textContent = 'Add Relay';
+            document.getElementById('relayForm').reset();
+            document.getElementById('relayId').value = '';
+            document.getElementById('enabled').checked = true;
+            editingRelayId = null;
+            document.getElementById('relayModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('relayModal').style.display = 'none';
+        }
+
+        async function editRelay(id) {
+            try {
+                const response = await fetch(`/api/socat/relay?id=${id}`);
+                if (!response.ok) throw new Error('Failed to load relay');
+                
+                const relay = await response.json();
+                
+                document.getElementById('modalTitle').textContent = 'Edit Relay';
+                document.getElementById('relayId').value = relay.id;
+                document.getElementById('listenPort').value = relay.listen_port;
+                document.getElementById('targetHost').value = relay.target_host;
+                document.getElementById('targetPort').value = relay.target_port;
+                document.getElementById('enabled').checked = relay.enabled;
+                
+                editingRelayId = id;
+                document.getElementById('relayModal').style.display = 'block';
+            } catch (error) {
+                alert('Error loading relay: ' + error.message);
+            }
+        }
+
+        async function saveRelay(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const relay = {
+                id: formData.get('id') || undefined,
+                listen_port: parseInt(formData.get('listen_port')),
+                target_host: formData.get('target_host'),
+                target_port: parseInt(formData.get('target_port')),
+                enabled: document.getElementById('enabled').checked,
+            };
+
+            const url = editingRelayId ? '/api/socat/update' : '/api/socat/create';
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(relay)
+                });
+
+                if (!response.ok) throw new Error('Failed to save relay');
+                
+                alert(editingRelayId ? 'Relay updated!' : 'Relay created!');
+                closeModal();
+                location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function deleteRelay(id) {
+            if (!confirm('Are you sure you want to delete this relay?')) return;
+            
+            try {
+                const response = await fetch(`/api/socat/delete?id=${id}`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) throw new Error('Failed to delete relay');
+                
+                alert('Relay deleted!');
+                location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function toggleRelay(id, currentState) {
+            try {
+                const response = await fetch('/api/socat/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id, enabled: !currentState })
+                });
+
+                if (!response.ok) throw new Error('Failed to toggle relay');
+                
+                location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function startRelay(id) {
+            try {
+                const response = await fetch(`/api/socat/start?id=${id}`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) throw new Error('Failed to start relay');
+                
+                location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function stopRelay(id) {
+            try {
+                const response = await fetch(`/api/socat/stop?id=${id}`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) throw new Error('Failed to stop relay');
+                
+                location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function restartRelay(id) {
+            try {
+                const response = await fetch(`/api/socat/restart?id=${id}`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) throw new Error('Failed to restart relay');
+                
+                location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function restartAll() {
+            if (!confirm('Restart all enabled relays?')) return;
+            
+            try {
+                const response = await fetch('/api/socat/restart-all', {
+                    method: 'POST'
+                });
+
+                if (!response.ok) throw new Error('Failed to restart relays');
+                
+                alert('All relays restarted!');
+                location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('relayModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+    </script>
+</body>
+</html>
