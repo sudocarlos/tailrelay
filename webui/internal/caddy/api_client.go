@@ -1,0 +1,163 @@
+package caddy
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"time"
+)
+
+const (
+	// DefaultAdminAPI is the default Caddy admin API address
+	DefaultAdminAPI = "http://localhost:2019"
+)
+
+// APIClient provides methods to interact with Caddy's admin API
+type APIClient struct {
+	BaseURL    string
+	HTTPClient *http.Client
+}
+
+// NewAPIClient creates a new Caddy API client
+func NewAPIClient(baseURL string) *APIClient {
+	if baseURL == "" {
+		baseURL = DefaultAdminAPI
+	}
+
+	return &APIClient{
+		BaseURL: baseURL,
+		HTTPClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+	}
+}
+
+// doRequest performs an HTTP request and returns the response body
+func (c *APIClient) doRequest(method, path string, body interface{}) ([]byte, error) {
+	var reqBody io.Reader
+
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("marshal request body: %w", err)
+		}
+		reqBody = bytes.NewBuffer(data)
+	}
+
+	url := c.BaseURL + path
+	req, err := http.NewRequest(method, url, reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return respBody, nil
+}
+
+// GetConfig retrieves the entire Caddy configuration
+func (c *APIClient) GetConfig(path string) (json.RawMessage, error) {
+	if path == "" {
+		path = "/"
+	}
+	data, err := c.doRequest("GET", "/config"+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(data), nil
+}
+
+// PostConfig adds or appends to configuration at the specified path
+// For arrays, this appends. For objects, this creates or replaces.
+func (c *APIClient) PostConfig(path string, config interface{}) error {
+	_, err := c.doRequest("POST", "/config"+path, config)
+	return err
+}
+
+// PatchConfig replaces configuration at the specified path
+// This strictly replaces an existing value or array element
+func (c *APIClient) PatchConfig(path string, config interface{}) error {
+	_, err := c.doRequest("PATCH", "/config"+path, config)
+	return err
+}
+
+// PutConfig inserts configuration at the specified path
+// For arrays, this inserts. For objects, it strictly creates a new value.
+func (c *APIClient) PutConfig(path string, config interface{}) error {
+	_, err := c.doRequest("PUT", "/config"+path, config)
+	return err
+}
+
+// DeleteConfig removes configuration at the specified path
+func (c *APIClient) DeleteConfig(path string) error {
+	_, err := c.doRequest("DELETE", "/config"+path, nil)
+	return err
+}
+
+// GetByID retrieves configuration by @id tag
+func (c *APIClient) GetByID(id string) (json.RawMessage, error) {
+	data, err := c.doRequest("GET", "/id/"+id, nil)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(data), nil
+}
+
+// PatchByID updates configuration by @id tag
+func (c *APIClient) PatchByID(id string, config interface{}) error {
+	_, err := c.doRequest("PATCH", "/id/"+id, config)
+	return err
+}
+
+// DeleteByID removes configuration by @id tag
+func (c *APIClient) DeleteByID(id string) error {
+	_, err := c.doRequest("DELETE", "/id/"+id, nil)
+	return err
+}
+
+// LoadConfig loads a complete configuration (replaces entire config)
+func (c *APIClient) LoadConfig(config interface{}) error {
+	_, err := c.doRequest("POST", "/load", config)
+	return err
+}
+
+// GetReverseProxyUpstreams returns the status of all reverse proxy upstreams
+func (c *APIClient) GetReverseProxyUpstreams() ([]UpstreamStatus, error) {
+	data, err := c.doRequest("GET", "/reverse_proxy/upstreams", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var upstreams []UpstreamStatus
+	if err := json.Unmarshal(data, &upstreams); err != nil {
+		return nil, fmt.Errorf("unmarshal upstreams: %w", err)
+	}
+
+	return upstreams, nil
+}
+
+// UpstreamStatus represents the status of a reverse proxy upstream
+type UpstreamStatus struct {
+	Address     string `json:"address"`
+	NumRequests int    `json:"num_requests"`
+	Fails       int    `json:"fails"`
+}

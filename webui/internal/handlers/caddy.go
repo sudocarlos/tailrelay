@@ -22,10 +22,10 @@ type CaddyHandler struct {
 
 // NewCaddyHandler creates a new Caddy handler
 func NewCaddyHandler(cfg *config.Config, templates *template.Template) *CaddyHandler {
+	// Use Caddy API instead of file-based config
 	manager := caddy.NewManager(
-		"caddy",
-		cfg.Paths.CaddyConfig,
-		cfg.Paths.CaddyProxyConfig,
+		caddy.DefaultAdminAPI,
+		"tailrelay", // Server name in Caddy config
 	)
 
 	return &CaddyHandler{
@@ -37,7 +37,7 @@ func NewCaddyHandler(cfg *config.Config, templates *template.Template) *CaddyHan
 
 // List renders the Caddy proxy management page
 func (h *CaddyHandler) List(w http.ResponseWriter, r *http.Request) {
-	proxies, err := caddy.LoadProxies(h.cfg.Paths.CaddyProxyConfig)
+	proxies, err := h.manager.ListProxies()
 	if err != nil {
 		log.Printf("Error loading proxies: %v", err)
 		proxies = []config.CaddyProxy{}
@@ -90,17 +90,11 @@ func (h *CaddyHandler) Create(w http.ResponseWriter, r *http.Request) {
 		proxy.Enabled = true
 	}
 
-	// Add proxy
-	if err := caddy.AddProxy(h.cfg.Paths.CaddyProxyConfig, proxy); err != nil {
+	// Add proxy via API (no reload needed - API handles it instantly)
+	if err := h.manager.AddProxy(proxy); err != nil {
 		log.Printf("Error adding proxy: %v", err)
 		http.Error(w, "Failed to add proxy", http.StatusInternalServerError)
 		return
-	}
-
-	// Reload Caddy
-	if err := h.manager.Reload(); err != nil {
-		log.Printf("Error reloading Caddy: %v", err)
-		// Don't fail - proxy was added, just reload failed
 	}
 
 	response := map[string]interface{}{
@@ -131,16 +125,11 @@ func (h *CaddyHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update proxy
-	if err := caddy.UpdateProxy(h.cfg.Paths.CaddyProxyConfig, proxy); err != nil {
+	// Update proxy via API (no reload needed - API handles it instantly)
+	if err := h.manager.UpdateProxy(proxy); err != nil {
 		log.Printf("Error updating proxy: %v", err)
 		http.Error(w, "Failed to update proxy", http.StatusInternalServerError)
 		return
-	}
-
-	// Reload Caddy
-	if err := h.manager.Reload(); err != nil {
-		log.Printf("Error reloading Caddy: %v", err)
 	}
 
 	response := map[string]interface{}{
@@ -166,16 +155,11 @@ func (h *CaddyHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delete proxy
-	if err := caddy.DeleteProxy(h.cfg.Paths.CaddyProxyConfig, proxyID); err != nil {
+	// Delete proxy via API (no reload needed - API handles it instantly)
+	if err := h.manager.DeleteProxy(proxyID); err != nil {
 		log.Printf("Error deleting proxy: %v", err)
 		http.Error(w, "Failed to delete proxy", http.StatusInternalServerError)
 		return
-	}
-
-	// Reload Caddy
-	if err := h.manager.Reload(); err != nil {
-		log.Printf("Error reloading Caddy: %v", err)
 	}
 
 	response := map[string]string{
@@ -209,16 +193,11 @@ func (h *CaddyHandler) Toggle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Toggle proxy
-	if err := caddy.ToggleProxy(h.cfg.Paths.CaddyProxyConfig, request.ID, request.Enabled); err != nil {
+	// Toggle proxy via API (no reload needed - API handles it instantly)
+	if err := h.manager.ToggleProxy(request.ID, request.Enabled); err != nil {
 		log.Printf("Error toggling proxy: %v", err)
 		http.Error(w, "Failed to toggle proxy", http.StatusInternalServerError)
 		return
-	}
-
-	// Reload Caddy
-	if err := h.manager.Reload(); err != nil {
-		log.Printf("Error reloading Caddy: %v", err)
 	}
 
 	response := map[string]string{
@@ -231,21 +210,25 @@ func (h *CaddyHandler) Toggle(w http.ResponseWriter, r *http.Request) {
 }
 
 // Reload handles reloading Caddy configuration
+// Note: This is now a no-op since Caddy API handles changes instantly
+// Kept for backwards compatibility with the Web UI
 func (h *CaddyHandler) Reload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	if err := h.manager.Reload(); err != nil {
-		log.Printf("Error reloading Caddy: %v", err)
-		http.Error(w, fmt.Sprintf("Failed to reload Caddy: %v", err), http.StatusInternalServerError)
+	// Check if Caddy API is accessible
+	running, err := h.manager.GetStatus()
+	if err != nil || !running {
+		log.Printf("Error checking Caddy status: %v", err)
+		http.Error(w, fmt.Sprintf("Caddy API not accessible: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	response := map[string]string{
 		"status":  "success",
-		"message": "Caddy reloaded successfully",
+		"message": "Caddy configuration is up to date (API-based management)",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -254,7 +237,7 @@ func (h *CaddyHandler) Reload(w http.ResponseWriter, r *http.Request) {
 
 // APIList returns all proxies as JSON
 func (h *CaddyHandler) APIList(w http.ResponseWriter, r *http.Request) {
-	proxies, err := caddy.LoadProxies(h.cfg.Paths.CaddyProxyConfig)
+	proxies, err := h.manager.ListProxies()
 	if err != nil {
 		log.Printf("Error loading proxies: %v", err)
 		http.Error(w, "Failed to load proxies", http.StatusInternalServerError)
@@ -273,7 +256,7 @@ func (h *CaddyHandler) APIGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	proxy, err := caddy.GetProxy(h.cfg.Paths.CaddyProxyConfig, proxyID)
+	proxy, err := h.manager.GetProxy(proxyID)
 	if err != nil {
 		log.Printf("Error getting proxy: %v", err)
 		http.Error(w, "Proxy not found", http.StatusNotFound)

@@ -3,118 +3,102 @@ package caddy
 import (
 	"fmt"
 	"log"
-	"os/exec"
+
+	"github.com/sudocarlos/tailrelay-webui/internal/config"
 )
 
-// Manager handles Caddy process management
+// Manager handles Caddy API-based management
 type Manager struct {
-	caddyBinary string
-	caddyConfig string
-	proxiesFile string
+	proxyManager *ProxyManager
+	apiURL       string
+	serverName   string
 }
 
-// NewManager creates a new Caddy manager
-func NewManager(caddyBinary, caddyConfig, proxiesFile string) *Manager {
-	if caddyBinary == "" {
-		caddyBinary = "caddy" // Default to PATH
+// NewManager creates a new Caddy manager using the API
+func NewManager(apiURL, serverName string) *Manager {
+	if apiURL == "" {
+		apiURL = DefaultAdminAPI
+	}
+	if serverName == "" {
+		serverName = "tailrelay"
 	}
 
 	return &Manager{
-		caddyBinary: caddyBinary,
-		caddyConfig: caddyConfig,
-		proxiesFile: proxiesFile,
+		proxyManager: NewProxyManager(apiURL, serverName),
+		apiURL:       apiURL,
+		serverName:   serverName,
 	}
 }
 
-// Reload reloads the Caddy configuration
-func (m *Manager) Reload() error {
-	// First, regenerate the Caddyfile from JSON
-	if err := m.RegenerateCaddyfile(); err != nil {
-		return fmt.Errorf("failed to regenerate Caddyfile: %w", err)
+// AddProxy adds a new reverse proxy via Caddy API
+func (m *Manager) AddProxy(proxy config.CaddyProxy) error {
+	if err := m.proxyManager.AddProxy(proxy); err != nil {
+		return fmt.Errorf("failed to add proxy: %w", err)
 	}
-
-	// Validate the configuration
-	if err := m.Validate(); err != nil {
-		return fmt.Errorf("configuration validation failed: %w", err)
-	}
-
-	// Reload Caddy
-	cmd := exec.Command(m.caddyBinary, "reload", "--config", m.caddyConfig)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to reload Caddy: %w (output: %s)", err, string(output))
-	}
-
-	log.Printf("Caddy reloaded successfully")
+	log.Printf("Proxy added successfully: %s", proxy.ID)
 	return nil
 }
 
-// Validate validates the Caddy configuration without reloading
-func (m *Manager) Validate() error {
-	cmd := exec.Command(m.caddyBinary, "validate", "--config", m.caddyConfig)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("validation failed: %w (output: %s)", err, string(output))
-	}
+// GetProxy retrieves a proxy by ID
+func (m *Manager) GetProxy(id string) (*config.CaddyProxy, error) {
+	return m.proxyManager.GetProxy(id)
+}
 
+// UpdateProxy updates an existing proxy
+func (m *Manager) UpdateProxy(proxy config.CaddyProxy) error {
+	if err := m.proxyManager.UpdateProxy(proxy); err != nil {
+		return fmt.Errorf("failed to update proxy: %w", err)
+	}
+	log.Printf("Proxy updated successfully: %s", proxy.ID)
 	return nil
 }
 
-// RegenerateCaddyfile regenerates the Caddyfile from proxy configurations
-func (m *Manager) RegenerateCaddyfile() error {
-	proxies, err := LoadProxies(m.proxiesFile)
-	if err != nil {
-		return fmt.Errorf("failed to load proxies: %w", err)
+// DeleteProxy removes a proxy by ID
+func (m *Manager) DeleteProxy(id string) error {
+	if err := m.proxyManager.DeleteProxy(id); err != nil {
+		return fmt.Errorf("failed to delete proxy: %w", err)
 	}
-
-	if err := GenerateCaddyfile(proxies, m.caddyConfig); err != nil {
-		return fmt.Errorf("failed to generate Caddyfile: %w", err)
-	}
-
+	log.Printf("Proxy deleted successfully: %s", id)
 	return nil
 }
 
-// Start starts Caddy (for initial startup)
-func (m *Manager) Start() error {
-	// Regenerate Caddyfile before starting
-	if err := m.RegenerateCaddyfile(); err != nil {
-		return fmt.Errorf("failed to regenerate Caddyfile: %w", err)
-	}
+// ListProxies retrieves all proxies
+func (m *Manager) ListProxies() ([]config.CaddyProxy, error) {
+	return m.proxyManager.ListProxies()
+}
 
-	cmd := exec.Command(m.caddyBinary, "run", "--config", m.caddyConfig)
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start Caddy: %w", err)
+// ToggleProxy enables or disables a proxy
+func (m *Manager) ToggleProxy(id string, enabled bool) error {
+	if err := m.proxyManager.ToggleProxy(id, enabled); err != nil {
+		return fmt.Errorf("failed to toggle proxy: %w", err)
 	}
-
-	log.Printf("Caddy started successfully")
+	status := "enabled"
+	if !enabled {
+		status = "disabled"
+	}
+	log.Printf("Proxy %s: %s", status, id)
 	return nil
 }
 
-// Stop stops Caddy gracefully
-func (m *Manager) Stop() error {
-	cmd := exec.Command(m.caddyBinary, "stop")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to stop Caddy: %w (output: %s)", err, string(output))
-	}
-
-	log.Printf("Caddy stopped successfully")
-	return nil
-}
-
-// GetStatus returns Caddy status
+// GetStatus checks if Caddy API is accessible
 func (m *Manager) GetStatus() (bool, error) {
-	// Try to validate - if Caddy is running and config is valid, this should work
-	cmd := exec.Command(m.caddyBinary, "version")
-	if err := cmd.Run(); err != nil {
-		return false, fmt.Errorf("Caddy not accessible: %w", err)
-	}
-
-	// Check if Caddy process is running by trying to get config
-	cmd = exec.Command(m.caddyBinary, "adapt", "--config", m.caddyConfig)
-	if err := cmd.Run(); err != nil {
-		return false, nil // Config invalid but Caddy binary works
-	}
-
-	return true, nil
+	return m.proxyManager.GetStatus()
 }
+
+// GetUpstreams returns the status of all reverse proxy upstreams
+func (m *Manager) GetUpstreams() ([]UpstreamStatus, error) {
+	return m.proxyManager.GetUpstreams()
+}
+
+// InitializeServer ensures the HTTP server is configured in Caddy
+func (m *Manager) InitializeServer(listenAddrs []string) error {
+	if err := m.proxyManager.InitializeServer(listenAddrs); err != nil {
+		return fmt.Errorf("failed to initialize server: %w", err)
+	}
+	log.Printf("Server initialized: %s", m.serverName)
+	return nil
+}
+
+// Note: Reload, Start, Stop methods are no longer needed
+// The Caddy API handles configuration changes atomically and instantly
+// No manual reload or restart is required

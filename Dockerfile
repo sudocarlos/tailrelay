@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # check=skip=SecretsUsedInArgOrEnv
 ARG TAILSCALE_VERSION=v1.92.5
-ARG TAILRELAY_VERSION=v0.2.0
+ARG TAILRELAY_VERSION=v0.2.1
 ARG GO_VERSION=1.21
 
 # Build stage for Web UI

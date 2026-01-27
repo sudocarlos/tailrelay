@@ -1,6 +1,6 @@
 #!/bin/ash
 trap 'kill -TERM $PID' TERM INT
-TAILRELAY_VERSION=v0.2.0
+TAILRELAY_VERSION=v0.2.1
 
 # Accept a single comma‑separated list of port:target pairs
 # Each item in the list represents one socat relay
