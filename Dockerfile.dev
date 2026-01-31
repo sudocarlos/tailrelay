@@ -1,29 +1,8 @@
 # syntax=docker/dockerfile:1
-# check=skip=SecretsUsedInArgOrEnv
+# Development Dockerfile that uses pre-built local webui binary
+# Build webui locally first: make dev-build
 ARG TAILSCALE_VERSION=v1.92.5
-ARG GO_VERSION=1.21
 
-# Build stage for Web UI
-FROM golang:${GO_VERSION}-alpine AS webui-builder
-
-WORKDIR /build
-
-# Install build dependencies
-RUN apk add --no-cache git
-
-# Copy go mod files
-COPY webui/go.mod webui/go.sum ./
-
-# Download dependencies
-RUN go mod download
-
-# Copy source code
-COPY webui/ ./
-
-# Build the Web UI binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" -o tailrelay-webui ./cmd/webui
-
-# Main image
 FROM tailscale/tailscale:$TAILSCALE_VERSION
 
 LABEL maintainer="carlos@sudocarlos.com"
@@ -41,14 +20,14 @@ RUN apk update && \
     apk add --no-cache ca-certificates mailcap caddy socat && \
     caddy upgrade
 
-# Copy Web UI binary from builder
-COPY --from=webui-builder /build/tailrelay-webui /usr/bin/tailrelay-webui
+# Copy locally-built Web UI binary from ./data
+COPY data/tailrelay-webui /usr/bin/tailrelay-webui
 
 # Copy Web UI configuration
 COPY webui.yaml /etc/tailrelay/webui.yaml
 
 COPY start.sh /usr/bin/start.sh
-RUN chmod +x /usr/bin/start.sh && \
+RUN chmod +x /usr/bin/start.sh /usr/bin/tailrelay-webui && \
     mkdir --parents /var/run/tailscale && \
     mkdir --parents /var/lib/tailscale/backups && \
     ln -s /tmp/tailscaled.sock /var/run/tailscale/tailscaled.sock && \

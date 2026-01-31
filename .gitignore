@@ -1,5 +1,31 @@
-# Created by https://www.toptal.com/developers/gitignore/api/python,macos
-# Edit at https://www.toptal.com/developers/gitignore?templates=python,macos
+# Created by https://www.toptal.com/developers/gitignore/api/python,macos,go
+# Edit at https://www.toptal.com/developers/gitignore?templates=python,macos,go
+
+### Go ###
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Local dev build output
+data/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
 
 ### macOS ###
 # General
@@ -206,9 +232,22 @@ poetry.toml
 # LSP config files
 pyrightconfig.json
 
-# End of https://www.toptal.com/developers/gitignore/api/python,macos
+# Local History for Visual Studio Code
+.history/
+
+# Built Visual Studio Code Extensions
+*.vsix
+
+### VisualStudioCode Patch ###
+# Ignore all local history of files
+.history
+.ionide
+
+# End of https://www.toptal.com/developers/gitignore/api/python,macos,go
 
 docker-compose.yml
 compose.yml
 Caddyfile
 tailscale*
+.github/prompts*
+.vscode*

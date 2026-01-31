@@ -11,18 +11,14 @@ services:
         - tailrelay_devnet
 
     tailrelay:
+        image: sudocarlos/tailrelay:dev-local
         container_name: tailrelay-test
-
         volumes:
             - ./tailscale/:/var/lib/tailscale
             - ./tailscale/Caddyfile:/etc/caddy/Caddyfile
         environment:
             - TS_HOSTNAME=tailrelay-dev
-            - >-
-                RELAY_LIST=8080:whoami-test:80,
-                8081:whoami-test:80
         ports:
             - "8021:8021"  # Web UI
         networks:
             - tailrelay_devnet
-        image: sudocarlos/tailrelay:dev
