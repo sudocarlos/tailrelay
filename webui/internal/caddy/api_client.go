@@ -184,6 +184,29 @@ func (c *APIClient) GetReverseProxyUpstreams() ([]UpstreamStatus, error) {
 	return upstreams, nil
 }
 
+// DiscoverServerName discovers the first HTTP server name from Caddy config
+// Returns the first server name found, or empty string if none exist
+func (c *APIClient) DiscoverServerName() (string, error) {
+	data, err := c.GetConfig("/apps/http/servers")
+	if err != nil {
+		return "", fmt.Errorf("get servers: %w", err)
+	}
+
+	// Parse as map to get server names
+	var servers map[string]interface{}
+	if err := json.Unmarshal(data, &servers); err != nil {
+		return "", fmt.Errorf("unmarshal servers: %w", err)
+	}
+
+	// Return first server name found
+	for name := range servers {
+		logger.Debug("caddy", "Discovered Caddy server name: %s", name)
+		return name, nil
+	}
+
+	return "", fmt.Errorf("no HTTP servers found in Caddy config")
+}
+
 // UpstreamStatus represents the status of a reverse proxy upstream
 type UpstreamStatus struct {
 	Address     string `json:"address"`

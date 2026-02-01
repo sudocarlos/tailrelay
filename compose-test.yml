@@ -20,5 +20,6 @@ services:
             - TS_HOSTNAME=tailrelay-dev
         ports:
             - "8021:8021"  # Web UI
+            - "2019:2019"  # Caddy Admin API
         networks:
             - tailrelay_devnet

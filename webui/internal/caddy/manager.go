@@ -19,14 +19,16 @@ func NewManager(apiURL, serverName string) *Manager {
 	if apiURL == "" {
 		apiURL = DefaultAdminAPI
 	}
-	if serverName == "" {
-		serverName = "tailrelay"
-	}
+	// Don't set default here - let ProxyManager discover it
+	// This allows auto-detection of server names like 'srv0' when Caddy
+	// auto-generates them from Caddyfile
+
+	proxyMgr := NewProxyManager(apiURL, serverName)
 
 	return &Manager{
-		proxyManager: NewProxyManager(apiURL, serverName),
+		proxyManager: proxyMgr,
 		apiURL:       apiURL,
-		serverName:   serverName,
+		serverName:   proxyMgr.serverName,
 	}
 }
 

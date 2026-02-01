@@ -56,6 +56,7 @@
                         <th>Listen Port</th>
                         <th>Target</th>
                         <th>PID</th>
+                        <th>Enabled</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -81,6 +82,12 @@
                             {{end}}
                         </td>
                         <td>
+                            <label class="toggle-switch" title="Enable ensures this service is started automatically when tailrelay starts">
+                                <input type="checkbox" {{if .Relay.Enabled}}checked{{end}} onchange="toggleRelay('{{.Relay.ID}}', {{.Relay.Enabled}})">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </td>
+                        <td>
                             <button class="btn-small" onclick="editRelay('{{.Relay.ID}}')">Edit</button>
                             {{if .Running}}
                                 <button class="btn-small btn-secondary" onclick="stopRelay('{{.Relay.ID}}')">Stop</button>
@@ -88,9 +95,6 @@
                             {{else if .Relay.Enabled}}
                                 <button class="btn-small" onclick="startRelay('{{.Relay.ID}}')">Start</button>
                             {{end}}
-                            <button class="btn-small btn-secondary" onclick="toggleRelay('{{.Relay.ID}}', {{.Relay.Enabled}})">
-                                {{if .Relay.Enabled}}Disable{{else}}Enable{{end}}
-                            </button>
                             <button class="btn-small" style="background: #dc2626;" onclick="deleteRelay('{{.Relay.ID}}')">Delete</button>
                         </td>
                     </tr>
@@ -136,7 +140,7 @@
                         <input type="checkbox" id="enabled" name="enabled" checked>
                         Enabled
                     </label>
-                    <small>Start relay automatically</small>
+                    <small>Enable ensures this service is started automatically when tailrelay starts</small>
                 </div>
 
                 <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
@@ -148,6 +152,49 @@
     </div>
 
     <style>
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+            cursor: pointer;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #4b5563;
+            transition: .3s;
+            border-radius: 24px;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: #3b82f6;
+        }
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(26px);
+        }
+        .toggle-switch input:focus + .toggle-slider {
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+        }
         .modal {
             display: none;
             position: fixed;

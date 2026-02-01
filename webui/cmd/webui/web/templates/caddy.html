@@ -114,11 +114,14 @@
             <h2 id="modalTitle">Add Proxy</h2>
             <form id="proxyForm" onsubmit="saveProxy(event)">
                 <input type="hidden" id="proxyId" name="id">
+                <input type="hidden" id="hostname" name="hostname" value="{{.TailscaleFQDN}}">
                 
-                <div class="form-group">
-                    <label for="hostname">Hostname *</label>
-                    <input type="text" id="hostname" name="hostname" required placeholder="e.g., myservice.tailnet.ts.net">
-                    <small>Full hostname including tailnet domain</small>
+                <div class="form-group" style="background: #252525; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+                    <label style="color: #888; font-size: 0.875rem;">Hostname (auto-detected)</label>
+                    <div style="color: #4ade80; font-family: monospace; font-size: 1rem; margin-top: 0.25rem;">
+                        {{if .TailscaleFQDN}}{{.TailscaleFQDN}}{{else}}<span style="color: #ef4444;">⚠ Not available - check Tailscale connection</span>{{end}}
+                    </div>
+                    <small>Using your Tailscale machine's FQDN</small>
                 </div>
 
                 <div class="form-group">
@@ -131,14 +134,6 @@
                     <label for="target">Target URL *</label>
                     <input type="text" id="target" name="target" required placeholder="e.g., http://service.embassy:80">
                     <small>Full URL including protocol (http:// or https://)</small>
-                </div>
-
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="tls" name="tls">
-                        Enable TLS/HTTPS
-                    </label>
-                    <small>Enable HTTPS for this proxy (requires Tailscale HTTPS enabled)</small>
                 </div>
 
                 <div class="form-group">
@@ -232,10 +227,8 @@
                 
                 document.getElementById('modalTitle').textContent = 'Edit Proxy';
                 document.getElementById('proxyId').value = proxy.id;
-                document.getElementById('hostname').value = proxy.hostname;
                 document.getElementById('port').value = proxy.port;
                 document.getElementById('target').value = proxy.target;
-                document.getElementById('tls').checked = proxy.tls || false;
                 document.getElementById('trustedProxies').checked = proxy.trusted_proxies || false;
                 document.getElementById('enabled').checked = proxy.enabled;
                 
@@ -250,12 +243,20 @@
             event.preventDefault();
             
             const formData = new FormData(event.target);
+            const hostname = formData.get('hostname');
+            
+            // Validate that hostname is available
+            if (!hostname || hostname.trim() === '') {
+                alert('Error: Tailscale FQDN not available. Please ensure Tailscale is connected.');
+                return;
+            }
+            
             const proxy = {
                 id: formData.get('id') || undefined,
-                hostname: formData.get('hostname'),
+                hostname: hostname,
                 port: parseInt(formData.get('port')),
                 target: formData.get('target'),
-                tls: document.getElementById('tls').checked,
+                tls: true,  // Always enable TLS
                 trusted_proxies: document.getElementById('trustedProxies').checked,
                 enabled: document.getElementById('enabled').checked,
             };

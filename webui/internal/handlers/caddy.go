@@ -11,6 +11,7 @@ import (
 
 	"github.com/sudocarlos/tailrelay-webui/internal/caddy"
 	"github.com/sudocarlos/tailrelay-webui/internal/config"
+	"github.com/sudocarlos/tailrelay-webui/internal/tailscale"
 )
 
 // CaddyHandler handles Caddy-related requests
@@ -18,20 +19,23 @@ type CaddyHandler struct {
 	cfg       *config.Config
 	templates *template.Template
 	manager   *caddy.Manager
+	tsClient  *tailscale.Client
 }
 
 // NewCaddyHandler creates a new Caddy handler
 func NewCaddyHandler(cfg *config.Config, templates *template.Template) *CaddyHandler {
 	// Use Caddy API instead of file-based config
+	// Pass empty string for server name to enable auto-discovery
 	manager := caddy.NewManager(
 		caddy.DefaultAdminAPI,
-		"tailrelay", // Server name in Caddy config
+		"", // Auto-discover server name from Caddy
 	)
 
 	return &CaddyHandler{
 		cfg:       cfg,
 		templates: templates,
 		manager:   manager,
+		tsClient:  tailscale.NewClient(),
 	}
 }
 
@@ -46,6 +50,12 @@ func (h *CaddyHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Get Caddy status
 	running, _ := h.manager.GetStatus()
 
+	// Get Tailscale FQDN
+	tailscaleFQDN := ""
+	if status, err := h.tsClient.GetStatusSummary(); err == nil {
+		tailscaleFQDN = status.MagicDNSName
+	}
+
 	// Count enabled proxies
 	enabledCount := 0
 	for _, proxy := range proxies {
@@ -55,10 +65,11 @@ func (h *CaddyHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Title":        "Caddy Proxies",
-		"Proxies":      proxies,
-		"Running":      running,
-		"EnabledCount": enabledCount,
+		"Title":         "Caddy Proxies",
+		"Proxies":       proxies,
+		"Running":       running,
+		"EnabledCount":  enabledCount,
+		"TailscaleFQDN": tailscaleFQDN,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "caddy.html", data); err != nil {
