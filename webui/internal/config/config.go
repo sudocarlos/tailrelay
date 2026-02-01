@@ -94,7 +94,7 @@ func DefaultConfig() *Config {
 			CaddyServerMap:   "/var/lib/tailscale/caddy_servers.json",
 			StateDir:         "/var/lib/tailscale",
 			BackupDir:        "/var/lib/tailscale/backups",
-			CertificatesDir:  "/var/lib/tailscale/certificates",
+			CertificatesDir:  "/data",
 		},
 		Backup: BackupConfig{
 			AutoBackupEnabled:  false,

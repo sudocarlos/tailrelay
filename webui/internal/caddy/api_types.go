@@ -132,6 +132,13 @@ type TLSConfig struct {
 	InsecureSkipVerify    bool     `json:"insecure_skip_verify,omitempty"`
 	ServerName            string   `json:"server_name,omitempty"`
 	HandshakeTimeout      string   `json:"handshake_timeout,omitempty"`
+	CA                    *TLSCAConfig `json:"ca,omitempty"`
+}
+
+// TLSCAConfig represents TLS CA configuration (e.g. file-based CA certs)
+type TLSCAConfig struct {
+	Provider string   `json:"provider,omitempty"`
+	PEMFiles []string `json:"pem_files,omitempty"`
 }
 
 // KeepAlive represents keep-alive configuration

@@ -14,7 +14,7 @@ paths:
   caddy_server_map: "/var/lib/tailscale/caddy_servers.json"
   state_dir: "/var/lib/tailscale"
   backup_dir: "/var/lib/tailscale/backups"
-  certificates_dir: "/var/lib/tailscale/certificates"
+  certificates_dir: "/data"
 
 backup:
   auto_backup_enabled: false

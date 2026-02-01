@@ -4,8 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/sudocarlos/tailrelay-webui/internal/caddy"
 	"github.com/sudocarlos/tailrelay-webui/internal/config"
@@ -83,9 +90,9 @@ func (h *CaddyHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var proxy config.CaddyProxy
-	if err := json.NewDecoder(r.Body).Decode(&proxy); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	proxy, err := h.parseProxyFromRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -121,9 +128,9 @@ func (h *CaddyHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var proxy config.CaddyProxy
-	if err := json.NewDecoder(r.Body).Decode(&proxy); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	proxy, err := h.parseProxyFromRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -274,4 +281,138 @@ func (h *CaddyHandler) APIGet(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(proxy)
+}
+
+func (h *CaddyHandler) parseProxyFromRequest(r *http.Request) (config.CaddyProxy, error) {
+	contentType := r.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		return h.parseProxyFromMultipart(r)
+	}
+
+	var proxy config.CaddyProxy
+	if err := json.NewDecoder(r.Body).Decode(&proxy); err != nil {
+		return config.CaddyProxy{}, fmt.Errorf("invalid request body")
+	}
+
+	return proxy, nil
+}
+
+func (h *CaddyHandler) parseProxyFromMultipart(r *http.Request) (config.CaddyProxy, error) {
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		return config.CaddyProxy{}, fmt.Errorf("failed to parse form data")
+	}
+
+	proxy := config.CaddyProxy{}
+	proxy.ID = r.FormValue("id")
+	proxy.Hostname = r.FormValue("hostname")
+	proxy.Target = r.FormValue("target")
+	proxy.TLSCertFile = r.FormValue("tls_cert_file")
+
+	if portStr := r.FormValue("port"); portStr != "" {
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			return config.CaddyProxy{}, fmt.Errorf("invalid port")
+		}
+		proxy.Port = port
+	}
+
+	proxy.Enabled = parseBool(r.FormValue("enabled"))
+	proxy.TrustedProxies = parseBool(r.FormValue("trusted_proxies"))
+	proxy.TLS = parseBool(r.FormValue("tls"))
+
+	file, fileHeader, err := r.FormFile("tls_cert_upload")
+	if err == nil {
+		defer file.Close()
+		certPath, err := h.saveTLSCertFile(proxy.Target, file, fileHeader)
+		if err != nil {
+			return config.CaddyProxy{}, err
+		}
+		proxy.TLSCertFile = certPath
+	}
+
+	return proxy, nil
+}
+
+func (h *CaddyHandler) saveTLSCertFile(target string, file multipart.File, header *multipart.FileHeader) (string, error) {
+	if target == "" {
+		return "", fmt.Errorf("target is required for cert upload")
+	}
+
+	parsed, err := url.Parse(target)
+	if err != nil {
+		return "", fmt.Errorf("invalid target URL")
+	}
+
+	host := parsed.Hostname()
+	port := parsed.Port()
+	if port == "" {
+		if parsed.Scheme == "https" {
+			port = "443"
+		} else {
+			port = "80"
+		}
+	}
+
+	if host == "" {
+		return "", fmt.Errorf("invalid target host")
+	}
+
+	nameBase := sanitizeName(host)
+	fileName := fmt.Sprintf("%s-%s.cert", nameBase, port)
+
+	certDir := h.cfg.Paths.CertificatesDir
+	if certDir == "" {
+		certDir = "/data"
+	}
+
+	if err := os.MkdirAll(certDir, 0755); err != nil {
+		return "", fmt.Errorf("create cert dir: %w", err)
+	}
+
+	fullPath := filepath.Join(certDir, fileName)
+	fullPath = ensureUniqueFile(fullPath)
+
+	out, err := os.Create(fullPath)
+	if err != nil {
+		return "", fmt.Errorf("create cert file: %w", err)
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, file); err != nil {
+		return "", fmt.Errorf("write cert file: %w", err)
+	}
+
+	if header != nil && header.Filename != "" {
+		_ = header
+	}
+
+	return fullPath, nil
+}
+
+func sanitizeName(input string) string {
+	name := strings.ToLower(strings.TrimSpace(input))
+	name = strings.ReplaceAll(name, ".", "-")
+	name = strings.ReplaceAll(name, ":", "-")
+	name = strings.ReplaceAll(name, "_", "-")
+	return name
+}
+
+func ensureUniqueFile(path string) string {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return path
+	}
+
+	base := strings.TrimSuffix(path, filepath.Ext(path))
+	ext := filepath.Ext(path)
+	for i := 1; ; i++ {
+		candidate := fmt.Sprintf("%s-%d%s", base, i, ext)
+		if _, err := os.Stat(candidate); os.IsNotExist(err) {
+			return candidate
+		}
+	}
+}
+
+func parseBool(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return value == "true" || value == "1" || value == "on" || value == "yes"
 }

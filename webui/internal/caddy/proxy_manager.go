@@ -272,11 +272,12 @@ func (pm *ProxyManager) buildRoute(proxy config.CaddyProxy) (*Route, error) {
 			},
 		}
 
-		// If specific cert files are configured, use them instead
-		if certPath, ok := proxy.CustomHeaders["X-TLS-Cert"]; ok {
-			transport.TLS.RootCAPEMFiles = []string{certPath}
+		if proxy.TLSCertFile != "" {
+			transport.TLS.CA = &TLSCAConfig{
+				Provider: "file",
+				PEMFiles: []string{proxy.TLSCertFile},
+			}
 			transport.TLS.InsecureSkipVerify = false
-			delete(proxy.CustomHeaders, "X-TLS-Cert") // Remove from headers
 		}
 
 		handler["transport"] = transport
@@ -346,8 +347,15 @@ func (pm *ProxyManager) routeToProxy(route Route) (*config.CaddyProxy, error) {
 
 	// Check for TLS transport
 	if transport, ok := handler["transport"].(map[string]interface{}); ok {
-		if _, hasTLS := transport["tls"]; hasTLS {
+		if tlsConfig, hasTLS := transport["tls"].(map[string]interface{}); hasTLS {
 			proxy.TLS = true
+			if caCfg, ok := tlsConfig["ca"].(map[string]interface{}); ok {
+				if pemFiles, ok := caCfg["pem_files"].([]interface{}); ok && len(pemFiles) > 0 {
+					if pemFile, ok := pemFiles[0].(string); ok {
+						proxy.TLSCertFile = pemFile
+					}
+				}
+			}
 		}
 	}
 

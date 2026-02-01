@@ -55,6 +55,7 @@ type CaddyProxy struct {
 	Port           int               `json:"port"`
 	Target         string            `json:"target"`
 	TLS            bool              `json:"tls"`
+	TLSCertFile    string            `json:"tls_cert_file,omitempty"`
 	TrustedProxies bool              `json:"trusted_proxies"`
 	CustomHeaders  map[string]string `json:"custom_headers,omitempty"`
 	Enabled        bool              `json:"enabled"`
