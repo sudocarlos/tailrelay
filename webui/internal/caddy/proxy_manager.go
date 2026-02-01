@@ -3,7 +3,9 @@ package caddy
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -100,7 +102,16 @@ func (pm *ProxyManager) GetProxy(id string) (*config.CaddyProxy, error) {
 		return nil, fmt.Errorf("unmarshal route: %w", err)
 	}
 
-	proxy, err := pm.routeToProxy(route)
+	listenAddrs := []string{}
+	if serverName, err := pm.getServerNameForProxy(config.CaddyProxy{ID: id}); err == nil && serverName != "" {
+		if servers, err := pm.listServers(); err == nil {
+			if server, ok := servers[serverName]; ok && server != nil {
+				listenAddrs = server.Listen
+			}
+		}
+	}
+
+	proxy, err := pm.routeToProxyWithListen(route, listenAddrs)
 	if err != nil {
 		return nil, fmt.Errorf("convert route to proxy: %w", err)
 	}
@@ -182,7 +193,7 @@ func (pm *ProxyManager) ListProxies() ([]config.CaddyProxy, error) {
 			continue
 		}
 		for _, route := range server.Routes {
-			proxy, err := pm.routeToProxy(route)
+			proxy, err := pm.routeToProxyWithListen(route, server.Listen)
 			if err != nil {
 				continue
 			}
@@ -222,19 +233,19 @@ func (pm *ProxyManager) GetUpstreams() ([]UpstreamStatus, error) {
 // buildRoute converts a config.CaddyProxy to a Caddy Route with ReverseProxyHandler
 func (pm *ProxyManager) buildRoute(proxy config.CaddyProxy) (*Route, error) {
 	// Build the reverse proxy handler
-	handler := make(Handler)
-	handler["handler"] = "reverse_proxy"
+	reverseProxyHandler := make(Handler)
+	reverseProxyHandler["handler"] = "reverse_proxy"
 
 	// Add @id if provided
 	if proxy.ID != "" {
-		handler["@id"] = proxy.ID
+		reverseProxyHandler["@id"] = proxy.ID
 	}
 
 	// Build upstreams
 	upstreams := []Upstream{
 		{Dial: proxy.Target},
 	}
-	handler["upstreams"] = upstreams
+	reverseProxyHandler["upstreams"] = upstreams
 
 	// Build headers configuration using map form expected by Caddy
 	headers := HeaderConfig{
@@ -255,43 +266,54 @@ func (pm *ProxyManager) buildRoute(proxy config.CaddyProxy) (*Route, error) {
 		}
 	}
 
-	handler["headers"] = headers
+	reverseProxyHandler["headers"] = headers
 
 	// Add trusted proxies if enabled
 	if proxy.TrustedProxies {
-		// This is typically handled at the route level or with additional middleware
-		// For now, we'll add it as a custom header directive
+		reverseProxyHandler["trusted_proxies"] = []string{
+			"192.168.0.0/16",
+			"172.16.0.0/12",
+			"10.0.0.0/8",
+			"127.0.0.1/8",
+			"fd00::/8",
+			"::1",
+		}
 	}
 
-	// Configure TLS transport for HTTPS targets
-	if proxy.TLS || strings.HasPrefix(proxy.Target, "https://") {
+	// Configure TLS transport only when a CA file is provided (srv0-like config)
+	if proxy.TLSCertFile != "" {
 		transport := HTTPTransport{
 			Protocol: "http",
-			TLS: &TLSConfig{
-				InsecureSkipVerify: true, // Default for internal services
-			},
+			TLS:      &TLSConfig{},
 		}
 
-		if proxy.TLSCertFile != "" {
-			transport.TLS.CA = &TLSCAConfig{
-				Provider: "file",
-				PEMFiles: []string{proxy.TLSCertFile},
-			}
-			transport.TLS.InsecureSkipVerify = false
+		transport.TLS.CA = &TLSCAConfig{
+			Provider: "file",
+			PEMFiles: []string{proxy.TLSCertFile},
 		}
 
-		handler["transport"] = transport
+		reverseProxyHandler["transport"] = transport
 	}
 
 	// Build route with matchers
-	route := &Route{
-		ID: proxy.ID,
-		Match: []MatcherSet{
+	subrouteHandler := Handler{
+		"handler": "subroute",
+		"routes": []Route{
 			{
-				Host: []string{fmt.Sprintf("%s:%d", proxy.Hostname, proxy.Port)},
+				Handle: []Handler{reverseProxyHandler},
 			},
 		},
-		Handle: []Handler{handler},
+	}
+
+	route := &Route{
+		ID:       proxy.ID,
+		Terminal: true,
+		Match: []MatcherSet{
+			{
+				Host: []string{NormalizeHostname(proxy.Hostname)},
+			},
+		},
+		Handle: []Handler{subrouteHandler},
 	}
 
 	// If disabled, we could add a static_response handler instead
@@ -303,15 +325,16 @@ func (pm *ProxyManager) buildRoute(proxy config.CaddyProxy) (*Route, error) {
 
 // routeToProxy converts a Caddy Route back to a config.CaddyProxy
 func (pm *ProxyManager) routeToProxy(route Route) (*config.CaddyProxy, error) {
+	return pm.routeToProxyWithListen(route, nil)
+}
+
+func (pm *ProxyManager) routeToProxyWithListen(route Route, listenAddrs []string) (*config.CaddyProxy, error) {
 	if len(route.Handle) == 0 {
 		return nil, fmt.Errorf("route has no handlers")
 	}
 
-	handler := route.Handle[0]
-
-	// Check if it's a reverse_proxy handler
-	handlerType, ok := handler["handler"].(string)
-	if !ok || handlerType != "reverse_proxy" {
+	reverseProxyHandler, ok := extractReverseProxyHandler(route)
+	if !ok {
 		return nil, fmt.Errorf("not a reverse_proxy handler")
 	}
 
@@ -321,23 +344,43 @@ func (pm *ProxyManager) routeToProxy(route Route) (*config.CaddyProxy, error) {
 	}
 
 	if proxy.ID == "" {
-		if handlerID, ok := handler["@id"].(string); ok {
+		if handlerID, ok := reverseProxyHandler["@id"].(string); ok {
 			proxy.ID = handlerID
 		}
 	}
 
 	// Extract hostname and port from matchers
 	if len(route.Match) > 0 && len(route.Match[0].Host) > 0 {
-		hostPort := route.Match[0].Host[0]
-		parts := strings.Split(hostPort, ":")
-		if len(parts) == 2 {
-			proxy.Hostname = NormalizeHostname(parts[0])
-			fmt.Sscanf(parts[1], "%d", &proxy.Port)
+		hostValue := route.Match[0].Host[0]
+		if strings.Contains(hostValue, ":") {
+			if host, portStr, err := net.SplitHostPort(hostValue); err == nil {
+				proxy.Hostname = NormalizeHostname(host)
+				if proxy.Port == 0 {
+					if port, convErr := strconv.Atoi(portStr); convErr == nil {
+						proxy.Port = port
+					}
+				}
+			} else if parts := strings.SplitN(hostValue, ":", 2); len(parts) == 2 {
+				proxy.Hostname = NormalizeHostname(parts[0])
+				if proxy.Port == 0 {
+					if port, convErr := strconv.Atoi(parts[1]); convErr == nil {
+						proxy.Port = port
+					}
+				}
+			} else {
+				proxy.Hostname = NormalizeHostname(hostValue)
+			}
+		} else {
+			proxy.Hostname = NormalizeHostname(hostValue)
 		}
 	}
 
+	if port, ok := parseListenPort(listenAddrs); ok {
+		proxy.Port = port
+	}
+
 	// Extract upstreams
-	if upstreams, ok := handler["upstreams"].([]interface{}); ok && len(upstreams) > 0 {
+	if upstreams, ok := reverseProxyHandler["upstreams"].([]interface{}); ok && len(upstreams) > 0 {
 		if upstream, ok := upstreams[0].(map[string]interface{}); ok {
 			if dial, ok := upstream["dial"].(string); ok {
 				proxy.Target = dial
@@ -346,7 +389,7 @@ func (pm *ProxyManager) routeToProxy(route Route) (*config.CaddyProxy, error) {
 	}
 
 	// Check for TLS transport
-	if transport, ok := handler["transport"].(map[string]interface{}); ok {
+	if transport, ok := reverseProxyHandler["transport"].(map[string]interface{}); ok {
 		if tlsConfig, hasTLS := transport["tls"].(map[string]interface{}); hasTLS {
 			proxy.TLS = true
 			if caCfg, ok := tlsConfig["ca"].(map[string]interface{}); ok {
@@ -360,7 +403,7 @@ func (pm *ProxyManager) routeToProxy(route Route) (*config.CaddyProxy, error) {
 	}
 
 	// Extract custom headers (excluding the default Host header)
-	if headers, ok := handler["headers"].(map[string]interface{}); ok {
+	if headers, ok := reverseProxyHandler["headers"].(map[string]interface{}); ok {
 		if request, ok := headers["request"].(map[string]interface{}); ok {
 			if setMap, ok := request["set"].(map[string]interface{}); ok {
 				proxy.CustomHeaders = make(map[string]string)
@@ -378,7 +421,87 @@ func (pm *ProxyManager) routeToProxy(route Route) (*config.CaddyProxy, error) {
 		}
 	}
 
+	if trustedProxies, ok := reverseProxyHandler["trusted_proxies"]; ok {
+		switch values := trustedProxies.(type) {
+		case []interface{}:
+			if len(values) > 0 {
+				proxy.TrustedProxies = true
+			}
+		case []string:
+			if len(values) > 0 {
+				proxy.TrustedProxies = true
+			}
+		}
+	}
+
 	return proxy, nil
+}
+
+func extractReverseProxyHandler(route Route) (Handler, bool) {
+	if len(route.Handle) == 0 {
+		return nil, false
+	}
+
+	first := route.Handle[0]
+	if handlerType, ok := first["handler"].(string); ok {
+		switch handlerType {
+		case "reverse_proxy":
+			return first, true
+		case "subroute":
+			routesRaw, ok := first["routes"].([]interface{})
+			if !ok {
+				return nil, false
+			}
+			for _, routeRaw := range routesRaw {
+				routeMap, ok := routeRaw.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				handlesRaw, ok := routeMap["handle"].([]interface{})
+				if !ok {
+					continue
+				}
+				for _, handleRaw := range handlesRaw {
+					handleMap, ok := handleRaw.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					if nestedType, ok := handleMap["handler"].(string); ok && nestedType == "reverse_proxy" {
+						return handleMap, true
+					}
+				}
+			}
+		}
+	}
+
+	return nil, false
+}
+
+func parseListenPort(listenAddrs []string) (int, bool) {
+	for _, addr := range listenAddrs {
+		candidate := strings.TrimSpace(addr)
+		if candidate == "" {
+			continue
+		}
+		if strings.HasPrefix(candidate, "unix/") {
+			continue
+		}
+		host, portStr, err := net.SplitHostPort(candidate)
+		if err == nil {
+			_ = host
+			if port, convErr := strconv.Atoi(portStr); convErr == nil {
+				return port, true
+			}
+			continue
+		}
+		if strings.HasPrefix(candidate, ":") {
+			if port, convErr := strconv.Atoi(strings.TrimPrefix(candidate, ":")); convErr == nil {
+				return port, true
+			}
+		}
+	}
+
+	return 0, false
 }
 
 func extractIDFromLocation(location string) (string, error) {
@@ -564,7 +687,7 @@ func (pm *ProxyManager) findServerNameInCaddy(proxy config.CaddyProxy) (string, 
 			if proxy.ID != "" && routeHasID(route, proxy.ID) {
 				return serverName, nil
 			}
-			candidate, err := pm.routeToProxy(route)
+			candidate, err := pm.routeToProxyWithListen(route, server.Listen)
 			if err != nil {
 				continue
 			}
@@ -587,6 +710,14 @@ func routeHasID(route Route, id string) bool {
 		return false
 	}
 	if handlerID, ok := route.Handle[0]["@id"].(string); ok {
+		return handlerID == id
+	}
+
+	reverseProxyHandler, ok := extractReverseProxyHandler(route)
+	if !ok {
+		return false
+	}
+	if handlerID, ok := reverseProxyHandler["@id"].(string); ok {
 		return handlerID == id
 	}
 	return false
