@@ -202,7 +202,7 @@ Fast iteration without rebuilding the full image:
 
 ## Version Information
 
-- Container version: `v0.2.1` (see `start.sh` and release notes)
+- Container version: `v0.3.0` (see `start.sh` and release notes)
 - Tailscale base: `v1.92.5` (Dockerfile ARG)
 - Go version: `1.21` (Dockerfile ARG)
 

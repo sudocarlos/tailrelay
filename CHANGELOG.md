@@ -5,6 +5,21 @@ All notable changes to tailrelay will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.3.0] - 2026-02-01
+
+### Added
+- Live log streaming in the Web UI with a comprehensive logging system
+- Custom CA certificate upload support for TLS-validated upstream proxies
+- Local Web UI development workflow for faster iteration
+
+### Changed
+- Aligned Caddy proxy route structure for consistent configuration
+- Persisted Caddy server mappings per proxy to reduce configuration churn
+- Refactored proxy manager and related configuration handling
+
+### Removed
+- Legacy proxy file handling (file-based proxy management)
+
 ## [v0.2.0] - 2026-01-26
 
 ### Added

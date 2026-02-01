@@ -371,6 +371,7 @@ See [Development](#development) section for WebUI development workflow.
 
 ## Release Notes
 
+- [v0.3.0](docs/release-notes/RELEASE_NOTES_v0.3.0.md) - Logging, custom CA certs, and proxy management improvements
 - [v0.2.1](docs/release-notes/RELEASE_NOTES_v0.2.1.md) - Caddy API integration
 - [v0.2.0](docs/release-notes/RELEASE_NOTES_v0.2.0.md) - Web UI release
 
