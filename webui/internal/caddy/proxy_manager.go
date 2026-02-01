@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/sudocarlos/tailrelay-webui/internal/config"
+	"github.com/sudocarlos/tailrelay-webui/internal/logger"
 )
 
 // ProxyManager manages Caddy reverse proxies via the admin API
@@ -28,19 +29,25 @@ func NewProxyManager(apiURL, serverName string) *ProxyManager {
 
 // AddProxy adds a new reverse proxy route to Caddy via API
 func (pm *ProxyManager) AddProxy(proxy config.CaddyProxy) error {
+	logger.Debug("caddy", "AddProxy: building route for %s:%d -> %s", proxy.Hostname, proxy.Port, proxy.Target)
+
 	route, err := pm.buildRoute(proxy)
 	if err != nil {
+		logger.Error("caddy", "Failed to build route for proxy %s: %v", proxy.ID, err)
 		return fmt.Errorf("build route: %w", err)
 	}
 
 	// Use POST to append to routes array
 	// The /... suffix tells Caddy to expand array elements
 	path := fmt.Sprintf("/apps/http/servers/%s/routes", pm.serverName)
+	logger.Debug("caddy", "Adding route to Caddy at path: %s", path)
 
 	if err := pm.client.PostConfig(path, route); err != nil {
+		logger.Error("caddy", "Failed to add proxy route %s:%d via Caddy API: %v", proxy.Hostname, proxy.Port, err)
 		return fmt.Errorf("add route: %w", err)
 	}
 
+	logger.Info("caddy", "Added Caddy proxy: %s:%d -> %s (ID: %s)", proxy.Hostname, proxy.Port, proxy.Target, proxy.ID)
 	return nil
 }
 
@@ -66,29 +73,39 @@ func (pm *ProxyManager) GetProxy(id string) (*config.CaddyProxy, error) {
 
 // UpdateProxy updates an existing proxy by ID
 func (pm *ProxyManager) UpdateProxy(proxy config.CaddyProxy) error {
+	logger.Debug("caddy", "UpdateProxy: updating proxy ID %s (%s:%d -> %s)", proxy.ID, proxy.Hostname, proxy.Port, proxy.Target)
+
 	if proxy.ID == "" {
+		logger.Error("caddy", "UpdateProxy called with empty ID")
 		return fmt.Errorf("proxy ID is required for update")
 	}
 
 	route, err := pm.buildRoute(proxy)
 	if err != nil {
+		logger.Error("caddy", "Failed to build route for proxy update %s: %v", proxy.ID, err)
 		return fmt.Errorf("build route: %w", err)
 	}
 
 	// Use PATCH to replace the entire route by ID
 	if err := pm.client.PatchByID(proxy.ID, route); err != nil {
+		logger.Error("caddy", "Failed to update proxy %s via Caddy API: %v", proxy.ID, err)
 		return fmt.Errorf("update route: %w", err)
 	}
 
+	logger.Info("caddy", "Updated Caddy proxy: %s (ID: %s)", proxy.Hostname, proxy.ID)
 	return nil
 }
 
 // DeleteProxy removes a proxy by ID
 func (pm *ProxyManager) DeleteProxy(id string) error {
+	logger.Debug("caddy", "DeleteProxy: removing proxy ID %s", id)
+
 	if err := pm.client.DeleteByID(id); err != nil {
+		logger.Error("caddy", "Failed to delete proxy %s via Caddy API: %v", id, err)
 		return fmt.Errorf("delete route: %w", err)
 	}
 
+	logger.Info("caddy", "Deleted Caddy proxy: %s", id)
 	return nil
 }
 

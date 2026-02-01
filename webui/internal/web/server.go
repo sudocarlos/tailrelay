@@ -22,6 +22,7 @@ type Server struct {
 	caddyH     *handlers.CaddyHandler
 	socatH     *handlers.SocatHandler
 	backupH    *handlers.BackupHandler
+	logsH      *handlers.Handler
 	staticFS   fs.FS
 	templateFS fs.FS
 }
@@ -47,6 +48,7 @@ func NewServer(cfg *config.Config, authToken string, staticFS, templateFS fs.FS)
 	caddyH := handlers.NewCaddyHandler(cfg, tmpl)
 	socatH := handlers.NewSocatHandler(cfg, tmpl)
 	backupH := handlers.NewBackupHandler(cfg, tmpl)
+	logsH := handlers.NewHandler(tmpl)
 
 	return &Server{
 		cfg:        cfg,
@@ -57,6 +59,7 @@ func NewServer(cfg *config.Config, authToken string, staticFS, templateFS fs.FS)
 		caddyH:     caddyH,
 		socatH:     socatH,
 		backupH:    backupH,
+		logsH:      logsH,
 		staticFS:   staticFS,
 		templateFS: templateFS,
 	}, nil
@@ -128,6 +131,12 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.Handle("/api/backup/download", s.authMW.RequireAuth(http.HandlerFunc(s.backupH.Download)))
 	mux.Handle("/api/backup/upload", s.authMW.RequireAuth(http.HandlerFunc(s.backupH.Upload)))
 	mux.Handle("/api/backup/list", s.authMW.RequireAuth(http.HandlerFunc(s.backupH.APIList)))
+
+	// Logs routes
+	mux.Handle("/logs", s.authMW.RequireAuth(http.HandlerFunc(s.logsH.LogsPageHandler)))
+	mux.Handle("/api/logs", s.authMW.RequireAuth(http.HandlerFunc(s.logsH.LogsAPIHandler)))
+	mux.Handle("/api/logs/stream", s.authMW.RequireAuth(http.HandlerFunc(s.logsH.LogsStreamHandler)))
+	mux.Handle("/api/logs/level", s.authMW.RequireAuth(http.HandlerFunc(s.logsH.LogsLevelHandler)))
 
 	return mux
 }

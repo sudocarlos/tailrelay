@@ -1,0 +1,214 @@
+{{template "base.html" .}}
+
+{{define "content"}}
+<div class="page-header">
+    <h1>System Logs</h1>
+    <p>View real-time application logs with adjustable verbosity levels</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2>Live Log Output</h2>
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <label for="logLevel" style="margin: 0;">Level:</label>
+                <select id="logLevel" class="form-control" style="width: auto;">
+                    <option value="DEBUG">DEBUG</option>
+                    <option value="INFO">INFO</option>
+                    <option value="WARN">WARN</option>
+                    <option value="ERROR" selected>ERROR</option>
+                </select>
+                <button id="clearLogs" class="btn btn-secondary">Clear</button>
+                <label style="margin: 0;">
+                    <input type="checkbox" id="autoScroll" checked> Auto-scroll
+                </label>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="logContainer" style="
+            background: #1a1a1a;
+            color: #e0e0e0;
+            padding: 1rem;
+            border-radius: 4px;
+            height: 600px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+        ">
+            <div id="logOutput"></div>
+        </div>
+        <div id="connectionStatus" style="margin-top: 0.5rem; font-size: 0.9rem; color: #888;">
+            Connecting to log stream...
+        </div>
+    </div>
+</div>
+
+<style>
+.log-entry {
+    margin: 2px 0;
+    padding: 2px 0;
+}
+.log-timestamp {
+    color: #888;
+}
+.log-level {
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin: 0 4px;
+}
+.log-level-DEBUG { background: #17a2b8; color: #fff; }
+.log-level-INFO { background: #28a745; color: #fff; }
+.log-level-WARN { background: #ffc107; color: #000; }
+.log-level-ERROR { background: #dc3545; color: #fff; }
+.log-source {
+    color: #6c757d;
+    font-style: italic;
+}
+.log-message {
+    color: #e0e0e0;
+}
+</style>
+
+<script>
+let eventSource = null;
+let autoScroll = true;
+let logCount = 0;
+const MAX_LOGS = 1000;
+
+document.getElementById('autoScroll').addEventListener('change', (e) => {
+    autoScroll = e.target.checked;
+});
+
+document.getElementById('clearLogs').addEventListener('click', () => {
+    document.getElementById('logOutput').innerHTML = '';
+    logCount = 0;
+});
+
+document.getElementById('logLevel').value = '{{.LogLevel}}';
+
+document.getElementById('logLevel').addEventListener('change', async (e) => {
+    const level = e.target.value;
+    try {
+        const response = await fetch('/api/logs/level', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ level })
+        });
+        if (response.ok) {
+            showNotification(`Log level changed to ${level}`, 'success');
+        } else {
+            showNotification('Failed to change log level', 'error');
+        }
+    } catch (error) {
+        showNotification('Error changing log level', 'error');
+    }
+});
+
+function formatTimestamp(timestamp) {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function addLogEntry(entry) {
+    const logOutput = document.getElementById('logOutput');
+    const container = document.getElementById('logContainer');
+    
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    
+    const timestamp = formatTimestamp(entry.timestamp);
+    const source = entry.source ? `<span class="log-source">[${entry.source}]</span> ` : '';
+    
+    div.innerHTML = `
+        <span class="log-timestamp">${timestamp}</span>
+        <span class="log-level log-level-${entry.level}">${entry.level}</span>
+        ${source}
+        <span class="log-message">${escapeHtml(entry.message)}</span>
+    `;
+    
+    logOutput.appendChild(div);
+    logCount++;
+    
+    // Trim old logs if exceeding max
+    if (logCount > MAX_LOGS) {
+        const firstChild = logOutput.firstChild;
+        if (firstChild) {
+            logOutput.removeChild(firstChild);
+            logCount--;
+        }
+    }
+    
+    // Auto-scroll
+    if (autoScroll) {
+        container.scrollTop = container.scrollHeight;
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function connectLogStream() {
+    if (eventSource) {
+        eventSource.close();
+    }
+    
+    eventSource = new EventSource('/api/logs/stream');
+    
+    eventSource.onopen = () => {
+        document.getElementById('connectionStatus').textContent = 'Connected to log stream';
+        document.getElementById('connectionStatus').style.color = '#28a745';
+    };
+    
+    eventSource.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            if (data.connected) {
+                // Initial connection message
+                return;
+            }
+            addLogEntry(data);
+        } catch (error) {
+            console.error('Error parsing log entry:', error);
+        }
+    };
+    
+    eventSource.onerror = () => {
+        document.getElementById('connectionStatus').textContent = 'Disconnected. Reconnecting...';
+        document.getElementById('connectionStatus').style.color = '#dc3545';
+        eventSource.close();
+        setTimeout(connectLogStream, 3000);
+    };
+}
+
+// Load historical logs
+async function loadHistoricalLogs() {
+    try {
+        const response = await fetch('/api/logs');
+        if (response.ok) {
+            const data = await response.json();
+            data.logs.forEach(entry => addLogEntry(entry));
+        }
+    } catch (error) {
+        console.error('Error loading historical logs:', error);
+    }
+}
+
+// Initialize
+loadHistoricalLogs().then(() => {
+    connectLogStream();
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    if (eventSource) {
+        eventSource.close();
+    }
+});
+</script>
+{{end}}

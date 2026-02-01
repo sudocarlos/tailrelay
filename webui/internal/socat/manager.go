@@ -2,12 +2,12 @@ package socat
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"syscall"
 
 	"github.com/sudocarlos/tailrelay-webui/internal/config"
+	"github.com/sudocarlos/tailrelay-webui/internal/logger"
 )
 
 // Manager handles socat process management
@@ -30,12 +30,17 @@ func NewManager(socatBinary, relaysFile string) *Manager {
 
 // StartRelay starts a single socat relay process
 func (m *Manager) StartRelay(relay *config.SocatRelay) error {
+	logger.Debug("socat", "StartRelay called for relay %s (listen=%d, target=%s:%d)", 
+		relay.ID, relay.ListenPort, relay.TargetHost, relay.TargetPort)
+
 	if !relay.Enabled {
+		logger.Warn("socat", "Attempted to start disabled relay %s", relay.ID)
 		return fmt.Errorf("relay is disabled")
 	}
 
 	// Check if already running
 	if relay.PID != 0 && m.IsProcessRunning(relay.PID) {
+		logger.Warn("socat", "Relay %s already running with PID %d", relay.ID, relay.PID)
 		return fmt.Errorf("relay already running with PID %d", relay.PID)
 	}
 
@@ -44,60 +49,103 @@ func (m *Manager) StartRelay(relay *config.SocatRelay) error {
 	listenAddr := fmt.Sprintf("tcp-listen:%d,fork,reuseaddr", relay.ListenPort)
 	targetAddr := fmt.Sprintf("tcp:%s:%d", relay.TargetHost, relay.TargetPort)
 
+	logger.Debug("socat", "Starting socat: %s %s %s", m.socatBinary, listenAddr, targetAddr)
+
 	cmd := exec.Command(m.socatBinary, listenAddr, targetAddr)
+	
+	// Set process group ID to the process PID so we can kill the entire group
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
+	}
 
 	// Start the process in background
 	if err := cmd.Start(); err != nil {
+		logger.Error("socat", "Failed to start relay %s on port %d: %v", relay.ID, relay.ListenPort, err)
 		return fmt.Errorf("failed to start socat: %w", err)
 	}
 
 	// Update PID in relay config
 	relay.PID = cmd.Process.Pid
+	logger.Debug("socat", "Relay %s started with PID %d, updating config file", relay.ID, relay.PID)
+
 	if err := UpdateRelayPID(m.relaysFile, relay.ID, relay.PID); err != nil {
-		log.Printf("Warning: failed to update PID for relay %s: %v", relay.ID, err)
+		logger.Warn("socat", "Failed to update PID for relay %s in config: %v", relay.ID, err)
 	}
 
-	log.Printf("Started socat relay %s (PID %d): %s:%d -> %s:%d",
-		relay.ID, relay.PID, "0.0.0.0", relay.ListenPort, relay.TargetHost, relay.TargetPort)
+	logger.Info("socat", "Started socat relay %s (PID %d): 0.0.0.0:%d -> %s:%d",
+		relay.ID, relay.PID, relay.ListenPort, relay.TargetHost, relay.TargetPort)
 
 	return nil
 }
 
 // StopRelay stops a running socat relay process
 func (m *Manager) StopRelay(relay *config.SocatRelay) error {
+	logger.Debug("socat", "StopRelay called for relay %s (PID=%d)", relay.ID, relay.PID)
+
 	if relay.PID == 0 {
+		logger.Warn("socat", "Cannot stop relay %s: no PID recorded", relay.ID)
 		return fmt.Errorf("relay has no PID recorded")
 	}
 
-	// Send TERM signal to process
-	process, err := os.FindProcess(relay.PID)
-	if err != nil {
-		return fmt.Errorf("failed to find process: %w", err)
+	// Kill the entire process group (socat uses fork)
+	// Use negative PID to target the process group
+	logger.Debug("socat", "Killing process group -%d (SIGTERM)", relay.PID)
+	if err := syscall.Kill(-relay.PID, syscall.SIGTERM); err != nil {
+		// If process group kill fails, try killing just the process
+		logger.Debug("socat", "Process group kill failed, trying single process: %v", err)
+		process, err := os.FindProcess(relay.PID)
+		if err != nil {
+			logger.Error("socat", "Failed to find process %d for relay %s: %v", relay.PID, relay.ID, err)
+			return fmt.Errorf("failed to find process: %w", err)
+		}
+
+		logger.Debug("socat", "Sending SIGTERM to PID %d", relay.PID)
+		if err := process.Signal(syscall.SIGTERM); err != nil {
+			// Process might already be dead
+			if err.Error() != "os: process already finished" {
+				logger.Error("socat", "Failed to stop relay %s (PID %d): %v", relay.ID, relay.PID, err)
+				return fmt.Errorf("failed to stop process: %w", err)
+			}
+			logger.Debug("socat", "Process %d already finished", relay.PID)
+		}
 	}
 
-	if err := process.Signal(syscall.SIGTERM); err != nil {
-		// Process might already be dead
-		if err.Error() != "os: process already finished" {
-			return fmt.Errorf("failed to stop process: %w", err)
+	// Wait a bit for processes to terminate gracefully
+	// If SIGTERM doesn't work, send SIGKILL to process group
+	logger.Debug("socat", "Waiting for process group to terminate...")
+	for i := 0; i < 5; i++ {
+		if !m.IsProcessRunning(relay.PID) {
+			logger.Debug("socat", "Process %d terminated successfully", relay.PID)
+			break
+		}
+		if i == 4 {
+			// Last resort: SIGKILL to process group
+			logger.Warn("socat", "Process %d did not terminate gracefully, sending SIGKILL to group", relay.PID)
+			syscall.Kill(-relay.PID, syscall.SIGKILL)
 		}
 	}
 
 	// Clear PID
+	oldPID := relay.PID
 	relay.PID = 0
+	logger.Debug("socat", "Clearing PID for relay %s in config", relay.ID)
+
 	if err := UpdateRelayPID(m.relaysFile, relay.ID, 0); err != nil {
-		log.Printf("Warning: failed to clear PID for relay %s: %v", relay.ID, err)
+		logger.Warn("socat", "Failed to clear PID for relay %s in config: %v", relay.ID, err)
 	}
 
-	log.Printf("Stopped socat relay %s", relay.ID)
+	logger.Info("socat", "Stopped socat relay %s (was PID %d)", relay.ID, oldPID)
 	return nil
 }
 
 // RestartRelay restarts a relay
 func (m *Manager) RestartRelay(relay *config.SocatRelay) error {
+	logger.Debug("socat", "RestartRelay called for relay %s", relay.ID)
+
 	// Stop if running
 	if relay.PID != 0 {
 		if err := m.StopRelay(relay); err != nil {
-			log.Printf("Warning: failed to stop relay during restart: %v", err)
+			logger.Warn("socat", "Failed to stop relay %s during restart: %v", relay.ID, err)
 		}
 	}
 
@@ -107,8 +155,11 @@ func (m *Manager) RestartRelay(relay *config.SocatRelay) error {
 
 // StartAll starts all enabled relays
 func (m *Manager) StartAll() error {
+	logger.Debug("socat", "StartAll: loading relays from %s", m.relaysFile)
+
 	relays, err := LoadRelays(m.relaysFile)
 	if err != nil {
+		logger.Error("socat", "Failed to load relays from %s: %v", m.relaysFile, err)
 		return fmt.Errorf("failed to load relays: %w", err)
 	}
 
@@ -117,25 +168,29 @@ func (m *Manager) StartAll() error {
 
 	for i := range relays {
 		if !relays[i].Enabled {
+			logger.Debug("socat", "Skipping disabled relay %s", relays[i].ID)
 			continue
 		}
 
 		if err := m.StartRelay(&relays[i]); err != nil {
-			log.Printf("Failed to start relay %s: %v", relays[i].ID, err)
+			logger.Error("socat", "Failed to start relay %s: %v", relays[i].ID, err)
 			failed++
 		} else {
 			started++
 		}
 	}
 
-	log.Printf("Started %d socat relays (%d failed)", started, failed)
+	logger.Info("socat", "StartAll complete: %d started, %d failed", started, failed)
 	return nil
 }
 
 // StopAll stops all running relays
 func (m *Manager) StopAll() error {
+	logger.Debug("socat", "StopAll: loading relays from %s", m.relaysFile)
+
 	relays, err := LoadRelays(m.relaysFile)
 	if err != nil {
+		logger.Error("socat", "Failed to load relays from %s: %v", m.relaysFile, err)
 		return fmt.Errorf("failed to load relays: %w", err)
 	}
 
@@ -144,26 +199,29 @@ func (m *Manager) StopAll() error {
 
 	for i := range relays {
 		if relays[i].PID == 0 {
+			logger.Debug("socat", "Skipping relay %s (no PID)", relays[i].ID)
 			continue
 		}
 
 		if err := m.StopRelay(&relays[i]); err != nil {
-			log.Printf("Failed to stop relay %s: %v", relays[i].ID, err)
+			logger.Error("socat", "Failed to stop relay %s: %v", relays[i].ID, err)
 			failed++
 		} else {
 			stopped++
 		}
 	}
 
-	log.Printf("Stopped %d socat relays (%d failed)", stopped, failed)
+	logger.Info("socat", "StopAll complete: %d stopped, %d failed", stopped, failed)
 	return nil
 }
 
 // RestartAll restarts all enabled relays
 func (m *Manager) RestartAll() error {
+	logger.Info("socat", "RestartAll: restarting all enabled relays")
+
 	// Stop all first
 	if err := m.StopAll(); err != nil {
-		log.Printf("Warning: error stopping relays: %v", err)
+		logger.Warn("socat", "Error stopping relays during RestartAll: %v", err)
 	}
 
 	// Start all enabled
