@@ -3,7 +3,9 @@ package caddy
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/sudocarlos/tailrelay-webui/internal/config"
 	"github.com/sudocarlos/tailrelay-webui/internal/logger"
@@ -11,60 +13,79 @@ import (
 
 // ProxyManager manages Caddy reverse proxies via the admin API
 type ProxyManager struct {
-	client     *APIClient
-	serverName string
+	client        *APIClient
+	serverMapPath string
+	serverMap     *ServerMap
+	mapMu         sync.Mutex
 }
 
 // NewProxyManager creates a new proxy manager
-func NewProxyManager(apiURL, serverName string) *ProxyManager {
+func NewProxyManager(apiURL, serverMapPath string) *ProxyManager {
 	client := NewAPIClient(apiURL)
 
-	// If no server name provided, try to discover it from Caddy
-	if serverName == "" {
-		discoveredName, err := client.DiscoverServerName()
-		if err != nil {
-			logger.Error("caddy", "Failed to discover server name, using default 'tailrelay': %v", err)
-			serverName = "tailrelay"
-		} else {
-			serverName = discoveredName
-			logger.Info("caddy", "Auto-detected Caddy server name: %s", serverName)
-		}
+	serverMap, err := LoadServerMap(serverMapPath)
+	if err != nil {
+		logger.Error("caddy", "Failed to load server map, starting empty: %v", err)
+		serverMap = NewServerMap()
 	}
 
 	return &ProxyManager{
-		client:     client,
-		serverName: serverName,
+		client:        client,
+		serverMapPath: serverMapPath,
+		serverMap:     serverMap,
 	}
 }
 
+// NormalizeHostname trims whitespace and a trailing dot from hostnames.
+func NormalizeHostname(hostname string) string {
+	hostname = strings.TrimSpace(hostname)
+	return strings.TrimSuffix(hostname, ".")
+}
+
 // AddProxy adds a new reverse proxy route to Caddy via API
-func (pm *ProxyManager) AddProxy(proxy config.CaddyProxy) error {
+func (pm *ProxyManager) AddProxy(proxy config.CaddyProxy) (*config.CaddyProxy, error) {
+	proxy.Hostname = NormalizeHostname(proxy.Hostname)
 	logger.Debug("caddy", "AddProxy: building route for %s:%d -> %s", proxy.Hostname, proxy.Port, proxy.Target)
 
-	// Ensure the HTTP server and routes array exist
-	if err := pm.ensureServerExists(); err != nil {
-		logger.Error("caddy", "Failed to ensure server exists: %v", err)
-		return fmt.Errorf("ensure server exists: %w", err)
+	if proxy.ID == "" {
+		id, err := config.GenerateToken()
+		if err != nil {
+			return nil, fmt.Errorf("generate proxy id: %w", err)
+		}
+		proxy.ID = id
 	}
 
-	route, err := pm.buildRoute(proxy)
+	proxyToCreate := proxy
+	proxyToCreate.ID = ""
+
+	route, err := pm.buildRoute(proxyToCreate)
 	if err != nil {
 		logger.Error("caddy", "Failed to build route for proxy %s: %v", proxy.ID, err)
-		return fmt.Errorf("build route: %w", err)
+		return nil, fmt.Errorf("build route: %w", err)
 	}
 
-	// Use POST to append to routes array
-	// The /... suffix tells Caddy to expand array elements
-	path := fmt.Sprintf("/apps/http/servers/%s/routes", pm.serverName)
-	logger.Debug("caddy", "Adding route to Caddy at path: %s", path)
-
-	if err := pm.client.PostConfig(path, route); err != nil {
-		logger.Error("caddy", "Failed to add proxy route %s:%d via Caddy API: %v", proxy.Hostname, proxy.Port, err)
-		return fmt.Errorf("add route: %w", err)
+	serverName, err := pm.allocateServerName()
+	if err != nil {
+		return nil, fmt.Errorf("allocate server name: %w", err)
 	}
+
+	path := fmt.Sprintf("/apps/http/servers/%s", serverName)
+	logger.Debug("caddy", "Creating server for proxy at path: %s", path)
+
+	server := &HTTPServer{
+		Listen: []string{fmt.Sprintf(":%d", proxy.Port)},
+		Routes: []Route{*route},
+	}
+
+	if err := pm.client.PutConfig(path, server); err != nil {
+		logger.Error("caddy", "Failed to create server %s for %s:%d via Caddy API: %v", serverName, proxy.Hostname, proxy.Port, err)
+		return nil, fmt.Errorf("create server: %w", err)
+	}
+
+	pm.updateServerMap(proxy, serverName)
 
 	logger.Info("caddy", "Added Caddy proxy: %s:%d -> %s (ID: %s)", proxy.Hostname, proxy.Port, proxy.Target, proxy.ID)
-	return nil
+	return &proxy, nil
 }
 
 // GetProxy retrieves a proxy by ID using @id tag
@@ -96,17 +117,31 @@ func (pm *ProxyManager) UpdateProxy(proxy config.CaddyProxy) error {
 		return fmt.Errorf("proxy ID is required for update")
 	}
 
+	proxy.Hostname = NormalizeHostname(proxy.Hostname)
 	route, err := pm.buildRoute(proxy)
 	if err != nil {
 		logger.Error("caddy", "Failed to build route for proxy update %s: %v", proxy.ID, err)
 		return fmt.Errorf("build route: %w", err)
 	}
 
-	// Use PATCH to replace the entire route by ID
-	if err := pm.client.PatchByID(proxy.ID, route); err != nil {
-		logger.Error("caddy", "Failed to update proxy %s via Caddy API: %v", proxy.ID, err)
-		return fmt.Errorf("update route: %w", err)
+	serverName, err := pm.getServerNameForProxy(proxy)
+	if err != nil {
+		logger.Error("caddy", "Failed to find server for proxy %s: %v", proxy.ID, err)
+		return fmt.Errorf("find server: %w", err)
 	}
+
+	server := &HTTPServer{
+		Listen: []string{fmt.Sprintf(":%d", proxy.Port)},
+		Routes: []Route{*route},
+	}
+
+	path := fmt.Sprintf("/apps/http/servers/%s", serverName)
+	if err := pm.client.PatchConfig(path, server); err != nil {
+		logger.Error("caddy", "Failed to update server %s for proxy %s via Caddy API: %v", serverName, proxy.ID, err)
+		return fmt.Errorf("update server: %w", err)
+	}
+
+	pm.updateServerMap(proxy, serverName)
 
 	logger.Info("caddy", "Updated Caddy proxy: %s (ID: %s)", proxy.Hostname, proxy.ID)
 	return nil
@@ -116,10 +151,19 @@ func (pm *ProxyManager) UpdateProxy(proxy config.CaddyProxy) error {
 func (pm *ProxyManager) DeleteProxy(id string) error {
 	logger.Debug("caddy", "DeleteProxy: removing proxy ID %s", id)
 
-	if err := pm.client.DeleteByID(id); err != nil {
-		logger.Error("caddy", "Failed to delete proxy %s via Caddy API: %v", id, err)
-		return fmt.Errorf("delete route: %w", err)
+	serverName, err := pm.getServerNameForProxy(config.CaddyProxy{ID: id})
+	if err != nil {
+		logger.Error("caddy", "Failed to find server for proxy %s: %v", id, err)
+		return fmt.Errorf("find server: %w", err)
 	}
+
+	path := fmt.Sprintf("/apps/http/servers/%s", serverName)
+	if err := pm.client.DeleteConfig(path); err != nil {
+		logger.Error("caddy", "Failed to delete server %s for proxy %s via Caddy API: %v", serverName, id, err)
+		return fmt.Errorf("delete server: %w", err)
+	}
+
+	pm.removeServerMapByID(id, serverName)
 
 	logger.Info("caddy", "Deleted Caddy proxy: %s", id)
 	return nil
@@ -127,25 +171,24 @@ func (pm *ProxyManager) DeleteProxy(id string) error {
 
 // ListProxies retrieves all proxies for the server
 func (pm *ProxyManager) ListProxies() ([]config.CaddyProxy, error) {
-	path := fmt.Sprintf("/apps/http/servers/%s/routes", pm.serverName)
-	data, err := pm.client.GetConfig(path)
+	servers, err := pm.listServers()
 	if err != nil {
-		return nil, fmt.Errorf("get routes: %w", err)
+		return nil, fmt.Errorf("get servers: %w", err)
 	}
 
-	var routes []Route
-	if err := json.Unmarshal(data, &routes); err != nil {
-		return nil, fmt.Errorf("unmarshal routes: %w", err)
-	}
-
-	proxies := make([]config.CaddyProxy, 0, len(routes))
-	for _, route := range routes {
-		proxy, err := pm.routeToProxy(route)
-		if err != nil {
-			// Skip routes that can't be converted (may not be reverse proxies)
+	proxies := make([]config.CaddyProxy, 0)
+	for serverName, server := range servers {
+		if server == nil {
 			continue
 		}
-		proxies = append(proxies, *proxy)
+		for _, route := range server.Routes {
+			proxy, err := pm.routeToProxy(route)
+			if err != nil {
+				continue
+			}
+			pm.updateServerMap(*proxy, serverName)
+			proxies = append(proxies, *proxy)
+		}
 	}
 
 	return proxies, nil
@@ -193,25 +236,22 @@ func (pm *ProxyManager) buildRoute(proxy config.CaddyProxy) (*Route, error) {
 	}
 	handler["upstreams"] = upstreams
 
-	// Build headers configuration
+	// Build headers configuration using map form expected by Caddy
 	headers := HeaderConfig{
 		Request: &HeaderOps{
-			Set: []HeaderOperation{
-				{
-					Field:  "Host",
-					Values: []string{"{http.reverse_proxy.upstream.hostport}"},
-				},
+			Set: map[string][]string{
+				"Host": []string{"{http.reverse_proxy.upstream.hostport}"},
 			},
 		},
 	}
 
 	// Add custom headers if provided
 	if len(proxy.CustomHeaders) > 0 {
+		if headers.Request.Set == nil {
+			headers.Request.Set = make(map[string][]string)
+		}
 		for key, value := range proxy.CustomHeaders {
-			headers.Request.Set = append(headers.Request.Set, HeaderOperation{
-				Field:  key,
-				Values: []string{value},
-			})
+			headers.Request.Set[key] = []string{value}
 		}
 	}
 
@@ -279,12 +319,18 @@ func (pm *ProxyManager) routeToProxy(route Route) (*config.CaddyProxy, error) {
 		Enabled: true, // Default to enabled if route exists
 	}
 
+	if proxy.ID == "" {
+		if handlerID, ok := handler["@id"].(string); ok {
+			proxy.ID = handlerID
+		}
+	}
+
 	// Extract hostname and port from matchers
 	if len(route.Match) > 0 && len(route.Match[0].Host) > 0 {
 		hostPort := route.Match[0].Host[0]
 		parts := strings.Split(hostPort, ":")
 		if len(parts) == 2 {
-			proxy.Hostname = parts[0]
+			proxy.Hostname = NormalizeHostname(parts[0])
 			fmt.Sscanf(parts[1], "%d", &proxy.Port)
 		}
 	}
@@ -308,17 +354,15 @@ func (pm *ProxyManager) routeToProxy(route Route) (*config.CaddyProxy, error) {
 	// Extract custom headers (excluding the default Host header)
 	if headers, ok := handler["headers"].(map[string]interface{}); ok {
 		if request, ok := headers["request"].(map[string]interface{}); ok {
-			if setOps, ok := request["set"].([]interface{}); ok {
+			if setMap, ok := request["set"].(map[string]interface{}); ok {
 				proxy.CustomHeaders = make(map[string]string)
-				for _, op := range setOps {
-					if opMap, ok := op.(map[string]interface{}); ok {
-						field, _ := opMap["field"].(string)
-						if field != "Host" { // Skip default Host header
-							if values, ok := opMap["value"].([]interface{}); ok && len(values) > 0 {
-								if value, ok := values[0].(string); ok {
-									proxy.CustomHeaders[field] = value
-								}
-							}
+				for field, val := range setMap {
+					if strings.EqualFold(field, "Host") {
+						continue
+					}
+					if values, ok := val.([]interface{}); ok && len(values) > 0 {
+						if value, ok := values[0].(string); ok {
+							proxy.CustomHeaders[field] = value
 						}
 					}
 				}
@@ -327,6 +371,36 @@ func (pm *ProxyManager) routeToProxy(route Route) (*config.CaddyProxy, error) {
 	}
 
 	return proxy, nil
+}
+
+func extractIDFromLocation(location string) (string, error) {
+	if location == "" {
+		return "", fmt.Errorf("empty Location header")
+	}
+
+	parsed, err := url.Parse(location)
+	if err != nil {
+		return "", fmt.Errorf("parse location: %w", err)
+	}
+
+	path := parsed.Path
+	if path == "" {
+		path = location
+	}
+
+	marker := "/id/"
+	idx := strings.LastIndex(path, marker)
+	if idx == -1 {
+		return "", fmt.Errorf("Location header missing /id/: %s", location)
+	}
+
+	id := strings.TrimPrefix(path[idx:], marker)
+	id = strings.Trim(id, "/")
+	if id == "" {
+		return "", fmt.Errorf("empty id in Location header: %s", location)
+	}
+
+	return id, nil
 }
 
 // InitializeServer ensures the HTTP server exists in Caddy config
@@ -340,51 +414,172 @@ func (pm *ProxyManager) InitializeServer(listenAddrs []string) error {
 		Routes: []Route{},
 	}
 
-	path := fmt.Sprintf("/apps/http/servers/%s", pm.serverName)
+	serverName, err := pm.allocateServerName()
+	if err != nil {
+		return fmt.Errorf("allocate server name: %w", err)
+	}
 
-	// Try to create the server (will fail if it exists, which is fine)
-	err := pm.client.PutConfig(path, server)
-	if err != nil && !strings.Contains(err.Error(), "already exists") {
-		// If error is not "already exists", return it
+	path := fmt.Sprintf("/apps/http/servers/%s", serverName)
+	if err := pm.client.PutConfig(path, server); err != nil {
 		return fmt.Errorf("initialize server: %w", err)
 	}
 
 	return nil
 }
 
-// ensureServerExists ensures the HTTP server and routes array exist before adding routes
-func (pm *ProxyManager) ensureServerExists() error {
-	// Check if the server exists
-	path := fmt.Sprintf("/apps/http/servers/%s", pm.serverName)
-	_, err := pm.client.GetConfig(path)
-	
+func (pm *ProxyManager) listServers() (map[string]*HTTPServer, error) {
+	data, err := pm.client.GetConfig("/apps/http/servers")
 	if err != nil {
-		// Server doesn't exist, try to create it
-		logger.Info("caddy", "HTTP server '%s' not found, creating it...", pm.serverName)
-		server := &HTTPServer{
-			Listen: []string{":80", ":443"},
-			Routes: []Route{},
-		}
-		
-		if err := pm.client.PutConfig(path, server); err != nil {
-			return fmt.Errorf("create server: %w", err)
-		}
-		logger.Info("caddy", "Created HTTP server '%s'", pm.serverName)
+		return nil, err
 	}
-	
-	// Ensure routes array exists (might be null)
-	routesPath := fmt.Sprintf("/apps/http/servers/%s/routes", pm.serverName)
-	_, err = pm.client.GetConfig(routesPath)
-	
+
+	var servers map[string]*HTTPServer
+	if err := json.Unmarshal(data, &servers); err != nil {
+		return nil, fmt.Errorf("unmarshal servers: %w", err)
+	}
+
+	return servers, nil
+}
+
+func (pm *ProxyManager) getServerNameForProxy(proxy config.CaddyProxy) (string, error) {
+	pm.mapMu.Lock()
+	if proxy.ID != "" {
+		if serverName, ok := pm.serverMap.ByProxyID[proxy.ID]; ok {
+			pm.mapMu.Unlock()
+			return serverName, nil
+		}
+	}
+	if proxy.Hostname != "" && proxy.Port != 0 {
+		if serverName, ok := pm.serverMap.ByHostPort[pm.hostPortKey(proxy)]; ok {
+			pm.mapMu.Unlock()
+			return serverName, nil
+		}
+	}
+	pm.mapMu.Unlock()
+
+	serverName, err := pm.findServerNameInCaddy(proxy)
 	if err != nil {
-		// Routes array doesn't exist, initialize it
-		logger.Info("caddy", "Routes array not found, initializing empty array...")
-		emptyRoutes := []Route{}
-		if err := pm.client.PutConfig(routesPath, emptyRoutes); err != nil {
-			return fmt.Errorf("initialize routes: %w", err)
-		}
-		logger.Info("caddy", "Initialized routes array for server '%s'", pm.serverName)
+		return "", err
 	}
-	
-	return nil
+
+	pm.updateServerMap(proxy, serverName)
+	return serverName, nil
+}
+
+func (pm *ProxyManager) allocateServerName() (string, error) {
+	pm.mapMu.Lock()
+	defer pm.mapMu.Unlock()
+
+	servers, err := pm.listServers()
+	if err != nil {
+		return "", err
+	}
+
+	serverNames := make(map[string]bool)
+	for name := range servers {
+		serverNames[name] = true
+	}
+	for _, name := range pm.serverMap.ByProxyID {
+		serverNames[name] = true
+	}
+	for _, name := range pm.serverMap.ByHostPort {
+		serverNames[name] = true
+	}
+
+	for i := pm.serverMap.NextIndex; ; i++ {
+		candidate := fmt.Sprintf("srv%d", i)
+		if !serverNames[candidate] {
+			pm.serverMap.NextIndex = i + 1
+			if err := SaveServerMap(pm.serverMapPath, pm.serverMap); err != nil {
+				logger.Error("caddy", "Failed to save server map: %v", err)
+			}
+			return candidate, nil
+		}
+	}
+}
+
+func (pm *ProxyManager) updateServerMap(proxy config.CaddyProxy, serverName string) {
+	if serverName == "" {
+		return
+	}
+
+	pm.mapMu.Lock()
+	defer pm.mapMu.Unlock()
+
+	if proxy.ID != "" {
+		pm.serverMap.ByProxyID[proxy.ID] = serverName
+	}
+	if proxy.Hostname != "" && proxy.Port != 0 {
+		pm.serverMap.ByHostPort[pm.hostPortKey(proxy)] = serverName
+	}
+
+	if err := SaveServerMap(pm.serverMapPath, pm.serverMap); err != nil {
+		logger.Error("caddy", "Failed to save server map: %v", err)
+	}
+}
+
+func (pm *ProxyManager) removeServerMapByID(proxyID, serverName string) {
+	pm.mapMu.Lock()
+	defer pm.mapMu.Unlock()
+
+	if proxyID != "" {
+		delete(pm.serverMap.ByProxyID, proxyID)
+	}
+	if serverName != "" {
+		for key, name := range pm.serverMap.ByHostPort {
+			if name == serverName {
+				delete(pm.serverMap.ByHostPort, key)
+			}
+		}
+	}
+
+	if err := SaveServerMap(pm.serverMapPath, pm.serverMap); err != nil {
+		logger.Error("caddy", "Failed to save server map: %v", err)
+	}
+}
+
+func (pm *ProxyManager) hostPortKey(proxy config.CaddyProxy) string {
+	return fmt.Sprintf("%s:%d", NormalizeHostname(proxy.Hostname), proxy.Port)
+}
+
+func (pm *ProxyManager) findServerNameInCaddy(proxy config.CaddyProxy) (string, error) {
+	servers, err := pm.listServers()
+	if err != nil {
+		return "", err
+	}
+
+	for serverName, server := range servers {
+		if server == nil {
+			continue
+		}
+		for _, route := range server.Routes {
+			if proxy.ID != "" && routeHasID(route, proxy.ID) {
+				return serverName, nil
+			}
+			candidate, err := pm.routeToProxy(route)
+			if err != nil {
+				continue
+			}
+			if proxy.Hostname != "" && proxy.Port != 0 {
+				if NormalizeHostname(candidate.Hostname) == NormalizeHostname(proxy.Hostname) && candidate.Port == proxy.Port {
+					return serverName, nil
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("server not found for proxy")
+}
+
+func routeHasID(route Route, id string) bool {
+	if route.ID == id {
+		return true
+	}
+	if len(route.Handle) == 0 {
+		return false
+	}
+	if handlerID, ok := route.Handle[0]["@id"].(string); ok {
+		return handlerID == id
+	}
+	return false
 }

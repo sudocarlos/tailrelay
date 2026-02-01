@@ -33,6 +33,9 @@ func Load(filename string) (*Config, error) {
 	if cfg.Backup.RetentionCount == 0 {
 		cfg.Backup.RetentionCount = 10
 	}
+	if cfg.Paths.CaddyServerMap == "" {
+		cfg.Paths.CaddyServerMap = "/var/lib/tailscale/caddy_servers.json"
+	}
 
 	return &cfg, nil
 }
@@ -88,6 +91,7 @@ func DefaultConfig() *Config {
 			CaddyConfig:      "/etc/caddy/Caddyfile",
 			SocatRelayConfig: "/var/lib/tailscale/relays.json",
 			CaddyProxyConfig: "/var/lib/tailscale/proxies.json",
+			CaddyServerMap:   "/var/lib/tailscale/caddy_servers.json",
 			StateDir:         "/var/lib/tailscale",
 			BackupDir:        "/var/lib/tailscale/backups",
 			CertificatesDir:  "/var/lib/tailscale/certificates",

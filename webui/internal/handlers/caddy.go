@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -28,7 +26,7 @@ func NewCaddyHandler(cfg *config.Config, templates *template.Template) *CaddyHan
 	// Pass empty string for server name to enable auto-discovery
 	manager := caddy.NewManager(
 		caddy.DefaultAdminAPI,
-		"", // Auto-discover server name from Caddy
+		cfg.Paths.CaddyServerMap,
 	)
 
 	return &CaddyHandler{
@@ -91,10 +89,7 @@ func (h *CaddyHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate ID if not provided
-	if proxy.ID == "" {
-		proxy.ID = generateID()
-	}
+	proxy.Hostname = caddy.NormalizeHostname(proxy.Hostname)
 
 	// Set default enabled state
 	if !proxy.Enabled {
@@ -102,7 +97,8 @@ func (h *CaddyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add proxy via API (no reload needed - API handles it instantly)
-	if err := h.manager.AddProxy(proxy); err != nil {
+	createdProxy, err := h.manager.AddProxy(proxy)
+	if err != nil {
 		log.Printf("Error adding proxy: %v", err)
 		http.Error(w, "Failed to add proxy", http.StatusInternalServerError)
 		return
@@ -111,7 +107,7 @@ func (h *CaddyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	response := map[string]interface{}{
 		"status":  "success",
 		"message": "Proxy created successfully",
-		"proxy":   proxy,
+		"proxy":   createdProxy,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -135,6 +131,8 @@ func (h *CaddyHandler) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Proxy ID is required", http.StatusBadRequest)
 		return
 	}
+
+	proxy.Hostname = caddy.NormalizeHostname(proxy.Hostname)
 
 	// Update proxy via API (no reload needed - API handles it instantly)
 	if err := h.manager.UpdateProxy(proxy); err != nil {
@@ -276,11 +274,4 @@ func (h *CaddyHandler) APIGet(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(proxy)
-}
-
-// generateID generates a random ID for proxies
-func generateID() string {
-	b := make([]byte, 8)
-	rand.Read(b)
-	return hex.EncodeToString(b)
 }

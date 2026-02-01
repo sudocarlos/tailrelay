@@ -18,6 +18,7 @@ services:
             - ./tailscale/Caddyfile:/etc/caddy/Caddyfile
         environment:
             - TS_HOSTNAME=tailrelay-dev
+            - MAX_LOG_BODY_SIZE=0
         ports:
             - "8021:8021"  # Web UI
             - "2019:2019"  # Caddy Admin API

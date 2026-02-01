@@ -16,9 +16,9 @@ type MigrationHelper struct {
 }
 
 // NewMigrationHelper creates a new migration helper
-func NewMigrationHelper(apiURL, serverName, proxiesFile string) *MigrationHelper {
+func NewMigrationHelper(apiURL, serverMapPath, proxiesFile string) *MigrationHelper {
 	return &MigrationHelper{
-		proxyManager: NewProxyManager(apiURL, serverName),
+		proxyManager: NewProxyManager(apiURL, serverMapPath),
 		proxiesFile:  proxiesFile,
 	}
 }
@@ -57,7 +57,7 @@ func (mh *MigrationHelper) MigrateFromFile() error {
 			continue
 		}
 
-		if err := mh.proxyManager.AddProxy(proxy); err != nil {
+		if _, err := mh.proxyManager.AddProxy(proxy); err != nil {
 			log.Printf("Warning: Failed to migrate proxy %s: %v", proxy.ID, err)
 			continue
 		}

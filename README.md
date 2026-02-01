@@ -169,6 +169,7 @@ http://localhost:8021
 **Environment Variables:**
 - `TS_HOSTNAME` - Tailnet machine name
 - `RELAY_LIST` - (Optional, deprecated) Comma-separated relay definitions. Use Web UI instead.
+- `MAX_LOG_BODY_SIZE` - Max bytes for Caddy API request/response body logging (0 = full body)
 
 **Volume Mounts:**
 - `/var/lib/tailscale` - Tailscale state, Web UI configs, backups

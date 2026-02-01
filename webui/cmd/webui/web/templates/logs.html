@@ -19,6 +19,8 @@
                     <option value="ERROR" selected>ERROR</option>
                 </select>
                 <button id="clearLogs" class="btn btn-secondary">Clear</button>
+                <button id="copyLogs" class="btn btn-secondary">Copy</button>
+                <button id="downloadLogs" class="btn btn-secondary">Download</button>
                 <label style="margin: 0;">
                     <input type="checkbox" id="autoScroll" checked> Auto-scroll
                 </label>
@@ -76,6 +78,7 @@
 let eventSource = null;
 let autoScroll = true;
 let logCount = 0;
+const logBuffer = [];
 const MAX_LOGS = 1000;
 
 document.getElementById('autoScroll').addEventListener('change', (e) => {
@@ -85,6 +88,46 @@ document.getElementById('autoScroll').addEventListener('change', (e) => {
 document.getElementById('clearLogs').addEventListener('click', () => {
     document.getElementById('logOutput').innerHTML = '';
     logCount = 0;
+    logBuffer.length = 0;
+});
+
+document.getElementById('copyLogs').addEventListener('click', async () => {
+    if (!logBuffer.length) {
+        showNotification('No logs to copy', 'error');
+        return;
+    }
+
+    const text = buildLogText();
+
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            copyTextFallback(text);
+        }
+        showNotification('Logs copied to clipboard', 'success');
+    } catch (error) {
+        console.error('Clipboard error:', error);
+        showNotification('Failed to copy logs', 'error');
+    }
+});
+
+document.getElementById('downloadLogs').addEventListener('click', () => {
+    if (!logBuffer.length) {
+        showNotification('No logs to download', 'error');
+        return;
+    }
+
+    const text = buildLogText();
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `tailrelay-logs-${formatFilenameTimestamp(new Date())}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
 });
 
 document.getElementById('logLevel').value = '{{.LogLevel}}';
@@ -112,26 +155,60 @@ function formatTimestamp(timestamp) {
     return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
+function formatFilenameTimestamp(date) {
+    const pad = (value) => value.toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const month = pad(date.getMonth() + 1);
+    const day = pad(date.getDate());
+    const hours = pad(date.getHours());
+    const minutes = pad(date.getMinutes());
+    const seconds = pad(date.getSeconds());
+    return `${year}${month}${day}_${hours}${minutes}${seconds}`;
+}
+
+function buildLogText() {
+    return logBuffer.map(formatLogLine).join('\n');
+}
+
+function formatLogLine(entry) {
+    const timestamp = formatTimestamp(entry.timestamp);
+    const source = entry.source ? ` [${entry.source}]` : '';
+    return `${timestamp} ${entry.level}${source} ${entry.message}`;
+}
+
+function copyTextFallback(text) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    document.execCommand('copy');
+    textarea.remove();
+}
+
 function addLogEntry(entry) {
     const logOutput = document.getElementById('logOutput');
     const container = document.getElementById('logContainer');
-    
+
     const div = document.createElement('div');
     div.className = 'log-entry';
-    
+
     const timestamp = formatTimestamp(entry.timestamp);
     const source = entry.source ? `<span class="log-source">[${entry.source}]</span> ` : '';
-    
+
     div.innerHTML = `
         <span class="log-timestamp">${timestamp}</span>
         <span class="log-level log-level-${entry.level}">${entry.level}</span>
         ${source}
         <span class="log-message">${escapeHtml(entry.message)}</span>
     `;
-    
+
     logOutput.appendChild(div);
     logCount++;
-    
+    logBuffer.push(entry);
+
     // Trim old logs if exceeding max
     if (logCount > MAX_LOGS) {
         const firstChild = logOutput.firstChild;
@@ -139,8 +216,11 @@ function addLogEntry(entry) {
             logOutput.removeChild(firstChild);
             logCount--;
         }
+        if (logBuffer.length > MAX_LOGS) {
+            logBuffer.shift();
+        }
     }
-    
+
     // Auto-scroll
     if (autoScroll) {
         container.scrollTop = container.scrollHeight;

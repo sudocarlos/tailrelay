@@ -102,9 +102,9 @@ type HeaderConfig struct {
 
 // HeaderOps represents header operations (add, set, delete)
 type HeaderOps struct {
-	Add    []HeaderOperation `json:"add,omitempty"`
-	Set    []HeaderOperation `json:"set,omitempty"`
-	Delete []string          `json:"delete,omitempty"`
+	Add    map[string][]string `json:"add,omitempty"`
+	Set    map[string][]string `json:"set,omitempty"`
+	Delete []string            `json:"delete,omitempty"`
 }
 
 // HeaderOperation represents a single header operation

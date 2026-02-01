@@ -13,7 +13,7 @@ func main() {
 	// Create a Caddy manager
 	manager := caddy.NewManager(
 		caddy.DefaultAdminAPI, // http://localhost:2019
-		"tailrelay",           // Server name in Caddy config
+		"/var/lib/tailscale/caddy_servers.json",
 	)
 
 	// Example 1: Check Caddy status
@@ -37,17 +37,20 @@ func main() {
 	// Example 3: Add a new proxy
 	fmt.Println("=== Adding New Proxy ===")
 	proxy := config.CaddyProxy{
-		ID:       "example-proxy",
 		Hostname: "myserver.tailnet.ts.net",
 		Port:     8080,
 		Target:   "localhost:9000",
 		Enabled:  true,
 	}
-	err = manager.AddProxy(proxy)
+	createdProxy, err := manager.AddProxy(proxy)
 	if err != nil {
 		log.Printf("Failed to add proxy: %v\n", err)
 	} else {
-		fmt.Printf("Proxy added: %s\n", proxy.ID)
+		fmt.Printf("Proxy added: %s\n", createdProxy.ID)
+	}
+	if createdProxy == nil {
+		log.Println("Cannot continue without a created proxy")
+		return
 	}
 	fmt.Println()
 
@@ -66,7 +69,7 @@ func main() {
 
 	// Example 5: Get a specific proxy
 	fmt.Println("=== Getting Specific Proxy ===")
-	retrievedProxy, err := manager.GetProxy("example-proxy")
+	retrievedProxy, err := manager.GetProxy(createdProxy.ID)
 	if err != nil {
 		log.Printf("Failed to get proxy: %v\n", err)
 	} else {
@@ -89,7 +92,7 @@ func main() {
 
 	// Example 7: Toggle proxy (disable)
 	fmt.Println("=== Toggling Proxy ===")
-	err = manager.ToggleProxy("example-proxy", false)
+	err = manager.ToggleProxy(createdProxy.ID, false)
 	if err != nil {
 		log.Printf("Failed to toggle proxy: %v\n", err)
 	} else {
@@ -113,7 +116,7 @@ func main() {
 
 	// Example 9: Delete proxy
 	fmt.Println("=== Deleting Proxy ===")
-	err = manager.DeleteProxy("example-proxy")
+	err = manager.DeleteProxy(createdProxy.ID)
 	if err != nil {
 		log.Printf("Failed to delete proxy: %v\n", err)
 	} else {
@@ -124,7 +127,6 @@ func main() {
 	// Example 10: Add HTTPS proxy with TLS
 	fmt.Println("=== Adding HTTPS Proxy ===")
 	httpsProxy := config.CaddyProxy{
-		ID:       "secure-proxy",
 		Hostname: "secure.tailnet.ts.net",
 		Port:     8443,
 		Target:   "https://backend.local:8443",
@@ -134,16 +136,20 @@ func main() {
 			"X-TLS-Cert": "/var/lib/tailscale/tls.cert",
 		},
 	}
-	err = manager.AddProxy(httpsProxy)
+	createdHTTPSProxy, err := manager.AddProxy(httpsProxy)
 	if err != nil {
 		log.Printf("Failed to add HTTPS proxy: %v\n", err)
 	} else {
-		fmt.Printf("HTTPS proxy added: %s\n", httpsProxy.ID)
+		fmt.Printf("HTTPS proxy added: %s\n", createdHTTPSProxy.ID)
+	}
+	if createdHTTPSProxy == nil {
+		log.Println("Skipping HTTPS proxy cleanup; proxy was not created")
+		return
 	}
 	fmt.Println()
 
 	// Cleanup
 	fmt.Println("=== Cleanup ===")
-	manager.DeleteProxy("secure-proxy")
+	manager.DeleteProxy(createdHTTPSProxy.ID)
 	fmt.Println("Example completed!")
 }

@@ -25,7 +25,7 @@ func NewDashboardHandler(cfg *config.Config, templates *template.Template) *Dash
 	return &DashboardHandler{
 		cfg:       cfg,
 		templates: templates,
-		caddyMgr:  caddy.NewManager(caddy.DefaultAdminAPI, ""),
+		caddyMgr:  caddy.NewManager(caddy.DefaultAdminAPI, cfg.Paths.CaddyServerMap),
 		tsClient:  tailscale.NewClient(),
 	}
 }

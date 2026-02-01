@@ -11,34 +11,32 @@ import (
 type Manager struct {
 	proxyManager *ProxyManager
 	apiURL       string
-	serverName   string
+	serverMap    string
 }
 
 // NewManager creates a new Caddy manager using the API
-func NewManager(apiURL, serverName string) *Manager {
+func NewManager(apiURL, serverMapPath string) *Manager {
 	if apiURL == "" {
 		apiURL = DefaultAdminAPI
 	}
-	// Don't set default here - let ProxyManager discover it
-	// This allows auto-detection of server names like 'srv0' when Caddy
-	// auto-generates them from Caddyfile
 
-	proxyMgr := NewProxyManager(apiURL, serverName)
+	proxyMgr := NewProxyManager(apiURL, serverMapPath)
 
 	return &Manager{
 		proxyManager: proxyMgr,
 		apiURL:       apiURL,
-		serverName:   proxyMgr.serverName,
+		serverMap:    serverMapPath,
 	}
 }
 
 // AddProxy adds a new reverse proxy via Caddy API
-func (m *Manager) AddProxy(proxy config.CaddyProxy) error {
-	if err := m.proxyManager.AddProxy(proxy); err != nil {
-		return fmt.Errorf("failed to add proxy: %w", err)
+func (m *Manager) AddProxy(proxy config.CaddyProxy) (*config.CaddyProxy, error) {
+	created, err := m.proxyManager.AddProxy(proxy)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add proxy: %w", err)
 	}
-	log.Printf("Proxy added successfully: %s", proxy.ID)
-	return nil
+	log.Printf("Proxy added successfully: %s", created.ID)
+	return created, nil
 }
 
 // GetProxy retrieves a proxy by ID
@@ -97,7 +95,7 @@ func (m *Manager) InitializeServer(listenAddrs []string) error {
 	if err := m.proxyManager.InitializeServer(listenAddrs); err != nil {
 		return fmt.Errorf("failed to initialize server: %w", err)
 	}
-	log.Printf("Server initialized: %s", m.serverName)
+	log.Printf("Server initialized")
 	return nil
 }
 

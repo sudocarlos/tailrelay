@@ -57,7 +57,7 @@ proxy := config.CaddyProxy{
     Target:   "btcpayserver.embassy:80",
     Enabled:  true,
 }
-err = manager.AddProxy(proxy)
+proxy, err = manager.AddProxy(proxy)
 
 // Update a proxy
 proxy.Target = "btcpayserver.embassy:8080"
@@ -122,7 +122,7 @@ The legacy flow wrote proxies to `proxies.json`, regenerated a Caddyfile, and re
 ### New Approach (API-Based)
 ```go
 // 1. Call API directly (atomic operation)
-manager.AddProxy(newProxy)
+newProxy, err = manager.AddProxy(newProxy)
 
 // That's it! No files, no reload, instant.
 ```
@@ -203,7 +203,7 @@ curl "http://localhost:2019/config/apps/http/servers/tailrelay/routes" | jq
 
 ### Manager Methods
 
-- `AddProxy(proxy)` - Add new reverse proxy
+- `AddProxy(proxy)` - Add new reverse proxy (returns proxy with assigned ID)
 - `GetProxy(id)` - Retrieve proxy by ID
 - `UpdateProxy(proxy)` - Update existing proxy
 - `DeleteProxy(id)` - Remove proxy
