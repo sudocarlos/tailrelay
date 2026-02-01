@@ -104,47 +104,6 @@ func DefaultConfig() *Config {
 	}
 }
 
-// LoadCaddyProxies loads Caddy proxy configurations
-func LoadCaddyProxies(filename string) (*CaddyProxyList, error) {
-	// Check if file exists
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		// Return empty list
-		return &CaddyProxyList{Proxies: []CaddyProxy{}}, nil
-	}
-
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read proxies file: %w", err)
-	}
-
-	var proxies CaddyProxyList
-	if err := json.Unmarshal(data, &proxies); err != nil {
-		return nil, fmt.Errorf("failed to parse proxies file: %w", err)
-	}
-
-	return &proxies, nil
-}
-
-// SaveCaddyProxies saves Caddy proxy configurations
-func SaveCaddyProxies(filename string, proxies *CaddyProxyList) error {
-	// Ensure directory exists
-	dir := filepath.Dir(filename)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
-	}
-
-	data, err := json.MarshalIndent(proxies, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal proxies: %w", err)
-	}
-
-	if err := os.WriteFile(filename, data, 0644); err != nil {
-		return fmt.Errorf("failed to write proxies file: %w", err)
-	}
-
-	return nil
-}
-
 // LoadSocatRelays loads socat relay configurations
 func LoadSocatRelays(filename string) (*SocatRelayList, error) {
 	// Check if file exists

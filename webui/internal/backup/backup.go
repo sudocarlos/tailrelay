@@ -77,7 +77,6 @@ func (m *Manager) Create(backupType string) (string, error) {
 	filesToBackup := []string{
 		m.cfg.Paths.CaddyConfig,
 		m.cfg.Paths.SocatRelayConfig,
-		m.cfg.Paths.CaddyProxyConfig,
 	}
 
 	for _, filePath := range filesToBackup {
@@ -148,8 +147,6 @@ func (m *Manager) Restore(backupPath string) error {
 			targetPath = m.cfg.Paths.CaddyConfig
 		case strings.HasSuffix(header.Name, "relays.json"):
 			targetPath = m.cfg.Paths.SocatRelayConfig
-		case strings.HasSuffix(header.Name, "proxies.json"):
-			targetPath = m.cfg.Paths.CaddyProxyConfig
 		default:
 			// Unknown file, skip
 			continue

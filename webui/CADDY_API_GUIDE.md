@@ -32,10 +32,9 @@ This implementation replaces the previous file-based Caddy management (Caddyfile
    - Thin wrapper around ProxyManager
    - Provides backwards-compatible API for handlers
 
-5. **migration.go** - Migration utilities
-   - Helps transition from file-based to API-based management
-   - Validates successful migration
-   - Export functionality for backups
+5. **legacy notice** - Migration utilities removed
+    - File-based proxy configs are no longer imported or migrated
+    - A one-time warning is logged if a legacy `proxies.json` is detected
 
 ## Usage Examples
 
@@ -115,52 +114,10 @@ err = client.PatchByID("my-route", updatedRoute)
 err = client.DeleteByID("my-route")
 ```
 
-### Migration from Old System
-
-```go
-// Create migration helper
-migrator := caddy.NewMigrationHelper(
-    "http://localhost:2019",
-    "tailrelay",
-    "/var/lib/tailscale/proxies.json",
-)
-
-// Migrate existing proxies
-err := migrator.MigrateFromFile()
-
-// Validate migration
-err = migrator.ValidateMigration()
-
-// Export current state (for backup)
-err = migrator.ExportToFile("/var/lib/tailscale/proxies.backup.json")
-```
-
 ## Key Differences from Old Implementation
 
 ### Old Approach (File-Based)
-```go
-// 1. Load proxies from JSON file
-proxies := caddy.LoadProxies("proxies.json")
-
-// 2. Modify proxies list
-proxies = append(proxies, newProxy)
-
-// 3. Save back to JSON file
-caddy.SaveProxies("proxies.json", proxies)
-
-// 4. Regenerate Caddyfile from JSON
-caddy.GenerateCaddyfile(proxies, "Caddyfile")
-
-// 5. Reload Caddy process
-manager.Reload()
-```
-
-**Problems:**
-- File system race conditions
-- Caddyfile syntax errors
-- Reload failures require rollback
-- Manual file management
-- Config drift between JSON and Caddyfile
+The legacy flow wrote proxies to `proxies.json`, regenerated a Caddyfile, and reloaded the process. This approach suffered from file races, syntax errors, reload failures, manual file management, and config drift.
 
 ### New Approach (API-Based)
 ```go
@@ -202,27 +159,7 @@ caddy run --adapter caddyfile --config Caddyfile
 The admin API is enabled by default on `localhost:2019`.
 
 ## Backwards Compatibility
-
-### For Existing Deployments
-
-1. **Keep your Caddyfile** - It will be used for initial Caddy startup
-2. **Migration is automatic** - On first Web UI start, existing proxies are migrated
-3. **Old files are backed up** - `proxies.json` → `proxies.json.migrated.bak`
-4. **Validation ensures safety** - Migration checks all proxies are in Caddy
-
-### Handler API Changes
-
-The handler interface remains mostly unchanged:
-
-```go
-// Old: Required manual reload
-err := handler.Create(proxy)
-
-// New: Same interface, but no reload needed internally
-err := handler.Create(proxy)
-```
-
-Handlers now use the new manager internally, but external APIs remain compatible.
+Legacy `proxies.json` files are no longer migrated automatically. If present, the Web UI logs a single warning and continues using the Caddy API. Recreate proxies through the Web UI.
 
 ## Troubleshooting
 
@@ -236,19 +173,6 @@ curl http://localhost:2019/config/
 docker logs tailrelay-container
 
 # Verify admin API is enabled (should be by default)
-```
-
-### Migration Issues
-
-```bash
-# Re-run migration manually
-go run ./cmd/migrate/main.go
-
-# Check migration logs
-# Backed up file should exist: proxies.json.migrated.bak
-
-# Validate migration
-curl http://localhost:2019/config/apps/http/servers/tailrelay/routes | jq
 ```
 
 ### Proxy Not Working

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/sudocarlos/tailrelay-webui/internal/caddy"
 	"github.com/sudocarlos/tailrelay-webui/internal/config"
 	"github.com/sudocarlos/tailrelay-webui/internal/tailscale"
 )
@@ -15,6 +16,7 @@ import (
 type DashboardHandler struct {
 	cfg       *config.Config
 	templates *template.Template
+	caddyMgr  *caddy.Manager
 	tsClient  *tailscale.Client
 }
 
@@ -23,6 +25,7 @@ func NewDashboardHandler(cfg *config.Config, templates *template.Template) *Dash
 	return &DashboardHandler{
 		cfg:       cfg,
 		templates: templates,
+		caddyMgr:  caddy.NewManager(caddy.DefaultAdminAPI, ""),
 		tsClient:  tailscale.NewClient(),
 	}
 }
@@ -41,7 +44,11 @@ func (h *DashboardHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
 
 	// Count relays and proxies
 	relays, _ := config.LoadSocatRelays(h.cfg.Paths.SocatRelayConfig)
-	proxies, _ := config.LoadCaddyProxies(h.cfg.Paths.CaddyProxyConfig)
+	proxies, err := h.caddyMgr.ListProxies()
+	if err != nil {
+		log.Printf("Error loading proxies: %v", err)
+		proxies = []config.CaddyProxy{}
+	}
 
 	relayCount := 0
 	if relays != nil {
@@ -53,11 +60,9 @@ func (h *DashboardHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	proxyCount := 0
-	if proxies != nil {
-		for _, proxy := range proxies.Proxies {
-			if proxy.Enabled {
-				proxyCount++
-			}
+	for _, proxy := range proxies {
+		if proxy.Enabled {
+			proxyCount++
 		}
 	}
 
@@ -81,17 +86,18 @@ func (h *DashboardHandler) APIStatus(w http.ResponseWriter, r *http.Request) {
 	tsSummary, _ := h.tsClient.GetStatusSummary()
 
 	relays, _ := config.LoadSocatRelays(h.cfg.Paths.SocatRelayConfig)
-	proxies, _ := config.LoadCaddyProxies(h.cfg.Paths.CaddyProxyConfig)
+	proxies, err := h.caddyMgr.ListProxies()
+	if err != nil {
+		log.Printf("Error loading proxies: %v", err)
+		proxies = []config.CaddyProxy{}
+	}
 
 	relayCount := 0
 	if relays != nil {
 		relayCount = len(relays.Relays)
 	}
 
-	proxyCount := 0
-	if proxies != nil {
-		proxyCount = len(proxies.Proxies)
-	}
+	proxyCount := len(proxies)
 
 	status := map[string]interface{}{
 		"timestamp": time.Now().Format(time.RFC3339),

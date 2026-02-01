@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 
+	"github.com/sudocarlos/tailrelay-webui/internal/caddy"
 	"github.com/sudocarlos/tailrelay-webui/internal/config"
 	"github.com/sudocarlos/tailrelay-webui/internal/logger"
 	"github.com/sudocarlos/tailrelay-webui/internal/web"
@@ -62,6 +63,9 @@ func main() {
 	if err := config.MigrateFromEnvVar(cfg.Paths.SocatRelayConfig); err != nil {
 		logger.Warn("main", "Migration from RELAY_LIST failed: %v", err)
 	}
+
+	// Warn once if a legacy proxy file is present; file-based configs are no longer migrated automatically.
+	caddy.WarnIfLegacyProxyFile(cfg.Paths.CaddyProxyConfig)
 
 	// Load or generate authentication token
 	authToken, err := config.LoadOrGenerateToken(cfg.Auth.TokenFile)

@@ -1,5 +1,7 @@
 # Caddy Proxy Management - Migration to API-Based Approach
 
+> ⚠️ Deprecated: File-based proxy migration has been removed. This document is retained for historical context only. Current releases log a one-time warning if a legacy `proxies.json` exists and require recreating proxies via the Web UI/Caddy API.
+
 ## Summary of Changes
 
 This update refactors the Caddy reverse proxy management from a file-based approach (JSON → Caddyfile regeneration → reload) to a direct Caddy Admin API integration. This provides significant improvements in reliability, performance, and maintainability.

@@ -31,13 +31,9 @@
    - Uses `@id` tags for easy proxy identification
    - Handles route building with proper matchers and handlers
 
-4. **`webui/internal/caddy/migration.go`** (148 lines)
-   - Migration utilities for transitioning from old system
-   - Features:
-     - MigrateFromFile: Auto-migrates proxies.json to Caddy API
-     - ValidateMigration: Ensures all proxies migrated successfully
-     - ExportToFile: Backs up current API state to JSON
-     - Automatic backup of original files
+4. **`webui/internal/caddy/migration.go`** (removed)
+   - Legacy migration utilities were removed; proxies are managed exclusively through the Caddy API
+   - Legacy `proxies.json` files are no longer imported automatically (a one-time warning is logged if present)
 
 ### Updated Files
 
@@ -59,25 +55,12 @@
 
 ### Documentation
 
-7. **`webui/CADDY_API_GUIDE.md`** (580 lines)
-   - Comprehensive guide to the new API integration
-   - Sections:
-     - Architecture overview
-     - Usage examples (basic and advanced)
-     - Migration instructions
-     - API reference
-     - Best practices
-     - Performance benchmarks
-     - Troubleshooting
-     - Security considerations
-     - Testing strategies
+7. **`webui/CADDY_API_GUIDE.md`** (updated)
+   - Comprehensive guide to the API integration
+   - Notes legacy file-based migration removal and one-time warning behavior
 
-8. **`webui/MIGRATION_SUMMARY.md`** (350 lines)
-   - User-friendly migration guide
-   - Covers:
-     - What changed and why
-     - Benefits for users and developers
-     - Automatic migration process
+8. **`webui/MIGRATION_SUMMARY.md`** (deprecated)
+   - Historical migration guide retained for reference; file-based migration is no longer supported
      - Backwards compatibility
      - Performance comparison
      - Testing procedures
