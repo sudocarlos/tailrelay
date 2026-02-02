@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 
 	"github.com/sudocarlos/tailrelay-webui/internal/caddy"
 	"github.com/sudocarlos/tailrelay-webui/internal/config"
@@ -83,17 +84,16 @@ func main() {
 		logger.Info("main", "Using existing authentication token from %s", cfg.Auth.TokenFile)
 	}
 
-	// Get embedded filesystems
-	staticFS, err := fs.Sub(embeddedFiles, "web/static")
+	// Get filesystems (prefer disk assets for development)
+	staticFS, templateFS, devDir, err := resolveWebFS()
 	if err != nil {
-		logger.Error("main", "Failed to load static files: %v", err)
+		logger.Error("main", "Failed to load web assets: %v", err)
 		os.Exit(1)
 	}
-
-	templateFS, err := fs.Sub(embeddedFiles, "web/templates")
-	if err != nil {
-		logger.Error("main", "Failed to load templates: %v", err)
-		os.Exit(1)
+	if devDir != "" {
+		logger.Info("main", "Using disk UI assets from %s", devDir)
+	} else {
+		logger.Info("main", "Using embedded UI assets")
 	}
 
 	// Create and start web server
@@ -115,4 +115,59 @@ func main() {
 		logger.Error("main", "Server error: %v", err)
 		os.Exit(1)
 	}
+}
+
+func resolveWebFS() (fs.FS, fs.FS, string, error) {
+	staticFS, templateFS, devDir, err := tryDevWebFS()
+	if err == nil {
+		return staticFS, templateFS, devDir, nil
+	}
+
+	staticFS, err = fs.Sub(embeddedFiles, "web/static")
+	if err != nil {
+		return nil, nil, "", err
+	}
+
+	templateFS, err = fs.Sub(embeddedFiles, "web/templates")
+	if err != nil {
+		return nil, nil, "", err
+	}
+
+	return staticFS, templateFS, "", nil
+}
+
+func tryDevWebFS() (fs.FS, fs.FS, string, error) {
+	devDir := os.Getenv("WEBUI_DEV_DIR")
+	var candidates []string
+	if devDir != "" {
+		candidates = append(candidates, devDir)
+	}
+	// Prefer build output if present, otherwise use the source web directory.
+	candidates = append(candidates, "./webui/build", "./webui/cmd/webui/web")
+
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		info, err := os.Stat(candidate)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+
+		staticPath := filepath.Join(candidate, "static")
+		templatePath := filepath.Join(candidate, "templates")
+
+		staticInfo, statErr := os.Stat(staticPath)
+		if statErr != nil || !staticInfo.IsDir() {
+			continue
+		}
+		templateInfo, statErr := os.Stat(templatePath)
+		if statErr != nil || !templateInfo.IsDir() {
+			continue
+		}
+
+		return os.DirFS(staticPath), os.DirFS(templatePath), candidate, nil
+	}
+
+	return nil, nil, "", fmt.Errorf("no valid dev web assets found")
 }

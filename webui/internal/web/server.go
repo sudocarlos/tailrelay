@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/sudocarlos/tailrelay-webui/internal/auth"
 	"github.com/sudocarlos/tailrelay-webui/internal/config"
@@ -87,7 +88,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(s.staticFS))))
 
 	// Protected routes (authentication required)
-	mux.Handle("/", s.authMW.RequireAuth(http.HandlerFunc(s.dashboardH.Dashboard)))
+	mux.Handle("/", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPAFallback)))
 	mux.Handle("/api/status", s.authMW.RequireAuth(http.HandlerFunc(s.dashboardH.APIStatus)))
 
 	// Tailscale routes
@@ -101,7 +102,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.Handle("/api/tailscale/poll", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.PollStatus)))
 
 	// Caddy routes
-	mux.Handle("/caddy", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.List)))
+	mux.Handle("/caddy", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPARedirect)))
 	mux.Handle("/api/caddy/create", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.Create)))
 	mux.Handle("/api/caddy/update", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.Update)))
 	mux.Handle("/api/caddy/delete", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.Delete)))
@@ -111,7 +112,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.Handle("/api/caddy/proxy", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.APIGet)))
 
 	// Socat routes
-	mux.Handle("/socat", s.authMW.RequireAuth(http.HandlerFunc(s.socatH.List)))
+	mux.Handle("/socat", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPARedirect)))
 	mux.Handle("/api/socat/create", s.authMW.RequireAuth(http.HandlerFunc(s.socatH.Create)))
 	mux.Handle("/api/socat/update", s.authMW.RequireAuth(http.HandlerFunc(s.socatH.Update)))
 	mux.Handle("/api/socat/delete", s.authMW.RequireAuth(http.HandlerFunc(s.socatH.Delete)))
@@ -139,6 +140,34 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.Handle("/api/logs/level", s.authMW.RequireAuth(http.HandlerFunc(s.logsH.LogsLevelHandler)))
 
 	return mux
+}
+
+// handleSPAFallback serves the SPA shell for non-API GET requests.
+func (s *Server) handleSPAFallback(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/api/") {
+		http.NotFound(w, r)
+		return
+	}
+
+	if err := s.templates.ExecuteTemplate(w, "index.html", nil); err != nil {
+		log.Printf("Error rendering SPA template: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
+}
+
+// handleSPARedirect sends legacy pages to the SPA.
+func (s *Server) handleSPARedirect(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 // handleLogin handles the login page

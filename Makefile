@@ -1,4 +1,4 @@
-.PHONY: dev-build dev-docker-build clean help
+.PHONY: frontend-build dev-build dev-docker-build clean help
 
 # Build metadata
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -21,7 +21,12 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-dev-build: ## Build webui binary locally for development
+frontend-build: ## Build SPA assets (requires Node.js/npm)
+	@echo "Building frontend assets..."
+	cd webui/frontend && npm install
+	cd webui/frontend && npm run build
+
+dev-build: frontend-build ## Build webui binary locally for development
 	@echo "Building tailrelay-webui with metadata:"
 	@echo "  VERSION: $(VERSION)"
 	@echo "  COMMIT:  $(COMMIT)"

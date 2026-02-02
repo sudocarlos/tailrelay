@@ -186,13 +186,17 @@ See [Tailscale Docker docs](https://tailscale.com/kb/1282/docker) for more optio
 
 For rapid iteration without rebuilding the full Docker image:
 
-#### 1. Build the WebUI Binary
+#### 1. Build the WebUI Assets + Binary
 
 ```bash
+make frontend-build
 make dev-build
 ```
 
-This compiles `./data/tailrelay-webui` with build metadata (version, commit, date).
+This compiles `./data/tailrelay-webui` with build metadata (version, commit, date) and embeds the SPA assets.
+
+**Dev asset override:**
+Set `WEBUI_DEV_DIR` to a directory that contains `templates/` and `static/` (for example, `webui/cmd/webui/web`) to serve assets from disk instead of the embedded files.
 
 **Manual build:**
 ```bash
@@ -223,10 +227,11 @@ docker compose -f compose-test.yml restart tailrelay
 ```
 
 **Iteration workflow:**
-1. Edit code in `webui/`
-2. Run `make dev-build`
-3. Restart container
-4. Test changes
+1. Edit code in `webui/` or `webui/frontend/`
+2. Run `make frontend-build` (if frontend changed)
+3. Run `make dev-build`
+4. Restart container
+5. Test changes
 
 **Option B: Build Development Image**
 
@@ -240,6 +245,7 @@ This builds a Docker image using the local binary.
 
 ```bash
 # Development build with local binary
+make frontend-build
 make dev-build
 make dev-docker-build
 

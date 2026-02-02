@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Development Dockerfile that uses pre-built local webui binary
-# Build webui locally first: make dev-build
+# Build frontend assets and webui locally first: make frontend-build dev-build
 ARG TAILSCALE_VERSION=v1.92.5
 
 FROM tailscale/tailscale:$TAILSCALE_VERSION
