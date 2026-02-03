@@ -22,9 +22,37 @@
     clearLogs: document.getElementById("clear-logs"),
     filterRelay: document.getElementById("filter-relay"),
     filterProxy: document.getElementById("filter-proxy"),
+    themeToggle: document.getElementById("theme-toggle"),
   };
 
   const tooltips = [];
+
+  // Dark mode management
+  const getPreferredTheme = () => {
+    const stored = localStorage.getItem("theme");
+    if (stored) {
+      return stored;
+    }
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  };
+
+  const setTheme = (theme) => {
+    document.documentElement.setAttribute("data-bs-theme", theme);
+    localStorage.setItem("theme", theme);
+    updateThemeIcon(theme);
+  };
+
+  const updateThemeIcon = (theme) => {
+    if (!elements.themeToggle) return;
+    const icon = theme === "dark" ? "bi-moon-stars-fill" : "bi-sun-fill";
+    elements.themeToggle.querySelector("use").setAttribute("href", `/static/vendor/bootstrap-icons/bootstrap-icons.svg#${icon}`);
+  };
+
+  const toggleTheme = () => {
+    const current = document.documentElement.getAttribute("data-bs-theme") || "light";
+    const next = current === "dark" ? "light" : "dark";
+    setTheme(next);
+  };
 
   const fetchJSON = async (url, options = {}) => {
     const response = await fetch(url, {
@@ -78,7 +106,7 @@
   const renderEmpty = (message) => {
     elements.items.innerHTML = `
       <div class="col-12">
-        <div class="card shadow-sm">
+        <div class="card">
           <div class="card-body text-center text-muted">
             ${message}
           </div>
@@ -127,10 +155,10 @@
           const relay = item.relay;
           const running = item.running;
           const statusBadge = running ? "text-bg-success" : "text-bg-secondary";
-          const enabledBadge = relay.enabled ? "text-bg-primary" : "text-bg-warning";
+          const autostart = relay.autostart ?? false;
           return `
             <div class="col-12">
-              <div class="card shadow-sm h-100">
+              <div class="card h-100">
                 <div class="card-body d-flex flex-column flex-lg-row align-items-lg-center gap-3">
                   <div class="flex-grow-1">
                     <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -141,7 +169,12 @@
                   </div>
                   <div class="d-flex align-items-center gap-2">
                     <span class="badge ${statusBadge}">${running ? "Running" : "Stopped"}</span>
-                    <span class="badge ${enabledBadge}">${relay.enabled ? "Enabled" : "Disabled"}</span>
+                    <div class="form-check form-switch m-0" data-bs-toggle="tooltip" title="Start automatically on container boot">
+                      <input class="form-check-input autostart-toggle" type="checkbox" role="switch" 
+                             ${autostart ? "checked" : ""} 
+                             data-type="relay" data-id="${relay.id}">
+                      <label class="form-check-label small text-muted">Autostart</label>
+                    </div>
                     <button class="btn btn-outline-secondary btn-sm action-btn" data-type="relay" data-id="${relay.id}" data-running="${running}">
                       <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#${running ? "bi-pause-fill" : "bi-play-fill"}"></use></svg>
                       ${running ? "Pause" : "Start"}
@@ -154,13 +187,13 @@
         }
 
         const proxy = item.proxy;
-        const enabledBadge = proxy.enabled ? "text-bg-success" : "text-bg-secondary";
         const running = proxy.running ?? proxy.Running;
         const runningBadge = running ? "text-bg-success" : "text-bg-secondary";
         const runningLabel = running ? "Caddy Running" : "Caddy Down";
+        const autostart = proxy.autostart ?? false;
         return `
           <div class="col-12">
-            <div class="card shadow-sm h-100">
+            <div class="card h-100">
               <div class="card-body d-flex flex-column flex-lg-row align-items-lg-center gap-3">
                 <div class="flex-grow-1">
                   <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -171,7 +204,12 @@
                 </div>
                 <div class="d-flex align-items-center gap-2">
                   <span class="badge ${runningBadge}">${runningLabel}</span>
-                  <span class="badge ${enabledBadge}">${proxy.enabled ? "Enabled" : "Disabled"}</span>
+                  <div class="form-check form-switch m-0" data-bs-toggle="tooltip" title="Start automatically on container boot">
+                    <input class="form-check-input autostart-toggle" type="checkbox" role="switch" 
+                           ${autostart ? "checked" : ""} 
+                           data-type="proxy" data-id="${proxy.id}">
+                    <label class="form-check-label small text-muted">Autostart</label>
+                  </div>
                   <button class="btn btn-outline-secondary btn-sm action-btn" data-type="proxy" data-id="${proxy.id}" data-enabled="${proxy.enabled}">
                     <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#${proxy.enabled ? "bi-pause-fill" : "bi-play-fill"}"></use></svg>
                     ${proxy.enabled ? "Pause" : "Start"}
@@ -237,6 +275,27 @@
     });
   };
 
+  const toggleAutostart = async (type, id, autostart) => {
+    const url = type === "relay" ? "/api/socat/update" : "/api/caddy/update";
+    
+    // Get the current item first
+    const currentItem = type === "relay"
+      ? state.relays.find(r => r.relay.id === id)?.relay
+      : state.proxies.find(p => p.id === id);
+    
+    if (!currentItem) {
+      throw new Error(`${type} not found`);
+    }
+    
+    // Update with new autostart value
+    const updated = { ...currentItem, autostart };
+    
+    await fetchJSON(url, {
+      method: "POST",
+      body: JSON.stringify(updated),
+    });
+  };
+
   const handleActionClick = async (event) => {
     const button = event.target.closest(".action-btn");
     if (!button) {
@@ -260,6 +319,29 @@
       showAlert("danger", error.message);
     } finally {
       button.disabled = false;
+    }
+  };
+
+  const handleAutostartToggle = async (event) => {
+    const toggle = event.target;
+    if (!toggle.classList.contains("autostart-toggle")) {
+      return;
+    }
+
+    const { type, id } = toggle.dataset;
+    const autostart = toggle.checked;
+    
+    toggle.disabled = true;
+
+    try {
+      await toggleAutostart(type, id, autostart);
+      await refreshData();
+    } catch (error) {
+      showAlert("danger", error.message);
+      // Revert the toggle on error
+      toggle.checked = !autostart;
+    } finally {
+      toggle.disabled = false;
     }
   };
 
@@ -340,6 +422,7 @@
 
   const bindEvents = () => {
     elements.items.addEventListener("click", handleActionClick);
+    elements.items.addEventListener("change", handleAutostartToggle);
 
     elements.filterRelay.addEventListener("change", () => {
       state.showRelays = elements.filterRelay.checked;
@@ -350,6 +433,10 @@
       state.showProxies = elements.filterProxy.checked;
       renderItems();
     });
+
+    if (elements.themeToggle) {
+      elements.themeToggle.addEventListener("click", toggleTheme);
+    }
 
     elements.refresh.addEventListener("click", refreshData);
     elements.clearLogs.addEventListener("click", () => {
@@ -364,6 +451,9 @@
   };
 
   const init = async () => {
+    // Set theme before content loads to prevent flash
+    setTheme(getPreferredTheme());
+    
     bindEvents();
     await refreshData();
     await loadLogs();

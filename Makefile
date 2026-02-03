@@ -1,11 +1,11 @@
 .PHONY: frontend-build dev-build dev-docker-build clean help
 
 # Build metadata
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
-DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-BRANCH ?= $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-BUILDER ?= $(shell whoami)
+VERSION ?= $(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT ?= $(git rev-parse --short HEAD 2>/dev/null || echo "none")
+DATE ?= $(date -u +%Y-%m-%dT%H:%M:%SZ)
+BRANCH ?= $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+BUILDER ?= $(whoami)
 
 # Go build flags with metadata
 LDFLAGS = -w -s \

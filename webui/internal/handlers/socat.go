@@ -34,6 +34,11 @@ func NewSocatHandler(cfg *config.Config, templates *template.Template) *SocatHan
 	}
 }
 
+// InitializeAutostart starts all relays with autostart enabled
+func (h *SocatHandler) InitializeAutostart() error {
+	return h.manager.StartAll()
+}
+
 // List renders the socat relay management page
 func (h *SocatHandler) List(w http.ResponseWriter, r *http.Request) {
 	statuses, err := h.manager.GetStatus()

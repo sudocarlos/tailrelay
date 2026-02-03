@@ -1,5 +1,5 @@
 :root {
-  --tr-card-radius: 0.85rem;
+  --tr-card-radius: 0.5rem;
 }
 
 body {
@@ -27,22 +27,49 @@ body {
   box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.15);
 }
 
-#items .card {
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+/* Dark mode support for log console */
+[data-bs-theme="dark"] .log-console {
+  background: #0a0e1a;
+  color: #cbd5e1;
+  box-shadow: inset 0 0 0 1px rgba(71, 85, 105, 0.25);
 }
 
-#items .card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+/* Flat design - remove shadows and hover effects */
+#items .card {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: none;
+}
+
+[data-bs-theme="dark"] #items .card {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Navbar styling */
+.navbar {
+  background-color: var(--bs-body-bg);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-bs-theme="dark"] .navbar {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
 }
 
 .navbar-brand {
   letter-spacing: 0.3px;
 }
 
+/* Remove shadow from navbar */
+.navbar.shadow-sm {
+  box-shadow: none !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-bs-theme="dark"] .navbar.shadow-sm {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
 .alert {
-  border-radius: 0.75rem;
+  border-radius: 0.5rem;
 }
 
 .proxy-link {
@@ -60,4 +87,9 @@ body {
   fill: currentColor;
   vertical-align: -0.125em;
   flex-shrink: 0;
+}
+
+/* Remove card shadows */
+.card.shadow-sm {
+  box-shadow: none !important;
 }

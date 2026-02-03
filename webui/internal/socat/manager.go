@@ -30,7 +30,7 @@ func NewManager(socatBinary, relaysFile string) *Manager {
 
 // StartRelay starts a single socat relay process
 func (m *Manager) StartRelay(relay *config.SocatRelay) error {
-	logger.Debug("socat", "StartRelay called for relay %s (listen=%d, target=%s:%d)", 
+	logger.Debug("socat", "StartRelay called for relay %s (listen=%d, target=%s:%d)",
 		relay.ID, relay.ListenPort, relay.TargetHost, relay.TargetPort)
 
 	if !relay.Enabled {
@@ -52,7 +52,7 @@ func (m *Manager) StartRelay(relay *config.SocatRelay) error {
 	logger.Debug("socat", "Starting socat: %s %s %s", m.socatBinary, listenAddr, targetAddr)
 
 	cmd := exec.Command(m.socatBinary, listenAddr, targetAddr)
-	
+
 	// Set process group ID to the process PID so we can kill the entire group
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,
@@ -153,7 +153,7 @@ func (m *Manager) RestartRelay(relay *config.SocatRelay) error {
 	return m.StartRelay(relay)
 }
 
-// StartAll starts all enabled relays
+// StartAll starts all relays with autostart enabled
 func (m *Manager) StartAll() error {
 	logger.Debug("socat", "StartAll: loading relays from %s", m.relaysFile)
 
@@ -167,9 +167,15 @@ func (m *Manager) StartAll() error {
 	failed := 0
 
 	for i := range relays {
-		if !relays[i].Enabled {
-			logger.Debug("socat", "Skipping disabled relay %s", relays[i].ID)
+		// Only start relays with autostart enabled
+		if !relays[i].Autostart {
+			logger.Debug("socat", "Skipping relay %s (autostart disabled)", relays[i].ID)
 			continue
+		}
+
+		// Enable the relay if autostart is on
+		if !relays[i].Enabled {
+			relays[i].Enabled = true
 		}
 
 		if err := m.StartRelay(&relays[i]); err != nil {

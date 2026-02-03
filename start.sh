@@ -32,8 +32,9 @@ TS_STATE_DIR=${TS_STATE_DIR:-/var/lib/tailscale}
 TAILSCALED_STATE="${TS_STATE_DIR%/}/tailscaled.state"
 TAILSCALED_SOCKET="/var/run/tailscale/tailscaled.sock"
 mkdir -p /var/run/tailscale "$TS_STATE_DIR"
-echo -n "Starting tailscaled... "
-tailscaled --state="$TAILSCALED_STATE" --socket="$TAILSCALED_SOCKET" > /var/log/tailscaled.log 2>&1 &
+echo -n "Starting tailscaled in userspace networking mode... "
+# Use userspace networking to avoid requiring NET_ADMIN or /dev/net/tun
+tailscaled --state="$TAILSCALED_STATE" --socket="$TAILSCALED_SOCKET" --tun=userspace-networking --socks5-server=localhost:1055 > /var/log/tailscaled.log 2>&1 &
 TAILSCALED_PID=$!
 if [ $? -ne 0 ]; then
    echo "failed!"

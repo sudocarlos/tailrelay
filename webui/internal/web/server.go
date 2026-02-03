@@ -45,7 +45,7 @@ func NewServer(cfg *config.Config, authToken string, staticFS, templateFS fs.FS)
 
 	// Create handlers
 	dashboardH := handlers.NewDashboardHandler(cfg, tmpl)
-	tailscaleH := handlers.NewTailscaleHandler(cfg, tmpl)
+	tailscaleH := handlers.NewTailscaleHandler(cfg, tmpl, authMW)
 	caddyH := handlers.NewCaddyHandler(cfg, tmpl)
 	socatH := handlers.NewSocatHandler(cfg, tmpl)
 	backupH := handlers.NewBackupHandler(cfg, tmpl)
@@ -68,6 +68,12 @@ func NewServer(cfg *config.Config, authToken string, staticFS, templateFS fs.FS)
 
 // Start starts the HTTP server
 func (s *Server) Start() error {
+	// Initialize autostart relays
+	log.Printf("Initializing autostart relays...")
+	if err := s.socatH.InitializeAutostart(); err != nil {
+		log.Printf("Warning: failed to start autostart relays: %v", err)
+	}
+
 	mux := s.setupRoutes()
 
 	addr := fmt.Sprintf("%s:%d", s.cfg.Server.Host, s.cfg.Server.Port)

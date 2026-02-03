@@ -59,6 +59,7 @@ type CaddyProxy struct {
 	TrustedProxies bool              `json:"trusted_proxies"`
 	CustomHeaders  map[string]string `json:"custom_headers,omitempty"`
 	Enabled        bool              `json:"enabled"`
+	Autostart      bool              `json:"autostart"` // Start automatically on container boot
 }
 
 // CaddyProxyList represents the list of Caddy proxies
@@ -73,6 +74,7 @@ type SocatRelay struct {
 	TargetHost string `json:"target_host"`
 	TargetPort int    `json:"target_port"`
 	Enabled    bool   `json:"enabled"`
+	Autostart  bool   `json:"autostart"`     // Start automatically on container boot
 	PID        int    `json:"pid,omitempty"` // Runtime tracking
 }
 

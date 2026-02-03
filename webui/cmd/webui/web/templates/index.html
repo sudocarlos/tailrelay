@@ -8,11 +8,13 @@
   <link rel="stylesheet" href="/static/css/spa.css" />
 </head>
 <body class="bg-body-tertiary">
-  <nav class="navbar navbar-expand-lg bg-white border-bottom shadow-sm">
+  <nav class="navbar navbar-expand-lg border-bottom">
     <div class="container-fluid">
       <span class="navbar-brand fw-semibold">Tailrelay</span>
       <div class="d-flex align-items-center gap-2">
-        <span class="badge text-bg-primary">SPA</span>
+        <button id="theme-toggle" class="btn btn-sm btn-outline-secondary" aria-label="Toggle theme">
+          <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-circle-half"></use></svg>
+        </button>
         <button id="refresh" class="btn btn-sm btn-outline-secondary">
           <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-arrow-clockwise"></use></svg>
           Refresh
@@ -25,24 +27,41 @@
     <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-3">
       <div>
         <h1 class="h4 mb-1">Relays & Proxies</h1>
-        <p class="text-muted mb-0">Manage TCP relays and HTTPS proxies in one place.</p>
-        <p class="small text-muted mb-0">
-          Enable MagicDNS in the <a href="https://login.tailscale.com/admin/dns" target="_blank" rel="noopener">Tailscale DNS settings</a>
-          (Tailnets created on or after October 20, 2022 have MagicDNS enabled by default).
-          <a href="https://tailscale.com/kb/1081/magicdns" target="_blank" rel="noopener">Learn how it works</a>.
-        </p>
       </div>
-      <div class="btn-group" role="group" aria-label="Type filter">
-        <input type="checkbox" class="btn-check" id="filter-relay" autocomplete="off" checked />
-        <label class="btn btn-outline-primary btn-sm" for="filter-relay">
-          <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-diagram-3"></use></svg>
-          TCP Relays
-        </label>
-        <input type="checkbox" class="btn-check" id="filter-proxy" autocomplete="off" checked />
-        <label class="btn btn-outline-primary btn-sm" for="filter-proxy">
-          <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-shield-lock"></use></svg>
-          HTTPS Proxies
-        </label>
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#help-section" aria-expanded="false" aria-controls="help-section">
+          <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-question-circle"></use></svg>
+          Help
+        </button>
+        <span class="text-muted small">Show/Hide:</span>
+        <div class="btn-group" role="group" aria-label="Type filter">
+          <input type="checkbox" class="btn-check" id="filter-relay" autocomplete="off" checked />
+          <label class="btn btn-outline-primary btn-sm" for="filter-relay" data-bs-toggle="tooltip" data-bs-placement="bottom" title="TCP relays served by socat">
+            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-diagram-3"></use></svg>
+            Relays
+          </label>
+          <input type="checkbox" class="btn-check" id="filter-proxy" autocomplete="off" checked />
+          <label class="btn btn-outline-primary btn-sm" for="filter-proxy" data-bs-toggle="tooltip" data-bs-placement="bottom" title="HTTPS reverse proxies served by Caddy">
+            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-shield-lock"></use></svg>
+            Proxies
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div id="help-section" class="collapse mb-3">
+      <div class="card">
+        <div class="card-body">
+          <h2 class="h6 mb-2">About Tailrelay</h2>
+          <p class="mb-3">Manage TCP relays and HTTPS proxies in one place. Tailrelay combines Tailscale, Caddy, and socat to expose local services securely to your Tailnet.</p>
+          
+          <h2 class="h6 mb-2">MagicDNS Requirement</h2>
+          <p class="mb-2">Enable MagicDNS in the <a href="https://login.tailscale.com/admin/dns" target="_blank" rel="noopener">Tailscale DNS settings</a>. Tailnets created on or after October 20, 2022 have MagicDNS enabled by default.</p>
+          <p class="mb-0 small text-muted">
+            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-info-circle"></use></svg>
+            <a href="https://tailscale.com/kb/1081/magicdns" target="_blank" rel="noopener">Learn how MagicDNS works</a>
+          </p>
+        </div>
       </div>
     </div>
 
@@ -55,7 +74,7 @@
 
     <div id="items" class="row g-3"></div>
 
-    <div class="card shadow-sm mt-4">
+    <div class="card mt-4">
       <div class="card-header d-flex align-items-center justify-content-between">
         <div class="d-flex align-items-center gap-2">
           <span class="fw-semibold">Logs</span>
