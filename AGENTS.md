@@ -96,7 +96,7 @@ Fast iteration without rebuilding the full image:
 
 ## Architecture Notes
 
-- **Container entrypoint**: [start.sh](start.sh) orchestrates Web UI, optional socat relays, Caddy startup, then hands off to `containerboot`.
+- **Container entrypoint**: [start.sh](start.sh) orchestrates tailscaled, Web UI, optional socat relays, and Caddy startup.
 - **Web UI**: Go application in [webui/](webui/) with embedded templates/static assets.
 - **Caddy config**: Managed via Caddy Admin API; legacy Caddyfile remains for compatibility.
 - **Relays**: `RELAY_LIST` is supported for migration but Web UI is preferred.
@@ -162,7 +162,7 @@ Fast iteration without rebuilding the full image:
 .
 ├── Dockerfile               # Multi-stage container build (includes building the Web UI binary in a builder stage)
 ├── Dockerfile.dev           # Development image that copies the locally-built `data/tailrelay-webui` binary
-├── start.sh                 # Container entrypoint: starts Web UI, optional socat relays, Caddy, then `containerboot`
+├── start.sh                 # Container entrypoint: starts tailscaled, Web UI, optional socat relays, and Caddy
 ├── webui/                   # Go Web UI source tree (see details below)
 ├── webui.yaml               # Default runtime config for the Web UI included in the image
 ├── data/                    # Local build outputs (e.g., `tailrelay-webui` produced by `make dev-build`)
@@ -198,7 +198,7 @@ Fast iteration without rebuilding the full image:
 4. **RELAY_LIST Format**: Strict `port:host:port` parsing; migrate to Web UI.
 5. **Docker Network**: Use `--net start9` for Start9 deployments.
 6. **TLS Certificates**: HTTPS must be enabled in Tailscale admin.
-7. **Container Execution**: `start.sh` uses `exec` to hand off to `containerboot`.
+7. **Container Execution**: `start.sh` keeps tailscaled and the Web UI running in the foreground.
 
 ## Version Information
 

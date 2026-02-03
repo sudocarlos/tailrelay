@@ -4,30 +4,111 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Tailrelay Web UI</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/vendor/bootstrap/css/bootstrap.min.css">
+    <style>
+        body {
+            background: #f8fafc;
+        }
+        .login-card {
+            max-width: 520px;
+        }
+    </style>
 </head>
 <body>
-    <div class="login-container">
-        <h1>⚡ Tailrelay</h1>
-        <p class="text-center mb-3">Web UI Login</p>
-        
-        {{if .Error}}
-        <div class="alert alert-error">
-            {{.Error}}
-        </div>
-        {{end}}
+    <div class="container py-5">
+        <div class="card login-card shadow-sm mx-auto">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <svg class="bi text-primary" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-lightning-charge"></use></svg>
+                    <h1 class="h4 mb-0">Tailrelay</h1>
+                </div>
+                <p class="text-muted">Connect Tailrelay to your Tailnet to access the Web UI.</p>
 
-        <form method="POST" action="/login">
-            <div class="form-group">
-                <label for="token">Authentication Token</label>
-                <input type="password" id="token" name="token" required autofocus>
-                <small style="color: #888; display: block; margin-top: 0.5rem;">
-                    Check container logs for the authentication token
-                </small>
+                <div id="login-status" class="alert alert-info" role="alert">
+                    Checking Tailscale status...
+                </div>
+
+                <div class="d-flex flex-column gap-2">
+                    <button id="login-button" class="btn btn-primary">
+                        <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-box-arrow-in-right"></use></svg>
+                        Generate Tailscale login link
+                    </button>
+                    <a id="login-link" class="btn btn-outline-primary d-none" target="_blank" rel="noopener">
+                        <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-link-45deg"></use></svg>
+                        Open Tailscale login
+                    </a>
+                </div>
+
+                <div class="mt-4">
+                    <h2 class="h6">MagicDNS required for HTTPS</h2>
+                    <p class="small text-muted mb-2">
+                        Enable MagicDNS in the Tailscale admin console. Tailnets created on or after October 20, 2022 have MagicDNS enabled by default.
+                    </p>
+                    <ul class="small mb-0">
+                        <li><a href="https://login.tailscale.com/admin/dns" target="_blank" rel="noopener">Enable MagicDNS</a></li>
+                        <li><a href="https://tailscale.com/kb/1081/magicdns" target="_blank" rel="noopener">Learn how MagicDNS works</a></li>
+                    </ul>
+                </div>
             </div>
-            
-            <button type="submit" style="width: 100%;">Login</button>
-        </form>
+        </div>
     </div>
+
+    <script>
+        (function () {
+            const statusEl = document.getElementById("login-status");
+            const loginButton = document.getElementById("login-button");
+            const loginLink = document.getElementById("login-link");
+
+            const updateStatus = (type, message) => {
+                statusEl.className = `alert alert-${type}`;
+                statusEl.textContent = message;
+            };
+
+            const pollStatus = async () => {
+                try {
+                    const response = await fetch("/api/tailscale/poll", { credentials: "same-origin" });
+                    if (!response.ok) {
+                        updateStatus("warning", "Waiting for Tailscale to start...");
+                        return;
+                    }
+                    const data = await response.json();
+                    if (data.connected) {
+                        updateStatus("success", "Tailscale connected. Redirecting...");
+                        setTimeout(() => window.location.replace("/"), 1000);
+                        return;
+                    }
+                    updateStatus("info", "Tailscale is not connected yet. Generate a login link to continue.");
+                } catch (error) {
+                    updateStatus("warning", "Unable to check Tailscale status. Retrying...");
+                }
+            };
+
+            const requestLogin = async () => {
+                loginButton.disabled = true;
+                try {
+                    const response = await fetch("/api/tailscale/login", { method: "POST", credentials: "same-origin" });
+                    if (!response.ok) {
+                        const message = await response.text();
+                        updateStatus("danger", message || "Failed to generate login link.");
+                        return;
+                    }
+                    const data = await response.json();
+                    if (data.auth_url) {
+                        loginLink.href = data.auth_url;
+                        loginLink.classList.remove("d-none");
+                        updateStatus("info", "Open the login link to authenticate Tailscale.");
+                    }
+                } catch (error) {
+                    updateStatus("danger", "Failed to generate login link.");
+                } finally {
+                    loginButton.disabled = false;
+                }
+            };
+
+            loginButton.addEventListener("click", requestLogin);
+            pollStatus();
+            setInterval(pollStatus, 4000);
+        })();
+    </script>
 </body>
 </html>

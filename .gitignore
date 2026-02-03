@@ -191,6 +191,10 @@ ENV/
 env.bak/
 venv.bak/
 
+# Frontend build artifacts
+webui/frontend/node_modules/
+webui/frontend/package-lock.json
+
 # Spyder project settings
 .spyderproject
 .spyproject

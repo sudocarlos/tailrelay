@@ -6,6 +6,6 @@
     "build": "esbuild src/index.js --bundle --minify --target=es2019 --outfile=../cmd/webui/web/static/js/spa.bundle.js && esbuild src/style.css --minify --outfile=../cmd/webui/web/static/css/spa.css"
   },
   "devDependencies": {
-    "esbuild": "^0.20.2"
+    "esbuild": "^0.27.2"
   }
 }

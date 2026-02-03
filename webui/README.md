@@ -9,7 +9,7 @@ A lightweight web interface for managing Tailscale, Caddy reverse proxies, and s
 - **Caddy Proxy Management**: Add/edit/delete HTTP/HTTPS reverse proxies via Caddy Admin API
 - **Socat Relay Management**: Add/edit/delete TCP relays
 - **Backup & Restore**: Full configuration and certificate backup
-- **Authentication**: Token-based + Tailscale network authentication
+- **Authentication**: Tailscale login link + token-based access for scripts
 
 ## Recent Updates (v0.3.0)
 
@@ -59,10 +59,8 @@ See `config/webui.yaml` for an example configuration file.
 
 The Web UI supports two authentication methods:
 
-1. **Token Authentication**: Requires authentication token (generated on first run)
-2. **Tailscale Network Authentication**: Automatic authentication from Tailscale IPs (100.x.y.z)
-
-The authentication token is displayed in the logs on first run and saved to the configured token file.
+1. **Tailscale Network Authentication**: Automatic authentication from Tailscale IPs (100.x.y.z). If the device is not connected, the login page shows a Tailscale login link and polls until connected.
+2. **Token Authentication**: Token-based access for scripted or legacy flows (token generated on first run and saved to the configured token file).
 
 ## Migration from RELAY_LIST
 
@@ -73,6 +71,14 @@ Format: `RELAY_LIST=port:host:port,port:host:port`
 After migration, you can remove the `RELAY_LIST` environment variable and manage relays through the Web UI.
 
 ## Development
+
+### Bootstrap Icons (SPA)
+
+The SPA uses a lightweight Bootstrap Icons SVG sprite stored at:
+
+- webui/cmd/webui/web/static/vendor/bootstrap-icons/bootstrap-icons.svg
+
+If you want to swap in the full Bootstrap Icons distribution, keep the sprite in the same path or update the template references accordingly.
 
 ### Project Structure
 

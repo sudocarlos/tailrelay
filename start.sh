@@ -1,5 +1,5 @@
 #!/bin/ash
-trap 'kill -TERM $PID' TERM INT
+trap 'shutdown' TERM INT
 TAILRELAY_VERSION=v0.3.0
 
 # Accept a single comma‑separated list of port:target pairs
@@ -11,8 +11,35 @@ RELAY_LIST=${RELAY_LIST:-}
 export TS_ENABLE_METRICS=true
 export TS_ENABLE_HEALTH_CHECK=true
 
+shutdown() {
+   echo "Shutting down tailrelay..."
+   if [ -n "$WEBUI_PID" ]; then
+      kill -TERM "$WEBUI_PID" 2>/dev/null
+   fi
+   if [ -n "$TAILSCALED_PID" ]; then
+      kill -TERM "$TAILSCALED_PID" 2>/dev/null
+   fi
+   if command -v caddy >/dev/null 2>&1; then
+      caddy stop >/dev/null 2>&1
+   fi
+}
+
 echo -n "Starting tailrelay ${TAILRELAY_VERSION} with Tailscale v"
 tailscale --version | head -1
+
+# Start Tailscale daemon manually (no containerboot)
+TS_STATE_DIR=${TS_STATE_DIR:-/var/lib/tailscale}
+TAILSCALED_STATE="${TS_STATE_DIR%/}/tailscaled.state"
+TAILSCALED_SOCKET="/var/run/tailscale/tailscaled.sock"
+mkdir -p /var/run/tailscale "$TS_STATE_DIR"
+echo -n "Starting tailscaled... "
+tailscaled --state="$TAILSCALED_STATE" --socket="$TAILSCALED_SOCKET" > /var/log/tailscaled.log 2>&1 &
+TAILSCALED_PID=$!
+if [ $? -ne 0 ]; then
+   echo "failed!"
+else
+   echo "success! (PID: $TAILSCALED_PID)"
+fi
 
 
 # Start Web UI
@@ -59,10 +86,10 @@ echo -n "Starting Caddy... "
 CADDY_STATUS=$(caddy start --config /etc/caddy/Caddyfile >/dev/null)
 # echo success or fail + stderr
 if [ $? -ne 0 ]; then
-  echo "failed!"
-  echo $CADDY_STATUS
+   echo "failed!"
+   echo $CADDY_STATUS
 else
-  echo "success!"
+   echo "success!"
 fi
 
-exec /usr/local/bin/containerboot
+wait $TAILSCALED_PID $WEBUI_PID

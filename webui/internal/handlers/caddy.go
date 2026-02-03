@@ -260,8 +260,25 @@ func (h *CaddyHandler) APIList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	running, _ := h.manager.GetStatus()
+
+	response := make([]struct {
+		config.CaddyProxy
+		Running bool `json:"running"`
+	}, 0, len(proxies))
+
+	for _, proxy := range proxies {
+		response = append(response, struct {
+			config.CaddyProxy
+			Running bool `json:"running"`
+		}{
+			CaddyProxy: proxy,
+			Running:    running,
+		})
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(proxies)
+	json.NewEncoder(w).Encode(response)
 }
 
 // APIGet returns a single proxy as JSON

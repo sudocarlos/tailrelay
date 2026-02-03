@@ -74,10 +74,7 @@ docker run -d --name tailrelay \
   --net bridge \
   sudocarlos/tailrelay:latest
 
-# Get the Web UI token
-docker exec tailrelay cat /var/lib/tailscale/.webui_token
-
-# Access the Web UI
+# Access the Web UI and follow the Tailscale login link
 open http://localhost:8021
 ```
 
@@ -98,16 +95,8 @@ The Web UI provides browser-based management on port 8021.
 
 The Web UI uses two authentication methods:
 
-1. **Token Authentication**: A random token is generated on first startup at `/var/lib/tailscale/.webui_token`
-   ```bash
-   # Docker
-   docker exec tailrelay cat /var/lib/tailscale/.webui_token
-   
-   # Podman
-   sudo podman exec start9.tailscale cat /var/lib/tailscale/.webui_token
-   ```
-
-2. **Tailscale Network Authentication**: Devices on your Tailscale network are automatically authenticated
+1. **Tailscale Network Authentication**: Devices on your Tailscale network are automatically authenticated. If the container is not connected, the Web UI shows a Tailscale login link and polls until the device is connected.
+2. **Token Authentication**: A token is generated on first startup at `/var/lib/tailscale/.webui_token` for scripted access or legacy flows.
 
 ### Access
 
@@ -131,9 +120,11 @@ http://localhost:8021
 
 ### Tailscale Setup
 
-1. Log into Tailscale Admin console and click [DNS](https://login.tailscale.com/admin/dns)
-2. Verify or set your [Tailnet name](https://tailscale.com/kb/1217/tailnet-name)
-3. Scroll down and enable HTTPS under HTTPS Certificates
+1. Log into Tailscale Admin console and click [DNS](https://login.tailscale.com/admin/dns) to enable MagicDNS.
+  - Tailnets created on or after October 20, 2022 have MagicDNS enabled by default.
+2. Review [MagicDNS](https://tailscale.com/kb/1081/magicdns) to understand how it works.
+3. Verify or set your [Tailnet name](https://tailscale.com/kb/1217/tailnet-name)
+4. Scroll down and enable HTTPS under HTTPS Certificates
 
 ### Start9 Deployment
 
@@ -159,12 +150,7 @@ http://localhost:8021
      docker.io/sudocarlos/tailrelay:latest
    ```
 
-4. Get the Web UI token:
-   ```bash
-   sudo podman exec start9.tailscale cat /var/lib/tailscale/.webui_token
-   ```
-
-5. Access the Web UI at `http://localhost:8021`
+4. Access the Web UI at `http://localhost:8021` and follow the login link
 
 **Environment Variables:**
 - `TS_HOSTNAME` - Tailnet machine name

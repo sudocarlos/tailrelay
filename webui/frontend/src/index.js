@@ -2,7 +2,9 @@
   const state = {
     relays: [],
     proxies: [],
-    filter: "relay",
+    showRelays: true,
+    showProxies: true,
+    tailnetFQDN: "",
     logs: [],
     logLevel: "INFO",
     logStream: null,
@@ -15,6 +17,7 @@
     alertContainer: document.getElementById("alert-container"),
     logOutput: document.getElementById("log-output"),
     logLevel: document.getElementById("log-level"),
+    logLevelSelect: document.getElementById("log-level-select"),
     refresh: document.getElementById("refresh"),
     clearLogs: document.getElementById("clear-logs"),
     filterRelay: document.getElementById("filter-relay"),
@@ -61,12 +64,15 @@
     }, 6000);
   };
 
-  const formatRelayTitle = (relay) =>
-    `:${relay.listen_port} → ${relay.target_host}:${relay.target_port}`;
+  const formatRelayTitle = (relay) => {
+    const fqdn = state.tailnetFQDN || "unknown";
+    return `tcp://${fqdn}:${relay.listen_port} → ${relay.target_host}:${relay.target_port}`;
+  };
 
-  const formatProxyTitle = (proxy) => {
+  const formatProxyLink = (proxy) => {
     const portLabel = proxy.port ? `:${proxy.port}` : "";
-    return `${proxy.hostname}${portLabel} → ${proxy.target}`;
+    const url = `https://${proxy.hostname}${portLabel}`;
+    return `<a class="proxy-link" href="${url}" target="_blank" rel="noopener">${url}</a>`;
   };
 
   const renderEmpty = (message) => {
@@ -84,17 +90,40 @@
   const renderItems = () => {
     disposeTooltips();
 
-    const items = state.filter === "relay" ? state.relays : state.proxies;
-    elements.itemCount.textContent = `${items.length} item${items.length === 1 ? "" : "s"}`;
+    const combined = [
+      ...state.relays.map((item) => ({
+        type: "relay",
+        relay: item.relay,
+        running: item.running,
+      })),
+      ...state.proxies.map((item) => ({
+        type: "proxy",
+        proxy: item,
+      })),
+    ];
 
-    if (!items.length) {
-      renderEmpty(state.filter === "relay" ? "No TCP relays configured." : "No HTTPS proxies configured.");
+    const filtered = combined.filter((item) =>
+      item.type === "relay" ? state.showRelays : state.showProxies,
+    );
+
+    elements.itemCount.textContent = `${filtered.length} item${filtered.length === 1 ? "" : "s"}`;
+
+    if (!filtered.length) {
+      if (!state.showRelays && !state.showProxies) {
+        renderEmpty("Enable TCP relays or HTTPS proxies to view items.");
+      } else if (state.showRelays && !state.showProxies) {
+        renderEmpty("No TCP relays configured.");
+      } else if (!state.showRelays && state.showProxies) {
+        renderEmpty("No HTTPS proxies configured.");
+      } else {
+        renderEmpty("No relays or proxies configured.");
+      }
       return;
     }
 
-    elements.items.innerHTML = items
+    elements.items.innerHTML = filtered
       .map((item) => {
-        if (state.filter === "relay") {
+        if (item.type === "relay") {
           const relay = item.relay;
           const running = item.running;
           const statusBadge = running ? "text-bg-success" : "text-bg-secondary";
@@ -114,7 +143,8 @@
                     <span class="badge ${statusBadge}">${running ? "Running" : "Stopped"}</span>
                     <span class="badge ${enabledBadge}">${relay.enabled ? "Enabled" : "Disabled"}</span>
                     <button class="btn btn-outline-secondary btn-sm action-btn" data-type="relay" data-id="${relay.id}" data-running="${running}">
-                      ${running ? "⏸ Pause" : "▶ Start"}
+                      <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#${running ? "bi-pause-fill" : "bi-play-fill"}"></use></svg>
+                      ${running ? "Pause" : "Start"}
                     </button>
                   </div>
                 </div>
@@ -123,8 +153,11 @@
           `;
         }
 
-        const proxy = item;
+        const proxy = item.proxy;
         const enabledBadge = proxy.enabled ? "text-bg-success" : "text-bg-secondary";
+        const running = proxy.running ?? proxy.Running;
+        const runningBadge = running ? "text-bg-success" : "text-bg-secondary";
+        const runningLabel = running ? "Caddy Running" : "Caddy Down";
         return `
           <div class="col-12">
             <div class="card shadow-sm h-100">
@@ -132,14 +165,16 @@
                 <div class="flex-grow-1">
                   <div class="d-flex align-items-center gap-2 flex-wrap">
                     <span class="badge text-bg-primary" data-bs-toggle="tooltip" title="served by caddy">HTTPS Proxy</span>
-                    <span class="fw-semibold">${formatProxyTitle(proxy)}</span>
+                    <span class="fw-semibold">${formatProxyLink(proxy)} → ${proxy.target}</span>
                   </div>
                   <div class="small text-muted mt-1">ID: ${proxy.id}</div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
+                  <span class="badge ${runningBadge}">${runningLabel}</span>
                   <span class="badge ${enabledBadge}">${proxy.enabled ? "Enabled" : "Disabled"}</span>
                   <button class="btn btn-outline-secondary btn-sm action-btn" data-type="proxy" data-id="${proxy.id}" data-enabled="${proxy.enabled}">
-                    ${proxy.enabled ? "⏸ Pause" : "▶ Start"}
+                    <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#${proxy.enabled ? "bi-pause-fill" : "bi-play-fill"}"></use></svg>
+                    ${proxy.enabled ? "Pause" : "Start"}
                   </button>
                 </div>
               </div>
@@ -167,16 +202,21 @@
 
   const refreshData = async () => {
     try {
-      const [relays, proxies] = await Promise.all([
+      const [relays, proxies, status] = await Promise.all([
         fetchJSON("/api/socat/relays"),
         fetchJSON("/api/caddy/proxies"),
+        fetchJSON("/api/tailscale/status"),
       ]);
 
       state.relays = relays.map((status) => ({
         relay: status.Relay || status.relay,
         running: status.Running ?? status.running,
       }));
-      state.proxies = proxies;
+      state.proxies = proxies.map((proxy) => ({
+        ...proxy,
+        running: proxy.running ?? proxy.Running,
+      }));
+      state.tailnetFQDN = status.MagicDNSName || status.magicDNSName || "";
 
       renderItems();
       setLastUpdated();
@@ -248,8 +288,27 @@
       state.logs = data.logs || [];
       state.logLevel = data.level || "INFO";
       elements.logLevel.textContent = state.logLevel;
+      if (elements.logLevelSelect) {
+        elements.logLevelSelect.value = state.logLevel;
+      }
       elements.logOutput.textContent = "";
       state.logs.forEach(appendLogEntry);
+    } catch (error) {
+      showAlert("warning", error.message);
+    }
+  };
+
+  const setLogLevel = async (level) => {
+    try {
+      const response = await fetchJSON("/api/logs/level", {
+        method: "POST",
+        body: JSON.stringify({ level }),
+      });
+      state.logLevel = response.level || level;
+      elements.logLevel.textContent = state.logLevel;
+      if (elements.logLevelSelect) {
+        elements.logLevelSelect.value = state.logLevel;
+      }
     } catch (error) {
       showAlert("warning", error.message);
     }
@@ -283,12 +342,12 @@
     elements.items.addEventListener("click", handleActionClick);
 
     elements.filterRelay.addEventListener("change", () => {
-      state.filter = "relay";
+      state.showRelays = elements.filterRelay.checked;
       renderItems();
     });
 
     elements.filterProxy.addEventListener("change", () => {
-      state.filter = "proxy";
+      state.showProxies = elements.filterProxy.checked;
       renderItems();
     });
 
@@ -296,6 +355,12 @@
     elements.clearLogs.addEventListener("click", () => {
       elements.logOutput.textContent = "";
     });
+
+    if (elements.logLevelSelect) {
+      elements.logLevelSelect.addEventListener("change", (event) => {
+        setLogLevel(event.target.value);
+      });
+    }
   };
 
   const init = async () => {

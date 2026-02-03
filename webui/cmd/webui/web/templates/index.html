@@ -13,7 +13,10 @@
       <span class="navbar-brand fw-semibold">Tailrelay</span>
       <div class="d-flex align-items-center gap-2">
         <span class="badge text-bg-primary">SPA</span>
-        <button id="refresh" class="btn btn-sm btn-outline-secondary">Refresh</button>
+        <button id="refresh" class="btn btn-sm btn-outline-secondary">
+          <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-arrow-clockwise"></use></svg>
+          Refresh
+        </button>
       </div>
     </div>
   </nav>
@@ -23,12 +26,23 @@
       <div>
         <h1 class="h4 mb-1">Relays & Proxies</h1>
         <p class="text-muted mb-0">Manage TCP relays and HTTPS proxies in one place.</p>
+        <p class="small text-muted mb-0">
+          Enable MagicDNS in the <a href="https://login.tailscale.com/admin/dns" target="_blank" rel="noopener">Tailscale DNS settings</a>
+          (Tailnets created on or after October 20, 2022 have MagicDNS enabled by default).
+          <a href="https://tailscale.com/kb/1081/magicdns" target="_blank" rel="noopener">Learn how it works</a>.
+        </p>
       </div>
       <div class="btn-group" role="group" aria-label="Type filter">
-        <input type="radio" class="btn-check" name="typeFilter" id="filter-relay" autocomplete="off" checked />
-        <label class="btn btn-outline-primary btn-sm" for="filter-relay">TCP Relays</label>
-        <input type="radio" class="btn-check" name="typeFilter" id="filter-proxy" autocomplete="off" />
-        <label class="btn btn-outline-primary btn-sm" for="filter-proxy">HTTPS Proxies</label>
+        <input type="checkbox" class="btn-check" id="filter-relay" autocomplete="off" checked />
+        <label class="btn btn-outline-primary btn-sm" for="filter-relay">
+          <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-diagram-3"></use></svg>
+          TCP Relays
+        </label>
+        <input type="checkbox" class="btn-check" id="filter-proxy" autocomplete="off" checked />
+        <label class="btn btn-outline-primary btn-sm" for="filter-proxy">
+          <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-shield-lock"></use></svg>
+          HTTPS Proxies
+        </label>
       </div>
     </div>
 
@@ -48,6 +62,12 @@
           <span id="log-level" class="badge text-bg-secondary">INFO</span>
         </div>
         <div class="d-flex align-items-center gap-2">
+          <select id="log-level-select" class="form-select form-select-sm">
+            <option value="DEBUG">DEBUG</option>
+            <option value="INFO">INFO</option>
+            <option value="WARN">WARN</option>
+            <option value="ERROR">ERROR</option>
+          </select>
           <button id="clear-logs" class="btn btn-sm btn-outline-secondary">Clear</button>
           <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#log-console" aria-expanded="false" aria-controls="log-console">
             Toggle Console

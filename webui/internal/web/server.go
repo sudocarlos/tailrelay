@@ -83,6 +83,8 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	// Public routes (no authentication required)
 	mux.HandleFunc("/login", s.handleLogin)
 	mux.HandleFunc("/logout", s.handleLogout)
+	mux.Handle("/api/tailscale/login", http.HandlerFunc(s.tailscaleH.Login))
+	mux.Handle("/api/tailscale/poll", http.HandlerFunc(s.tailscaleH.PollStatus))
 
 	// Static files
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(s.staticFS))))
@@ -93,13 +95,11 @@ func (s *Server) setupRoutes() *http.ServeMux {
 
 	// Tailscale routes
 	mux.Handle("/tailscale", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Status)))
-	mux.Handle("/api/tailscale/login", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Login)))
 	mux.Handle("/api/tailscale/logout", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Logout)))
 	mux.Handle("/api/tailscale/connect", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Connect)))
 	mux.Handle("/api/tailscale/disconnect", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Disconnect)))
 	mux.Handle("/api/tailscale/status", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.APIStatus)))
 	mux.Handle("/api/tailscale/peers", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.APIPeers)))
-	mux.Handle("/api/tailscale/poll", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.PollStatus)))
 
 	// Caddy routes
 	mux.Handle("/caddy", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPARedirect)))
@@ -172,29 +172,13 @@ func (s *Server) handleSPARedirect(w http.ResponseWriter, r *http.Request) {
 
 // handleLogin handles the login page
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		// Show login form
-		s.templates.ExecuteTemplate(w, "login.html", nil)
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	if r.Method == http.MethodPost {
-		// Process login
-		token := r.FormValue("token")
-		if s.authMW.ValidateToken(token) {
-			s.authMW.SetSessionCookie(w, r)
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-			return
-		}
-
-		// Invalid token
-		s.templates.ExecuteTemplate(w, "login.html", map[string]interface{}{
-			"Error": "Invalid authentication token",
-		})
-		return
-	}
-
-	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	// Show login instructions and tailscale login link
+	s.templates.ExecuteTemplate(w, "login.html", nil)
 }
 
 // handleLogout handles the logout action

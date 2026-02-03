@@ -44,3 +44,20 @@ body {
 .alert {
   border-radius: 0.75rem;
 }
+
+.proxy-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.proxy-link:hover {
+  text-decoration: underline;
+}
+
+.bi {
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
+  vertical-align: -0.125em;
+  flex-shrink: 0;
+}
