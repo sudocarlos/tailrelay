@@ -8,6 +8,9 @@
     logs: [],
     logLevel: "INFO",
     logStream: null,
+    currentEditItem: null,
+    currentEditType: null,
+    deleteTarget: null,
   };
 
   const elements = {
@@ -23,6 +26,11 @@
     filterRelay: document.getElementById("filter-relay"),
     filterProxy: document.getElementById("filter-proxy"),
     themeToggle: document.getElementById("theme-toggle"),
+    addRelayBtn: document.getElementById("add-relay-btn"),
+    addProxyBtn: document.getElementById("add-proxy-btn"),
+    saveRelayBtn: document.getElementById("save-relay-btn"),
+    saveProxyBtn: document.getElementById("save-proxy-btn"),
+    confirmDeleteBtn: document.getElementById("confirm-delete-btn"),
   };
 
   const tooltips = [];
@@ -179,6 +187,12 @@
                       <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#${running ? "bi-pause-fill" : "bi-play-fill"}"></use></svg>
                       ${running ? "Pause" : "Start"}
                     </button>
+                    <button class="btn btn-outline-primary btn-sm edit-btn" data-type="relay" data-id="${relay.id}">
+                      <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-pencil"></use></svg>
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm delete-btn" data-type="relay" data-id="${relay.id}" data-name="tcp://${state.tailnetFQDN}:${relay.listen_port}">
+                      <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-trash"></use></svg>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -191,6 +205,7 @@
         const runningBadge = running ? "text-bg-success" : "text-bg-secondary";
         const runningLabel = running ? "Caddy Running" : "Caddy Down";
         const autostart = proxy.autostart ?? false;
+        const proxyName = proxy.port ? `${proxy.hostname}:${proxy.port}` : proxy.hostname;
         return `
           <div class="col-12">
             <div class="card h-100">
@@ -213,6 +228,12 @@
                   <button class="btn btn-outline-secondary btn-sm action-btn" data-type="proxy" data-id="${proxy.id}" data-enabled="${proxy.enabled}">
                     <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#${proxy.enabled ? "bi-pause-fill" : "bi-play-fill"}"></use></svg>
                     ${proxy.enabled ? "Pause" : "Start"}
+                  </button>
+                  <button class="btn btn-outline-primary btn-sm edit-btn" data-type="proxy" data-id="${proxy.id}">
+                    <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-pencil"></use></svg>
+                  </button>
+                  <button class="btn btn-outline-danger btn-sm delete-btn" data-type="proxy" data-id="${proxy.id}" data-name="https://${proxyName}">
+                    <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-trash"></use></svg>
                   </button>
                 </div>
               </div>
@@ -420,8 +441,226 @@
     state.logStream = stream;
   };
 
+  const openRelayModal = (relay = null) => {
+    const modal = new bootstrap.Modal(document.getElementById("relayModal"));
+    const modalTitle = document.querySelector("#relayModal .modal-title");
+    
+    state.currentEditItem = relay;
+    state.currentEditType = "relay";
+    
+    if (relay) {
+      // Edit mode
+      modalTitle.textContent = "Edit Relay";
+      document.getElementById("relay-id").value = relay.id;
+      document.getElementById("relay-listen-port").value = relay.listen_port;
+      document.getElementById("relay-target-host").value = relay.target_host;
+      document.getElementById("relay-target-port").value = relay.target_port;
+      document.getElementById("relay-autostart").checked = relay.autostart ?? false;
+    } else {
+      // Add mode
+      modalTitle.textContent = "Add Relay";
+      document.getElementById("relayForm").reset();
+      document.getElementById("relay-id").value = "";
+      document.getElementById("relay-autostart").checked = true;
+    }
+    
+    modal.show();
+  };
+
+  const openProxyModal = (proxy = null) => {
+    const modal = new bootstrap.Modal(document.getElementById("proxyModal"));
+    const modalTitle = document.querySelector("#proxyModal .modal-title");
+    
+    state.currentEditItem = proxy;
+    state.currentEditType = "proxy";
+    
+    if (proxy) {
+      // Edit mode
+      modalTitle.textContent = "Edit Proxy";
+      document.getElementById("proxy-id").value = proxy.id;
+      document.getElementById("proxy-hostname").value = proxy.hostname;
+      document.getElementById("proxy-port").value = proxy.port || "";
+      document.getElementById("proxy-target").value = proxy.target;
+      document.getElementById("proxy-tls").checked = proxy.tls ?? false;
+      document.getElementById("proxy-trusted-proxies").checked = proxy.trusted_proxies ?? false;
+      document.getElementById("proxy-autostart").checked = proxy.autostart ?? false;
+    } else {
+      // Add mode
+      modalTitle.textContent = "Add Proxy";
+      document.getElementById("proxyForm").reset();
+      document.getElementById("proxy-id").value = "";
+      document.getElementById("proxy-autostart").checked = true;
+    }
+    
+    modal.show();
+  };
+
+  const saveRelay = async () => {
+    const id = document.getElementById("relay-id").value;
+    const listenPort = parseInt(document.getElementById("relay-listen-port").value);
+    const targetHost = document.getElementById("relay-target-host").value.trim();
+    const targetPort = parseInt(document.getElementById("relay-target-port").value);
+    const autostart = document.getElementById("relay-autostart").checked;
+
+    if (!listenPort || !targetHost || !targetPort) {
+      showAlert("danger", "Please fill in all required fields");
+      return;
+    }
+
+    const relay = {
+      listen_port: listenPort,
+      target_host: targetHost,
+      target_port: targetPort,
+      autostart: autostart,
+      enabled: true,
+    };
+
+    if (id) {
+      relay.id = id;
+    }
+
+    try {
+      elements.saveRelayBtn.disabled = true;
+      const url = id ? "/api/socat/update" : "/api/socat/create";
+      await fetchJSON(url, {
+        method: "POST",
+        body: JSON.stringify(relay),
+      });
+
+      bootstrap.Modal.getInstance(document.getElementById("relayModal")).hide();
+      showAlert("success", `Relay ${id ? "updated" : "created"} successfully`);
+      await refreshData();
+    } catch (error) {
+      showAlert("danger", error.message);
+    } finally {
+      elements.saveRelayBtn.disabled = false;
+    }
+  };
+
+  const saveProxy = async () => {
+    const id = document.getElementById("proxy-id").value;
+    const hostname = document.getElementById("proxy-hostname").value.trim();
+    const port = document.getElementById("proxy-port").value.trim();
+    const target = document.getElementById("proxy-target").value.trim();
+    const tls = document.getElementById("proxy-tls").checked;
+    const trustedProxies = document.getElementById("proxy-trusted-proxies").checked;
+    const autostart = document.getElementById("proxy-autostart").checked;
+
+    if (!hostname || !target) {
+      showAlert("danger", "Please fill in all required fields");
+      return;
+    }
+
+    const proxy = {
+      hostname: hostname,
+      target: target,
+      tls: tls,
+      trusted_proxies: trustedProxies,
+      autostart: autostart,
+      enabled: true,
+    };
+
+    if (port) {
+      proxy.port = parseInt(port);
+    }
+
+    if (id) {
+      proxy.id = id;
+    }
+
+    try {
+      elements.saveProxyBtn.disabled = true;
+      const url = id ? "/api/caddy/update" : "/api/caddy/create";
+      await fetchJSON(url, {
+        method: "POST",
+        body: JSON.stringify(proxy),
+      });
+
+      bootstrap.Modal.getInstance(document.getElementById("proxyModal")).hide();
+      showAlert("success", `Proxy ${id ? "updated" : "created"} successfully`);
+      await refreshData();
+    } catch (error) {
+      showAlert("danger", error.message);
+    } finally {
+      elements.saveProxyBtn.disabled = false;
+    }
+  };
+
+  const openDeleteModal = (type, id, name) => {
+    const modal = new bootstrap.Modal(document.getElementById("deleteModal"));
+    const message = document.getElementById("delete-message");
+    
+    state.deleteTarget = { type, id };
+    message.textContent = `Are you sure you want to delete ${type === "relay" ? "relay" : "proxy"} "${name}"? This action cannot be undone.`;
+    
+    modal.show();
+  };
+
+  const confirmDelete = async () => {
+    if (!state.deleteTarget) {
+      return;
+    }
+
+    const { type, id } = state.deleteTarget;
+
+    try {
+      elements.confirmDeleteBtn.disabled = true;
+      const url = type === "relay" 
+        ? `/api/socat/delete?id=${encodeURIComponent(id)}`
+        : `/api/caddy/delete?id=${encodeURIComponent(id)}`;
+      
+      await fetchJSON(url, { method: "POST" });
+
+      bootstrap.Modal.getInstance(document.getElementById("deleteModal")).hide();
+      showAlert("success", `${type === "relay" ? "Relay" : "Proxy"} deleted successfully`);
+      await refreshData();
+    } catch (error) {
+      showAlert("danger", error.message);
+    } finally {
+      elements.confirmDeleteBtn.disabled = false;
+      state.deleteTarget = null;
+    }
+  };
+
+  const handleEditClick = async (event) => {
+    const button = event.target.closest(".edit-btn");
+    if (!button) {
+      return;
+    }
+
+    const type = button.dataset.type;
+    const id = button.dataset.id;
+
+    if (type === "relay") {
+      const relay = state.relays.find(r => r.relay.id === id)?.relay;
+      if (relay) {
+        openRelayModal(relay);
+      }
+    } else if (type === "proxy") {
+      const proxy = state.proxies.find(p => p.id === id);
+      if (proxy) {
+        openProxyModal(proxy);
+      }
+    }
+  };
+
+  const handleDeleteClick = async (event) => {
+    const button = event.target.closest(".delete-btn");
+    if (!button) {
+      return;
+    }
+
+    const type = button.dataset.type;
+    const id = button.dataset.id;
+    const name = button.dataset.name;
+
+    openDeleteModal(type, id, name);
+  };
+
   const bindEvents = () => {
     elements.items.addEventListener("click", handleActionClick);
+    elements.items.addEventListener("click", handleEditClick);
+    elements.items.addEventListener("click", handleDeleteClick);
     elements.items.addEventListener("change", handleAutostartToggle);
 
     elements.filterRelay.addEventListener("change", () => {
@@ -448,6 +687,44 @@
         setLogLevel(event.target.value);
       });
     }
+
+    // FAB and modal events
+    if (elements.addRelayBtn) {
+      elements.addRelayBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        openRelayModal();
+      });
+    }
+
+    if (elements.addProxyBtn) {
+      elements.addProxyBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        openProxyModal();
+      });
+    }
+
+    if (elements.saveRelayBtn) {
+      elements.saveRelayBtn.addEventListener("click", saveRelay);
+    }
+
+    if (elements.saveProxyBtn) {
+      elements.saveProxyBtn.addEventListener("click", saveProxy);
+    }
+
+    if (elements.confirmDeleteBtn) {
+      elements.confirmDeleteBtn.addEventListener("click", confirmDelete);
+    }
+
+    // Handle Enter key in forms
+    document.getElementById("relayForm")?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      saveRelay();
+    });
+
+    document.getElementById("proxyForm")?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      saveProxy();
+    });
   };
 
   const init = async () => {

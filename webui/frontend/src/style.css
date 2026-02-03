@@ -93,3 +93,55 @@ body {
 .card.shadow-sm {
   box-shadow: none !important;
 }
+
+/* Floating Action Button */
+.fab-container {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 1050;
+}
+
+.fab {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fab:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4) !important;
+}
+
+.fab:active {
+  transform: scale(0.95);
+}
+
+/* FAB dropdown menu positioning */
+.fab-menu {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 0.5rem;
+}
+
+[data-bs-theme="dark"] .fab-menu {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.fab-menu .dropdown-item {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+}
+
+.fab-menu .dropdown-item:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+[data-bs-theme="dark"] .fab-menu .dropdown-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
