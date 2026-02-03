@@ -94,12 +94,142 @@ Fast iteration without rebuilding the full image:
 3. Restart the container: `docker compose -f compose-test.yml restart tailrelay`
 4. Repeat as needed
 
+### Building Web UI Standalone
+
+```bash
+# Build from webui directory
+cd webui
+go build -o ../data/tailrelay-webui ./cmd/webui
+
+# Or use Make target from project root
+make dev-build
+```
+
+### Running Web UI Standalone
+
+```bash
+# With default config (/var/lib/tailscale/webui.yaml)
+./data/tailrelay-webui
+
+# With custom config
+./data/tailrelay-webui --config /path/to/webui.yaml
+
+# Show version
+./data/tailrelay-webui --version
+```
+
+### Web UI Testing
+
+```bash
+# Run Go tests
+cd webui
+go test ./...
+
+# Build and test locally with custom config
+go build -o ../data/tailrelay-webui ./cmd/webui
+../data/tailrelay-webui --config ./config/webui.yaml
+```
+
 ## Architecture Notes
 
 - **Container entrypoint**: [start.sh](start.sh) orchestrates tailscaled, Web UI, optional socat relays, and Caddy startup.
 - **Web UI**: Go application in [webui/](webui/) with embedded templates/static assets.
 - **Caddy config**: Managed via Caddy Admin API; legacy Caddyfile remains for compatibility.
 - **Relays**: `RELAY_LIST` is supported for migration but Web UI is preferred.
+
+### Web UI Architecture
+
+The Web UI is a lightweight Go application that provides:
+
+- **Dashboard**: System status overview
+- **Tailscale Management**: Login, status, device list
+- **Caddy Proxy Management**: Add/edit/delete HTTP/HTTPS reverse proxies via Caddy Admin API
+- **Socat Relay Management**: Add/edit/delete TCP relays
+- **Backup & Restore**: Full configuration and certificate backup
+- **Authentication**: Tailscale network auth + token-based access for scripts
+
+#### Caddy API Integration (v0.3.0)
+
+The Web UI uses **Caddy's Admin API** directly instead of file-based Caddyfile management:
+
+- ✅ **Zero-downtime configuration changes** - No reload/restart needed
+- ✅ **5-10x faster operations** - Direct API calls vs file regeneration
+- ✅ **Atomic updates** - Changes apply instantly and safely
+- ✅ **Better error handling** - Immediate feedback from Caddy
+- ✅ **No file system dependencies** - Pure HTTP-based management
+
+See `webui/CADDY_API_GUIDE.md` for detailed documentation and `webui/MIGRATION_SUMMARY.md` for migration information.
+
+#### Web UI Project Structure
+
+```
+webui/
+├── cmd/webui/          # Main application entry point
+│   └── web/            # Embedded static assets and templates
+├── internal/
+│   ├── auth/           # Authentication middleware
+│   ├── backup/         # Backup and restore functionality
+│   ├── caddy/          # Caddy API integration
+│   │   ├── api_client.go      # HTTP client for Caddy Admin API
+│   │   ├── api_types.go       # Caddy JSON config structures
+│   │   ├── proxy_manager.go   # High-level proxy management
+│   │   ├── manager.go          # Simplified manager interface
+│   │   ├── migration.go        # Migration utilities
+│   │   ├── caddyfile.go        # Legacy Caddyfile support
+│   │   ├── legacy.go           # Legacy compatibility layer
+│   │   └── server_map.go       # Server mapping utilities
+│   ├── config/         # Configuration management
+│   ├── handlers/       # HTTP request handlers
+│   ├── logger/         # Logging utilities
+│   ├── socat/          # Socat process management
+│   ├── tailscale/      # Tailscale CLI integration
+│   └── web/            # HTTP server and routing
+├── config/             # Example configuration files
+├── examples/           # Usage examples
+├── frontend/           # Frontend build system (Node.js/npm)
+├── web/                # Legacy static assets and templates
+├── README.md           # Web UI overview and quickstart
+├── CADDY_API_GUIDE.md  # Comprehensive API documentation
+├── MIGRATION_SUMMARY.md # Migration guide from Caddyfile to API
+└── IMPLEMENTATION_SUMMARY.md # Technical implementation details
+```
+
+#### Web UI Configuration
+
+See `webui/config/webui.yaml` for example configuration. Key settings:
+
+- **server.port**: Web UI port (default: 8021)
+- **auth.enable_tailscale_auth**: Allow auth from Tailscale network IPs
+- **auth.enable_token_auth**: Require authentication token
+- **paths.***: File paths for configurations and state
+
+#### Web UI Authentication
+
+Two authentication methods supported:
+
+1. **Tailscale Network Authentication**: Automatic authentication from Tailscale IPs (100.x.y.z). If device not connected, login page shows Tailscale login link and polls until connected.
+2. **Token Authentication**: Token-based access for scripted or legacy flows (token generated on first run and saved to configured token file).
+
+#### RELAY_LIST Migration
+
+On first startup, if `RELAY_LIST` environment variable is set and `relays.json` doesn't exist, the Web UI automatically migrates relay configuration to JSON format.
+
+Format: `RELAY_LIST=port:host:port,port:host:port`
+
+After migration, remove `RELAY_LIST` and manage relays through Web UI.
+
+#### Web UI Dependencies
+
+- Go 1.21+
+- `gopkg.in/yaml.v3` - YAML configuration parsing
+- Standard library for all other functionality
+
+#### Bootstrap Icons
+
+The SPA uses a lightweight Bootstrap Icons SVG sprite at:
+- `webui/cmd/webui/web/static/vendor/bootstrap-icons/bootstrap-icons.svg`
+
+If swapping in full Bootstrap Icons distribution, keep sprite in same path or update template references.
 
 ## Code Style Guidelines
 
