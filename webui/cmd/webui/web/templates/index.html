@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -7,16 +8,21 @@
   <link rel="stylesheet" href="/static/vendor/bootstrap/css/bootstrap.min.css" />
   <link rel="stylesheet" href="/static/css/spa.css" />
 </head>
+
 <body class="bg-body-tertiary">
   <nav class="navbar navbar-expand-lg border-bottom">
     <div class="container-fluid">
       <span class="navbar-brand fw-semibold">Tailrelay</span>
       <div class="d-flex align-items-center gap-2">
         <button id="theme-toggle" class="btn btn-sm btn-outline-secondary" aria-label="Toggle theme">
-          <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-circle-half"></use></svg>
+          <svg class="bi" aria-hidden="true">
+            <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-circle-half"></use>
+          </svg>
         </button>
         <button id="refresh" class="btn btn-sm btn-outline-secondary">
-          <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-arrow-clockwise"></use></svg>
+          <svg class="bi me-1" aria-hidden="true">
+            <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-arrow-clockwise"></use>
+          </svg>
           Refresh
         </button>
       </div>
@@ -29,20 +35,28 @@
         <h1 class="h4 mb-1">Relays & Proxies</h1>
       </div>
       <div class="d-flex align-items-center gap-2">
-        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#help-section" aria-expanded="false" aria-controls="help-section">
-          <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-question-circle"></use></svg>
+        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#help-section"
+          aria-expanded="false" aria-controls="help-section">
+          <svg class="bi me-1" aria-hidden="true">
+            <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-question-circle"></use>
+          </svg>
           Help
         </button>
-        <span class="text-muted small">Show/Hide:</span>
         <div class="btn-group" role="group" aria-label="Type filter">
           <input type="checkbox" class="btn-check" id="filter-relay" autocomplete="off" checked />
-          <label class="btn btn-outline-primary btn-sm" for="filter-relay" data-bs-toggle="tooltip" data-bs-placement="bottom" title="TCP relays served by socat">
-            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-diagram-3"></use></svg>
+          <label class="btn btn-outline-primary btn-sm" for="filter-relay" data-bs-toggle="tooltip"
+            data-bs-placement="bottom" title="TCP relays served by socat">
+            <svg class="bi me-1" aria-hidden="true">
+              <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-diagram-3"></use>
+            </svg>
             Relays
           </label>
           <input type="checkbox" class="btn-check" id="filter-proxy" autocomplete="off" checked />
-          <label class="btn btn-outline-primary btn-sm" for="filter-proxy" data-bs-toggle="tooltip" data-bs-placement="bottom" title="HTTPS reverse proxies served by Caddy">
-            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-shield-lock"></use></svg>
+          <label class="btn btn-outline-primary btn-sm" for="filter-proxy" data-bs-toggle="tooltip"
+            data-bs-placement="bottom" title="HTTPS reverse proxies served by Caddy">
+            <svg class="bi me-1" aria-hidden="true">
+              <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-shield-lock"></use>
+            </svg>
             Proxies
           </label>
         </div>
@@ -53,12 +67,17 @@
       <div class="card">
         <div class="card-body">
           <h2 class="h6 mb-2">About Tailrelay</h2>
-          <p class="mb-3">Manage TCP relays and HTTPS proxies in one place. Tailrelay combines Tailscale, Caddy, and socat to expose local services securely to your Tailnet.</p>
-          
+          <p class="mb-3">Manage TCP relays and HTTPS proxies in one place. Tailrelay combines Tailscale, Caddy, and
+            socat to expose local services securely to your Tailnet.</p>
+
           <h2 class="h6 mb-2">MagicDNS Requirement</h2>
-          <p class="mb-2">Enable MagicDNS in the <a href="https://login.tailscale.com/admin/dns" target="_blank" rel="noopener">Tailscale DNS settings</a>. Tailnets created on or after October 20, 2022 have MagicDNS enabled by default.</p>
+          <p class="mb-2">Enable MagicDNS in the <a href="https://login.tailscale.com/admin/dns" target="_blank"
+              rel="noopener">Tailscale DNS settings</a>. Tailnets created on or after October 20, 2022 have MagicDNS
+            enabled by default.</p>
           <p class="mb-0 small text-muted">
-            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-info-circle"></use></svg>
+            <svg class="bi me-1" aria-hidden="true">
+              <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-info-circle"></use>
+            </svg>
             <a href="https://tailscale.com/kb/1081/magicdns" target="_blank" rel="noopener">Learn how MagicDNS works</a>
           </p>
         </div>
@@ -87,9 +106,14 @@
             <option value="WARN">WARN</option>
             <option value="ERROR">ERROR</option>
           </select>
-          <button id="clear-logs" class="btn btn-sm btn-outline-secondary">Clear</button>
-          <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#log-console" aria-expanded="false" aria-controls="log-console">
-            Toggle Console
+          <button id="clear-logs" class="btn btn-sm btn-outline-secondary">
+            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-x-lg"></use></svg>
+            Clear
+          </button>
+          <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#log-console"
+            aria-expanded="false" aria-controls="log-console">
+            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-terminal"></use></svg>
+            Console
           </button>
         </div>
       </div>
@@ -103,18 +127,25 @@
 
   <!-- Floating Action Button -->
   <div class="fab-container">
-    <button id="fab-button" class="btn btn-primary fab rounded-circle shadow-lg" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-      <svg class="bi" style="width: 1.5em; height: 1.5em;" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-plus-lg"></use></svg>
+    <button id="fab-button" class="btn btn-primary fab rounded-circle shadow-lg" type="button" data-bs-toggle="dropdown"
+      aria-expanded="false">
+      <svg class="bi" style="width: 1.5em; height: 1.5em;" aria-hidden="true">
+        <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-plus-lg"></use>
+      </svg>
     </button>
     <ul class="dropdown-menu dropdown-menu-end fab-menu">
       <li><a id="add-relay-btn" class="dropdown-item" href="#">
-        <svg class="bi me-2" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-diagram-3"></use></svg>
-        Add Relay
-      </a></li>
+          <svg class="bi me-2" aria-hidden="true">
+            <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-diagram-3"></use>
+          </svg>
+          Add Relay
+        </a></li>
       <li><a id="add-proxy-btn" class="dropdown-item" href="#">
-        <svg class="bi me-2" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-shield-lock"></use></svg>
-        Add Proxy
-      </a></li>
+          <svg class="bi me-2" aria-hidden="true">
+            <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-shield-lock"></use>
+          </svg>
+          Add Proxy
+        </a></li>
     </ul>
   </div>
 
@@ -131,17 +162,20 @@
             <input type="hidden" id="relay-id" />
             <div class="mb-3">
               <label for="relay-listen-port" class="form-label">Listen Port</label>
-              <input type="number" class="form-control" id="relay-listen-port" required min="1" max="65535" placeholder="e.g., 8080">
+              <input type="number" class="form-control" id="relay-listen-port" required min="1" max="65535"
+                placeholder="e.g., 8080">
               <div class="form-text">Port on which the relay will listen on your Tailnet</div>
             </div>
             <div class="mb-3">
               <label for="relay-target-host" class="form-label">Target Host</label>
-              <input type="text" class="form-control" id="relay-target-host" required placeholder="e.g., localhost or 192.168.1.100">
+              <input type="text" class="form-control" id="relay-target-host" required
+                placeholder="e.g., localhost or 192.168.1.100">
               <div class="form-text">Hostname or IP address of the target service</div>
             </div>
             <div class="mb-3">
               <label for="relay-target-port" class="form-label">Target Port</label>
-              <input type="number" class="form-control" id="relay-target-port" required min="1" max="65535" placeholder="e.g., 3000">
+              <input type="number" class="form-control" id="relay-target-port" required min="1" max="65535"
+                placeholder="e.g., 3000">
               <div class="form-text">Port on which the target service is listening</div>
             </div>
             <div class="form-check">
@@ -172,25 +206,26 @@
           <form id="proxyForm">
             <input type="hidden" id="proxy-id" />
             <div class="mb-3">
-              <label for="proxy-hostname" class="form-label">Hostname</label>
-              <input type="text" class="form-control" id="proxy-hostname" required placeholder="e.g., myservice">
-              <div class="form-text">Tailscale hostname (without domain - will use your Tailnet FQDN)</div>
-            </div>
-            <div class="mb-3">
               <label for="proxy-port" class="form-label">Port (Optional)</label>
-              <input type="number" class="form-control" id="proxy-port" min="1" max="65535" placeholder="Leave empty for default HTTPS (443)">
+              <input type="number" class="form-control" id="proxy-port" min="1" max="65535"
+                placeholder="Leave empty for default HTTPS (443)">
               <div class="form-text">Custom port for the proxy (optional, defaults to 443)</div>
             </div>
             <div class="mb-3">
               <label for="proxy-target" class="form-label">Target</label>
-              <input type="text" class="form-control" id="proxy-target" required placeholder="e.g., http://localhost:3000">
+              <input type="text" class="form-control" id="proxy-target" required
+                placeholder="e.g., http://localhost:3000">
               <div class="form-text">Backend URL to proxy requests to</div>
             </div>
-            <div class="form-check mb-2">
-              <input class="form-check-input" type="checkbox" id="proxy-tls">
-              <label class="form-check-label" for="proxy-tls">
-                Enable TLS termination
-              </label>
+            <div class="mb-3">
+              <label for="proxy-tls-cert" class="form-label">TLS Certificate (Optional)</label>
+              <input type="file" class="form-control" id="proxy-tls-cert" accept=".pem,.crt,.cer">
+              <div class="form-text">Upload TLS certificate for backend HTTPS connections</div>
+              <div id="proxy-tls-cert-current" class="d-flex align-items-center gap-2 mt-2"
+                style="display: none !important;">
+                <span class="badge text-bg-success">Current: <span id="proxy-tls-cert-filename"></span></span>
+                <button type="button" class="btn btn-sm btn-outline-danger" id="proxy-tls-cert-remove">Remove</button>
+              </div>
             </div>
             <div class="form-check mb-2">
               <input class="form-check-input" type="checkbox" id="proxy-trusted-proxies">
@@ -236,4 +271,5 @@
   <script src="/static/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="/static/js/spa.bundle.js" defer></script>
 </body>
+
 </html>

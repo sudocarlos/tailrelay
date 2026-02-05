@@ -346,10 +346,26 @@ func (h *CaddyHandler) parseProxyFromMultipart(r *http.Request) (config.CaddyPro
 	proxy.Enabled = parseBool(r.FormValue("enabled"))
 	proxy.TrustedProxies = parseBool(r.FormValue("trusted_proxies"))
 	proxy.TLS = parseBool(r.FormValue("tls"))
+	proxy.Autostart = parseBool(r.FormValue("autostart"))
+
+	// Handle remove TLS cert flag
+	if parseBool(r.FormValue("remove_tls_cert")) {
+		proxy.TLSCertFile = ""
+	}
 
 	file, fileHeader, err := r.FormFile("tls_cert_upload")
 	if err == nil {
 		defer file.Close()
+
+		// Backend validation for cert file extension
+		fileName := strings.ToLower(fileHeader.Filename)
+		validExt := strings.HasSuffix(fileName, ".pem") ||
+			strings.HasSuffix(fileName, ".crt") ||
+			strings.HasSuffix(fileName, ".cer")
+		if !validExt {
+			return config.CaddyProxy{}, fmt.Errorf("invalid certificate file type: must be .pem, .crt, or .cer")
+		}
+
 		certPath, err := h.saveTLSCertFile(proxy.Target, file, fileHeader)
 		if err != nil {
 			return config.CaddyProxy{}, err

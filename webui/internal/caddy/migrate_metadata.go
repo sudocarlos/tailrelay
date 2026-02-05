@@ -1,6 +1,8 @@
 package caddy
 
 import (
+	"fmt"
+
 	"github.com/sudocarlos/tailrelay-webui/internal/config"
 	"github.com/sudocarlos/tailrelay-webui/internal/logger"
 )
@@ -16,11 +18,16 @@ func (pm *ProxyManager) MigrateExistingProxies() error {
 		logger.Warn("caddy", "Failed to load existing metadata: %v", err)
 	}
 
-	// Build map of existing proxies by route ID for quick lookup
+	// Build maps of existing proxies for quick lookup
 	existingByID := make(map[string]config.CaddyProxy)
+	existingByHostPort := make(map[string]config.CaddyProxy)
 	for _, proxy := range existing {
 		if proxy.ID != "" {
 			existingByID[proxy.ID] = proxy
+		}
+		if proxy.Hostname != "" && proxy.Port != 0 {
+			key := fmt.Sprintf("%s:%d", NormalizeHostname(proxy.Hostname), proxy.Port)
+			existingByHostPort[key] = proxy
 		}
 	}
 
@@ -46,8 +53,38 @@ func (pm *ProxyManager) MigrateExistingProxies() error {
 				continue
 			}
 
+			// Try to find existing proxy by ID first, then by hostname:port
+			var existingProxy *config.CaddyProxy
+			if proxy.ID != "" {
+				if existing, exists := existingByID[proxy.ID]; exists {
+					existingProxy = &existing
+				}
+			}
+			if existingProxy == nil && proxy.Hostname != "" && proxy.Port != 0 {
+				key := fmt.Sprintf("%s:%d", NormalizeHostname(proxy.Hostname), proxy.Port)
+				if existing, exists := existingByHostPort[key]; exists {
+					existingProxy = &existing
+					// Use the ID from the existing metadata
+					if existingProxy.ID != "" && proxy.ID == "" {
+						proxy.ID = existingProxy.ID
+						logger.Debug("caddy", "Matched proxy by hostname:port, using existing ID: %s", proxy.ID)
+					}
+				}
+			}
+
+			// Generate ID if the route didn't have one embedded and we didn't find an existing one
+			if proxy.ID == "" {
+				newID, err := config.GenerateToken()
+				if err != nil {
+					logger.Warn("caddy", "Failed to generate ID for discovered proxy %s:%d: %v", proxy.Hostname, proxy.Port, err)
+					continue
+				}
+				proxy.ID = newID
+				logger.Info("caddy", "Generated new ID for proxy without embedded ID: %s:%d (ID: %s)", proxy.Hostname, proxy.Port, proxy.ID)
+			}
+
 			// Check if this proxy already exists in metadata
-			if existingProxy, exists := existingByID[proxy.ID]; exists {
+			if existingProxy != nil {
 				// Preserve existing settings (especially autostart)
 				proxy.Autostart = existingProxy.Autostart
 				proxy.Enabled = true // If it's in Caddy, it's enabled

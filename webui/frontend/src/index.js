@@ -11,6 +11,7 @@
     currentEditItem: null,
     currentEditType: null,
     deleteTarget: null,
+    removeTlsCert: false,
   };
 
   const elements = {
@@ -31,6 +32,7 @@
     saveRelayBtn: document.getElementById("save-relay-btn"),
     saveProxyBtn: document.getElementById("save-proxy-btn"),
     confirmDeleteBtn: document.getElementById("confirm-delete-btn"),
+    removeTlsCertBtn: document.getElementById("proxy-tls-cert-remove"),
   };
 
   const tooltips = [];
@@ -170,10 +172,9 @@
                 <div class="card-body d-flex flex-column flex-lg-row align-items-lg-center gap-3">
                   <div class="flex-grow-1">
                     <div class="d-flex align-items-center gap-2 flex-wrap">
-                      <span class="badge text-bg-info" data-bs-toggle="tooltip" title="served by socat">TCP Relay</span>
+                      <svg class="bi text-primary" data-bs-toggle="tooltip" title="TCP Relay (served by socat)" aria-hidden="true" style="width: 1.25em; height: 1.25em;"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-diagram-3"></use></svg>
                       <span class="fw-semibold">${formatRelayTitle(relay)}</span>
                     </div>
-                    <div class="small text-muted mt-1">ID: ${relay.id}</div>
                   </div>
                   <div class="d-flex align-items-center gap-2">
                     <span class="badge ${statusBadge}">${running ? "Running" : "Stopped"}</span>
@@ -203,7 +204,7 @@
         const proxy = item.proxy;
         const running = proxy.running ?? proxy.Running;
         const runningBadge = running ? "text-bg-success" : "text-bg-secondary";
-        const runningLabel = running ? "Caddy Running" : "Caddy Down";
+        const runningLabel = running ? "Running" : "Stopped";
         const autostart = proxy.autostart ?? false;
         const proxyName = proxy.port ? `${proxy.hostname}:${proxy.port}` : proxy.hostname;
         return `
@@ -212,10 +213,9 @@
               <div class="card-body d-flex flex-column flex-lg-row align-items-lg-center gap-3">
                 <div class="flex-grow-1">
                   <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <span class="badge text-bg-primary" data-bs-toggle="tooltip" title="served by caddy">HTTPS Proxy</span>
+                    <svg class="bi text-primary" data-bs-toggle="tooltip" title="HTTPS Proxy (served by Caddy)" aria-hidden="true" style="width: 1.25em; height: 1.25em;"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-shield-lock"></use></svg>
                     <span class="fw-semibold">${formatProxyLink(proxy)} → ${proxy.target}</span>
                   </div>
-                  <div class="small text-muted mt-1">ID: ${proxy.id}</div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                   <span class="badge ${runningBadge}">${runningLabel}</span>
@@ -470,26 +470,40 @@
   const openProxyModal = (proxy = null) => {
     const modal = new bootstrap.Modal(document.getElementById("proxyModal"));
     const modalTitle = document.querySelector("#proxyModal .modal-title");
+    const certCurrent = document.getElementById("proxy-tls-cert-current");
+    const certFilename = document.getElementById("proxy-tls-cert-filename");
+    const certFileInput = document.getElementById("proxy-tls-cert");
     
     state.currentEditItem = proxy;
     state.currentEditType = "proxy";
+    state.removeTlsCert = false; // Reset remove flag
     
     if (proxy) {
       // Edit mode
       modalTitle.textContent = "Edit Proxy";
       document.getElementById("proxy-id").value = proxy.id;
-      document.getElementById("proxy-hostname").value = proxy.hostname;
       document.getElementById("proxy-port").value = proxy.port || "";
       document.getElementById("proxy-target").value = proxy.target;
-      document.getElementById("proxy-tls").checked = proxy.tls ?? false;
       document.getElementById("proxy-trusted-proxies").checked = proxy.trusted_proxies ?? false;
       document.getElementById("proxy-autostart").checked = proxy.autostart ?? false;
+      
+      // Show current TLS cert if exists
+      certFileInput.value = "";
+      if (proxy.tls_cert_file) {
+        const basename = proxy.tls_cert_file.split('/').pop();
+        certFilename.textContent = basename;
+        certCurrent.style.display = "flex";
+      } else {
+        certCurrent.style.display = "none";
+      }
     } else {
       // Add mode
       modalTitle.textContent = "Add Proxy";
       document.getElementById("proxyForm").reset();
       document.getElementById("proxy-id").value = "";
       document.getElementById("proxy-autostart").checked = true;
+      certFileInput.value = "";
+      certCurrent.style.display = "none";
     }
     
     modal.show();
@@ -539,42 +553,85 @@
 
   const saveProxy = async () => {
     const id = document.getElementById("proxy-id").value;
-    const hostname = document.getElementById("proxy-hostname").value.trim();
     const port = document.getElementById("proxy-port").value.trim();
     const target = document.getElementById("proxy-target").value.trim();
-    const tls = document.getElementById("proxy-tls").checked;
     const trustedProxies = document.getElementById("proxy-trusted-proxies").checked;
     const autostart = document.getElementById("proxy-autostart").checked;
+    const tlsCertFile = document.getElementById("proxy-tls-cert").files[0];
 
-    if (!hostname || !target) {
-      showAlert("danger", "Please fill in all required fields");
+    // Always use MagicDNS hostname (strip trailing dot)
+    const hostname = state.tailnetFQDN.replace(/\.$/, '');
+    
+    if (!hostname) {
+      showAlert("danger", "MagicDNS hostname not available. Please ensure Tailscale is connected.");
+      return;
+    }
+    
+    if (!target) {
+      showAlert("danger", "Please fill in the target URL");
       return;
     }
 
-    const proxy = {
-      hostname: hostname,
-      target: target,
-      tls: tls,
-      trusted_proxies: trustedProxies,
-      autostart: autostart,
-      enabled: true,
-    };
+    // Frontend validation for cert file
+    if (tlsCertFile) {
+      const validExtensions = ['.pem', '.crt', '.cer'];
+      const fileName = tlsCertFile.name.toLowerCase();
+      const isValidExt = validExtensions.some(ext => fileName.endsWith(ext));
+      if (!isValidExt) {
+        showAlert("danger", "Invalid certificate file. Please upload a .pem, .crt, or .cer file.");
+        return;
+      }
+      
+      // Check file size (max 1MB for cert files)
+      if (tlsCertFile.size > 1024 * 1024) {
+        showAlert("danger", "Certificate file too large. Maximum size is 1MB.");
+        return;
+      }
+    }
+
+    // Build FormData for multipart upload
+    const formData = new FormData();
+    formData.append("hostname", hostname);
+    formData.append("target", target);
+    formData.append("trusted_proxies", trustedProxies.toString());
+    formData.append("autostart", autostart.toString());
+    formData.append("enabled", "true");
 
     if (port) {
-      proxy.port = parseInt(port);
+      formData.append("port", port);
     }
 
     if (id) {
-      proxy.id = id;
+      formData.append("id", id);
+    }
+
+    // Add TLS cert file if selected
+    if (tlsCertFile) {
+      formData.append("tls_cert_upload", tlsCertFile);
+    }
+
+    // Flag to remove existing cert
+    if (state.removeTlsCert) {
+      formData.append("remove_tls_cert", "true");
     }
 
     try {
       elements.saveProxyBtn.disabled = true;
       const url = id ? "/api/caddy/update" : "/api/caddy/create";
-      await fetchJSON(url, {
+      
+      // Use fetch without JSON content-type for FormData
+      const response = await fetch(url, {
         method: "POST",
-        body: JSON.stringify(proxy),
+        credentials: "same-origin",
+        body: formData,
       });
+
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || `Request failed: ${response.status}`);
+      }
+
+      await response.json();
 
       bootstrap.Modal.getInstance(document.getElementById("proxyModal")).hide();
       showAlert("success", `Proxy ${id ? "updated" : "created"} successfully`);
@@ -713,6 +770,15 @@
 
     if (elements.confirmDeleteBtn) {
       elements.confirmDeleteBtn.addEventListener("click", confirmDelete);
+    }
+
+    // Handle remove TLS cert button
+    if (elements.removeTlsCertBtn) {
+      elements.removeTlsCertBtn.addEventListener("click", () => {
+        state.removeTlsCert = true;
+        document.getElementById("proxy-tls-cert-current").style.display = "none";
+        showAlert("info", "Certificate will be removed when you save the proxy.");
+      });
     }
 
     // Handle Enter key in forms
