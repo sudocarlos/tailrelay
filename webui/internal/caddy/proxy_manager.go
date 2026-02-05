@@ -17,6 +17,7 @@ import (
 type ProxyManager struct {
 	client        *APIClient
 	serverMapPath string
+	metadataPath  string
 	serverMap     *ServerMap
 	mapMu         sync.Mutex
 }
@@ -31,9 +32,13 @@ func NewProxyManager(apiURL, serverMapPath string) *ProxyManager {
 		serverMap = NewServerMap()
 	}
 
+	// Derive metadata path from server map path
+	metadataPath := strings.TrimSuffix(serverMapPath, "_servers.json") + "_proxies.json"
+
 	return &ProxyManager{
 		client:        client,
 		serverMapPath: serverMapPath,
+		metadataPath:  metadataPath,
 		serverMap:     serverMap,
 	}
 }
@@ -57,63 +62,59 @@ func (pm *ProxyManager) AddProxy(proxy config.CaddyProxy) (*config.CaddyProxy, e
 		proxy.ID = id
 	}
 
-	proxyToCreate := proxy
-	proxyToCreate.ID = ""
-
-	route, err := pm.buildRoute(proxyToCreate)
-	if err != nil {
-		logger.Error("caddy", "Failed to build route for proxy %s: %v", proxy.ID, err)
-		return nil, fmt.Errorf("build route: %w", err)
+	// Save metadata first
+	if err := AddProxyMetadata(pm.metadataPath, proxy); err != nil {
+		logger.Error("caddy", "Failed to save proxy metadata: %v", err)
+		return nil, fmt.Errorf("save metadata: %w", err)
 	}
 
-	serverName, err := pm.allocateServerName()
-	if err != nil {
-		return nil, fmt.Errorf("allocate server name: %w", err)
+	// Only create route in Caddy if enabled
+	if proxy.Enabled {
+		route, err := pm.buildRoute(proxy)
+		if err != nil {
+			logger.Error("caddy", "Failed to build route for proxy %s: %v", proxy.ID, err)
+			// Clean up metadata
+			DeleteProxyMetadata(pm.metadataPath, proxy.ID)
+			return nil, fmt.Errorf("build route: %w", err)
+		}
+
+		serverName, err := pm.allocateServerName()
+		if err != nil {
+			// Clean up metadata
+			DeleteProxyMetadata(pm.metadataPath, proxy.ID)
+			return nil, fmt.Errorf("allocate server name: %w", err)
+		}
+
+		path := fmt.Sprintf("/apps/http/servers/%s", serverName)
+		logger.Debug("caddy", "Creating server for proxy at path: %s", path)
+
+		server := &HTTPServer{
+			Listen: []string{fmt.Sprintf(":%d", proxy.Port)},
+			Routes: []Route{*route},
+		}
+
+		if err := pm.client.PutConfig(path, server); err != nil {
+			logger.Error("caddy", "Failed to create server %s for %s:%d via Caddy API: %v", serverName, proxy.Hostname, proxy.Port, err)
+			// Clean up metadata
+			DeleteProxyMetadata(pm.metadataPath, proxy.ID)
+			return nil, fmt.Errorf("create server: %w", err)
+		}
+
+		pm.updateServerMap(proxy, serverName)
+	} else {
+		logger.Debug("caddy", "Proxy %s created but not enabled, skipping Caddy route creation", proxy.ID)
 	}
 
-	path := fmt.Sprintf("/apps/http/servers/%s", serverName)
-	logger.Debug("caddy", "Creating server for proxy at path: %s", path)
-
-	server := &HTTPServer{
-		Listen: []string{fmt.Sprintf(":%d", proxy.Port)},
-		Routes: []Route{*route},
-	}
-
-	if err := pm.client.PutConfig(path, server); err != nil {
-		logger.Error("caddy", "Failed to create server %s for %s:%d via Caddy API: %v", serverName, proxy.Hostname, proxy.Port, err)
-		return nil, fmt.Errorf("create server: %w", err)
-	}
-
-	pm.updateServerMap(proxy, serverName)
-
-	logger.Info("caddy", "Added Caddy proxy: %s:%d -> %s (ID: %s)", proxy.Hostname, proxy.Port, proxy.Target, proxy.ID)
+	logger.Info("caddy", "Added Caddy proxy: %s:%d -> %s (ID: %s, Enabled: %v)", proxy.Hostname, proxy.Port, proxy.Target, proxy.ID, proxy.Enabled)
 	return &proxy, nil
 }
 
-// GetProxy retrieves a proxy by ID using @id tag
+// GetProxy retrieves a proxy by ID from metadata
 func (pm *ProxyManager) GetProxy(id string) (*config.CaddyProxy, error) {
-	data, err := pm.client.GetByID(id)
+	// Get from metadata (source of truth)
+	proxy, err := GetProxyMetadata(pm.metadataPath, id)
 	if err != nil {
-		return nil, fmt.Errorf("get route by id: %w", err)
-	}
-
-	var route Route
-	if err := json.Unmarshal(data, &route); err != nil {
-		return nil, fmt.Errorf("unmarshal route: %w", err)
-	}
-
-	listenAddrs := []string{}
-	if serverName, err := pm.getServerNameForProxy(config.CaddyProxy{ID: id}); err == nil && serverName != "" {
-		if servers, err := pm.listServers(); err == nil {
-			if server, ok := servers[serverName]; ok && server != nil {
-				listenAddrs = server.Listen
-			}
-		}
-	}
-
-	proxy, err := pm.routeToProxyWithListen(route, listenAddrs)
-	if err != nil {
-		return nil, fmt.Errorf("convert route to proxy: %w", err)
+		return nil, fmt.Errorf("get proxy metadata: %w", err)
 	}
 
 	return proxy, nil
@@ -129,32 +130,85 @@ func (pm *ProxyManager) UpdateProxy(proxy config.CaddyProxy) error {
 	}
 
 	proxy.Hostname = NormalizeHostname(proxy.Hostname)
-	route, err := pm.buildRoute(proxy)
-	if err != nil {
-		logger.Error("caddy", "Failed to build route for proxy update %s: %v", proxy.ID, err)
-		return fmt.Errorf("build route: %w", err)
+
+	// Update metadata first
+	if err := UpdateProxyMetadata(pm.metadataPath, proxy); err != nil {
+		logger.Error("caddy", "Failed to update proxy metadata: %v", err)
+		return fmt.Errorf("update metadata: %w", err)
 	}
 
-	serverName, err := pm.getServerNameForProxy(proxy)
-	if err != nil {
-		logger.Error("caddy", "Failed to find server for proxy %s: %v", proxy.ID, err)
-		return fmt.Errorf("find server: %w", err)
+	// Only update route in Caddy if enabled
+	if proxy.Enabled {
+		route, err := pm.buildRoute(proxy)
+		if err != nil {
+			logger.Error("caddy", "Failed to build route for proxy update %s: %v", proxy.ID, err)
+			return fmt.Errorf("build route: %w", err)
+		}
+
+		// Try to get server name from map
+		serverName, err := pm.getServerNameForProxy(proxy)
+		serverExists := false
+
+		if err == nil {
+			// Found in map, but verify it actually exists in Caddy
+			serverExists = pm.serverExistsInCaddy(serverName)
+			if !serverExists {
+				logger.Debug("caddy", "Server %s found in map but not in Caddy for proxy %s, will allocate new server", serverName, proxy.ID)
+				// Remove stale entry from map
+				pm.removeServerMapByID(proxy.ID, serverName)
+			}
+		}
+
+		if !serverExists {
+			// Server doesn't exist in Caddy (proxy was previously disabled or map is stale)
+			// Allocate a new server name
+			serverName, err = pm.allocateServerName()
+			if err != nil {
+				logger.Error("caddy", "Failed to allocate server for proxy %s: %v", proxy.ID, err)
+				return fmt.Errorf("allocate server: %w", err)
+			}
+			logger.Debug("caddy", "Allocated new server name %s for re-enabled proxy %s", serverName, proxy.ID)
+		}
+
+		server := &HTTPServer{
+			Listen: []string{fmt.Sprintf(":%d", proxy.Port)},
+			Routes: []Route{*route},
+		}
+
+		path := fmt.Sprintf("/apps/http/servers/%s", serverName)
+
+		// Use PUT if server doesn't exist (create), PATCH if it exists (update)
+		var apiErr error
+		if serverExists {
+			apiErr = pm.client.PatchConfig(path, server)
+			logger.Debug("caddy", "Updating existing server %s for proxy %s", serverName, proxy.ID)
+		} else {
+			apiErr = pm.client.PutConfig(path, server)
+			logger.Debug("caddy", "Creating new server %s for proxy %s", serverName, proxy.ID)
+		}
+
+		if apiErr != nil {
+			logger.Error("caddy", "Failed to %s server %s for proxy %s via Caddy API: %v",
+				map[bool]string{true: "update", false: "create"}[serverExists], serverName, proxy.ID, apiErr)
+			return fmt.Errorf("update server: %w", apiErr)
+		}
+
+		pm.updateServerMap(proxy, serverName)
+	} else {
+		// If disabled, remove from Caddy but keep metadata
+		serverName, err := pm.getServerNameForProxy(proxy)
+		if err == nil {
+			path := fmt.Sprintf("/apps/http/servers/%s", serverName)
+			if err := pm.client.DeleteConfig(path); err != nil {
+				logger.Warn("caddy", "Failed to delete server %s for disabled proxy %s: %v", serverName, proxy.ID, err)
+			}
+			// Remove from server map since it no longer exists in Caddy
+			pm.removeServerMapByID(proxy.ID, serverName)
+			logger.Debug("caddy", "Removed server %s mapping for disabled proxy %s", serverName, proxy.ID)
+		}
 	}
 
-	server := &HTTPServer{
-		Listen: []string{fmt.Sprintf(":%d", proxy.Port)},
-		Routes: []Route{*route},
-	}
-
-	path := fmt.Sprintf("/apps/http/servers/%s", serverName)
-	if err := pm.client.PatchConfig(path, server); err != nil {
-		logger.Error("caddy", "Failed to update server %s for proxy %s via Caddy API: %v", serverName, proxy.ID, err)
-		return fmt.Errorf("update server: %w", err)
-	}
-
-	pm.updateServerMap(proxy, serverName)
-
-	logger.Info("caddy", "Updated Caddy proxy: %s (ID: %s)", proxy.Hostname, proxy.ID)
+	logger.Info("caddy", "Updated Caddy proxy: %s (ID: %s, Enabled: %v)", proxy.Hostname, proxy.ID, proxy.Enabled)
 	return nil
 }
 
@@ -162,54 +216,45 @@ func (pm *ProxyManager) UpdateProxy(proxy config.CaddyProxy) error {
 func (pm *ProxyManager) DeleteProxy(id string) error {
 	logger.Debug("caddy", "DeleteProxy: removing proxy ID %s", id)
 
+	// Delete from Caddy if it exists
 	serverName, err := pm.getServerNameForProxy(config.CaddyProxy{ID: id})
-	if err != nil {
-		logger.Error("caddy", "Failed to find server for proxy %s: %v", id, err)
-		return fmt.Errorf("find server: %w", err)
+	if err == nil {
+		path := fmt.Sprintf("/apps/http/servers/%s", serverName)
+		if err := pm.client.DeleteConfig(path); err != nil {
+			logger.Warn("caddy", "Failed to delete server %s for proxy %s via Caddy API: %v", serverName, id, err)
+		}
+		pm.removeServerMapByID(id, serverName)
 	}
 
-	path := fmt.Sprintf("/apps/http/servers/%s", serverName)
-	if err := pm.client.DeleteConfig(path); err != nil {
-		logger.Error("caddy", "Failed to delete server %s for proxy %s via Caddy API: %v", serverName, id, err)
-		return fmt.Errorf("delete server: %w", err)
+	// Delete from metadata
+	if err := DeleteProxyMetadata(pm.metadataPath, id); err != nil {
+		logger.Error("caddy", "Failed to delete proxy metadata: %v", err)
+		return fmt.Errorf("delete metadata: %w", err)
 	}
-
-	pm.removeServerMapByID(id, serverName)
 
 	logger.Info("caddy", "Deleted Caddy proxy: %s", id)
 	return nil
 }
 
-// ListProxies retrieves all proxies for the server
+// ListProxies retrieves all proxies from metadata
 func (pm *ProxyManager) ListProxies() ([]config.CaddyProxy, error) {
-	servers, err := pm.listServers()
+	// Load from metadata file (source of truth)
+	proxies, err := LoadProxyMetadata(pm.metadataPath)
 	if err != nil {
-		return nil, fmt.Errorf("get servers: %w", err)
-	}
-
-	proxies := make([]config.CaddyProxy, 0)
-	for serverName, server := range servers {
-		if server == nil {
-			continue
-		}
-		for _, route := range server.Routes {
-			proxy, err := pm.routeToProxyWithListen(route, server.Listen)
-			if err != nil {
-				continue
-			}
-			pm.updateServerMap(*proxy, serverName)
-			proxies = append(proxies, *proxy)
-		}
+		logger.Error("caddy", "Failed to load proxy metadata: %v", err)
+		return nil, fmt.Errorf("load metadata: %w", err)
 	}
 
 	return proxies, nil
 }
 
-// ToggleProxy enables or disables a proxy by updating its route
+// ToggleProxy enables or disables a proxy
 func (pm *ProxyManager) ToggleProxy(id string, enabled bool) error {
-	proxy, err := pm.GetProxy(id)
+	// Get proxy from metadata
+	proxy, err := GetProxyMetadata(pm.metadataPath, id)
 	if err != nil {
-		return err
+		logger.Error("caddy", "Failed to get proxy metadata for %s: %v", id, err)
+		return fmt.Errorf("get proxy: %w", err)
 	}
 
 	proxy.Enabled = enabled
@@ -595,6 +640,20 @@ func (pm *ProxyManager) getServerNameForProxy(proxy config.CaddyProxy) (string, 
 
 	pm.updateServerMap(proxy, serverName)
 	return serverName, nil
+}
+
+// serverExistsInCaddy checks if a server name actually exists in Caddy's configuration
+func (pm *ProxyManager) serverExistsInCaddy(serverName string) bool {
+	path := fmt.Sprintf("/apps/http/servers/%s", serverName)
+	data, err := pm.client.GetConfig(path)
+	if err != nil {
+		return false
+	}
+	// Caddy returns "null" for non-existent paths
+	dataStr := strings.TrimSpace(string(data))
+	exists := len(dataStr) > 0 && dataStr != "null"
+	logger.Debug("caddy", "Checking if server %s exists in Caddy: %v (data: %s)", serverName, exists, dataStr)
+	return exists
 }
 
 func (pm *ProxyManager) allocateServerName() (string, error) {

@@ -229,7 +229,24 @@ After migration, remove `RELAY_LIST` and manage relays through Web UI.
 The SPA uses a lightweight Bootstrap Icons SVG sprite at:
 - `webui/cmd/webui/web/static/vendor/bootstrap-icons/bootstrap-icons.svg`
 
-If swapping in full Bootstrap Icons distribution, keep sprite in same path or update template references.
+To update Bootstrap Icons to the latest version:
+
+```bash
+# Update to latest version
+./update-bootstrap-icons.sh
+
+# Update to specific version
+./update-bootstrap-icons.sh 1.11.3
+```
+
+The script will:
+1. Download the specified (or latest) Bootstrap Icons release
+2. Backup the current sprite file
+3. Extract and install the new sprite
+4. Show file size and icon count comparison
+5. Provide next steps for testing and committing
+
+If swapping in full Bootstrap Icons distribution manually, keep sprite in same path or update template references.
 
 ## Code Style Guidelines
 
@@ -290,19 +307,20 @@ If swapping in full Bootstrap Icons distribution, keep sprite in same path or up
 
 ```
 .
-├── Dockerfile               # Multi-stage container build (includes building the Web UI binary in a builder stage)
-├── Dockerfile.dev           # Development image that copies the locally-built `data/tailrelay-webui` binary
-├── start.sh                 # Container entrypoint: starts tailscaled, Web UI, optional socat relays, and Caddy
-├── webui/                   # Go Web UI source tree (see details below)
-├── webui.yaml               # Default runtime config for the Web UI included in the image
-├── data/                    # Local build outputs (e.g., `tailrelay-webui` produced by `make dev-build`)
-├── compose-test.yml         # Docker Compose config used for development and integration testing
-├── docker-compose-test.py   # Python-driven integration test harness (env-driven, curl checks)
-├── docker-compose-test.sh   # Bash wrapper test script for quick runs
-├── test_proxy_api.sh        # Example script that exercises Web UI/Caddy API endpoints (uses `curl`)
-├── requirements.txt         # Python dependencies for the test harness (python-dotenv, etc.)
-├── Caddyfile.example        # Example/legacy Caddyfile for manual Caddy configuration or troubleshooting
-└── README.md                # Project overview and developer documentation
+├── Dockerfile                  # Multi-stage container build (includes building the Web UI binary in a builder stage)
+├── Dockerfile.dev              # Development image that copies the locally-built `data/tailrelay-webui` binary
+├── start.sh                    # Container entrypoint: starts tailscaled, Web UI, optional socat relays, and Caddy
+├── webui/                      # Go Web UI source tree (see details below)
+├── webui.yaml                  # Default runtime config for the Web UI included in the image
+├── data/                       # Local build outputs (e.g., `tailrelay-webui` produced by `make dev-build`)
+├── compose-test.yml            # Docker Compose config used for development and integration testing
+├── docker-compose-test.py      # Python-driven integration test harness (env-driven, curl checks)
+├── docker-compose-test.sh      # Bash wrapper test script for quick runs
+├── test_proxy_api.sh           # Example script that exercises Web UI/Caddy API endpoints (uses `curl`)
+├── update-bootstrap-icons.sh   # Script to update Bootstrap Icons SVG sprite to latest or specific version
+├── requirements.txt            # Python dependencies for the test harness (python-dotenv, etc.)
+├── Caddyfile.example           # Example/legacy Caddyfile for manual Caddy configuration or troubleshooting
+└── README.md                   # Project overview and developer documentation
 ```
 
 ## Testing Strategy

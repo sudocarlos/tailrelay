@@ -68,10 +68,22 @@ func NewServer(cfg *config.Config, authToken string, staticFS, templateFS fs.FS)
 
 // Start starts the HTTP server
 func (s *Server) Start() error {
+	// Migrate existing Caddy proxies to metadata storage
+	log.Printf("Migrating existing Caddy proxies to metadata storage...")
+	if err := s.caddyH.MigrateExistingProxies(); err != nil {
+		log.Printf("Warning: failed to migrate existing proxies: %v", err)
+	}
+
 	// Initialize autostart relays
 	log.Printf("Initializing autostart relays...")
 	if err := s.socatH.InitializeAutostart(); err != nil {
 		log.Printf("Warning: failed to start autostart relays: %v", err)
+	}
+
+	// Initialize autostart proxies
+	log.Printf("Initializing autostart proxies...")
+	if err := s.caddyH.InitializeAutostart(); err != nil {
+		log.Printf("Warning: failed to start autostart proxies: %v", err)
 	}
 
 	mux := s.setupRoutes()

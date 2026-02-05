@@ -44,6 +44,16 @@ func NewCaddyHandler(cfg *config.Config, templates *template.Template) *CaddyHan
 	}
 }
 
+// MigrateExistingProxies migrates existing Caddy proxies to metadata storage
+func (h *CaddyHandler) MigrateExistingProxies() error {
+	return h.manager.MigrateExistingProxies()
+}
+
+// InitializeAutostart starts all proxies with autostart enabled
+func (h *CaddyHandler) InitializeAutostart() error {
+	return h.manager.InitializeAutostart()
+}
+
 // List renders the Caddy proxy management page
 func (h *CaddyHandler) List(w http.ResponseWriter, r *http.Request) {
 	proxies, err := h.manager.ListProxies()

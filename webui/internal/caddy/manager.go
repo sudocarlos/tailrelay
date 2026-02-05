@@ -99,6 +99,45 @@ func (m *Manager) InitializeServer(listenAddrs []string) error {
 	return nil
 }
 
+// MigrateExistingProxies migrates existing Caddy proxies to metadata storage
+func (m *Manager) MigrateExistingProxies() error {
+	return m.proxyManager.MigrateExistingProxies()
+}
+
+// InitializeAutostart starts all proxies with autostart enabled
+func (m *Manager) InitializeAutostart() error {
+	proxies, err := m.ListProxies()
+	if err != nil {
+		return fmt.Errorf("failed to list proxies: %w", err)
+	}
+
+	started := 0
+	skipped := 0
+	for _, proxy := range proxies {
+		if proxy.Autostart {
+			if proxy.Enabled {
+				// Already enabled, count it
+				started++
+				log.Printf("Proxy %s (ID: %s) has autostart enabled and is already active", proxy.Hostname, proxy.ID)
+			} else {
+				// Enable it now
+				proxy.Enabled = true
+				if err := m.UpdateProxy(proxy); err != nil {
+					log.Printf("Warning: failed to autostart proxy %s (ID: %s): %v", proxy.Hostname, proxy.ID, err)
+					continue
+				}
+				started++
+				log.Printf("Autostarted proxy %s (ID: %s)", proxy.Hostname, proxy.ID)
+			}
+		} else {
+			skipped++
+		}
+	}
+
+	log.Printf("Proxy autostart complete: %d started, %d skipped", started, skipped)
+	return nil
+}
+
 // Note: Reload, Start, Stop methods are no longer needed
 // The Caddy API handles configuration changes atomically and instantly
 // No manual reload or restart is required

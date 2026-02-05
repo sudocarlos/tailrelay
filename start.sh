@@ -43,6 +43,20 @@ else
 fi
 
 
+# Start Caddy first (before Web UI so migration/discovery can connect)
+echo -n "Starting Caddy... "
+CADDY_STATUS=$(caddy start --config /etc/caddy/Caddyfile >/dev/null)
+# echo success or fail + stderr
+if [ $? -ne 0 ]; then
+   echo "failed!"
+   echo $CADDY_STATUS
+else
+   echo "success!"
+fi
+
+# Wait briefly for Caddy API to be ready
+sleep 1
+
 # Start Web UI
 echo -n "Starting Tailrelay Web UI... "
 /usr/bin/tailrelay-webui --config /etc/tailrelay/webui.yaml > /var/log/tailrelay-webui.log 2>&1 &
@@ -80,17 +94,6 @@ if [ ! -z "$RELAY_LIST" ]; then
       fi
 
    done
-fi
-
-# Start Caddy
-echo -n "Starting Caddy... "
-CADDY_STATUS=$(caddy start --config /etc/caddy/Caddyfile >/dev/null)
-# echo success or fail + stderr
-if [ $? -ne 0 ]; then
-   echo "failed!"
-   echo $CADDY_STATUS
-else
-   echo "success!"
 fi
 
 wait $TAILSCALED_PID $WEBUI_PID
