@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from typing import List, Tuple
 import os
+import json
 from dotenv import load_dotenv  # <‑‑ added
 
 # Load environment variables from .env
@@ -96,6 +97,49 @@ for url, desc in curl_tests:
     rc, _, _ = run(f"curl -sSL {url}", capture_output=True, timeout=10)
     status = "✅ success" if rc == 0 else "❌ fail"
     results.append((desc, url, status))
+
+# --------------------------------------------------------------------------- #
+# 5b. Socat tests
+
+print("\nSetting up Socat relay...")
+# Create a socat relay: Listen on 8089 -> whoami-test:80
+relay_config = {
+    "relays": [
+        {
+            "id": "test-relay",
+            "listen_port": 8089,
+            "target_host": "whoami-test",
+            "target_port": 80,
+            "enabled": True,
+            "autostart": True
+        }
+    ]
+}
+
+# Write config to mapped volume
+relays_file = Path("tailscale/relays.json")
+try:
+    with open(relays_file, "w") as f:
+        json.dump(relay_config, f, indent=2)
+    print(f"Created {relays_file}")
+except Exception as e:
+    print(f"❌ Failed to write relays file: {e}")
+    sys.exit(1)
+
+# Restart container to pick up config
+print("Restarting tailrelay container to apply config...")
+run("docker restart tailrelay-test")
+time.sleep(5) # Wait for startup
+
+print("Testing socat relay connection...")
+# We run wget inside the container to test the local listener
+rc, out, err = run("docker exec tailrelay-test wget -qO- http://127.0.0.1:8089", capture_output=True)
+if rc == 0 and "Hostname: whoami-test" in out:
+     print("✅ Socat relay working (found 'Hostname: whoami-test')")
+     results.append(("Socat Relay / 8089", "http://127.0.0.1:8089", "✅ success"))
+else:
+     print(f"❌ Socat relay failed. RC={rc}, Out='{out}', Err='{err}'")
+     results.append(("Socat Relay / 8089", "http://127.0.0.1:8089", "❌ fail"))
 
 # --------------------------------------------------------------------------- #
 # 6. Pretty‑print the table

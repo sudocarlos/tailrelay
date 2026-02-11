@@ -22,5 +22,12 @@ curl -sSL https://${TAILRELAY_HOST}.${TAILNET_DOMAIN}:8443 && echo success || ec
 curl -sSL http://${TAILRELAY_HOST}:9002/healthz && echo success || echo fail
 curl -sSL http://${TAILRELAY_HOST}:9002/metrics && echo success || echo fail
 
+# Test Socat Relay
+echo "Testing Socat Relay..."
+echo '{"relays": [{"id": "test-relay", "listen_port": 8089, "target_host": "whoami-test", "target_port": 80, "enabled": true, "autostart": true}]}' > tailscale/relays.json
+docker restart tailrelay-test
+sleep 5
+docker exec tailrelay-test wget -qO- http://127.0.0.1:8089 | grep "Hostname: whoami-test" && echo "Socat Success" || echo "Socat Fail"
+
 # stop the containers
 docker compose -f ${COMPOSE_FILE} down
