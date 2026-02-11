@@ -77,7 +77,17 @@ func (m *Manager) Create(backupType string) (string, error) {
 	filesToBackup := []string{
 		m.cfg.Paths.CaddyConfig,
 		m.cfg.Paths.SocatRelayConfig,
+		m.cfg.Paths.CaddyProxyConfig,
+		m.cfg.Paths.CaddyServerMap,
+		m.cfg.ConfigFile,
 	}
+
+	// Add Tailscale state file
+	tailscaleStateFile := filepath.Join(m.cfg.Paths.StateDir, "tailscaled.state")
+	filesToBackup = append(filesToBackup, tailscaleStateFile)
+
+	// Add auth token if it exists (for restoring admin access)
+	filesToBackup = append(filesToBackup, m.cfg.Auth.TokenFile)
 
 	for _, filePath := range filesToBackup {
 		if filePath == "" {
@@ -147,6 +157,16 @@ func (m *Manager) Restore(backupPath string) error {
 			targetPath = m.cfg.Paths.CaddyConfig
 		case strings.HasSuffix(header.Name, "relays.json"):
 			targetPath = m.cfg.Paths.SocatRelayConfig
+		case strings.HasSuffix(header.Name, "proxies.json"):
+			targetPath = m.cfg.Paths.CaddyProxyConfig
+		case strings.HasSuffix(header.Name, "caddy_servers.json"):
+			targetPath = m.cfg.Paths.CaddyServerMap
+		case strings.HasSuffix(header.Name, "webui.yaml"):
+			targetPath = m.cfg.ConfigFile
+		case strings.HasSuffix(header.Name, "tailscaled.state"):
+			targetPath = filepath.Join(m.cfg.Paths.StateDir, "tailscaled.state")
+		case strings.HasSuffix(header.Name, ".webui_token"):
+			targetPath = m.cfg.Auth.TokenFile
 		default:
 			// Unknown file, skip
 			continue
