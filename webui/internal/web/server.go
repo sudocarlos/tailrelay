@@ -1,12 +1,17 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"html/template"
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/sudocarlos/tailrelay-webui/internal/auth"
 	"github.com/sudocarlos/tailrelay-webui/internal/config"
@@ -26,10 +31,15 @@ type Server struct {
 	logsH      *handlers.Handler
 	staticFS   fs.FS
 	templateFS fs.FS
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 // NewServer creates a new HTTP server
 func NewServer(cfg *config.Config, authToken string, staticFS, templateFS fs.FS) (*Server, error) {
+	// Create context for graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+
 	// Create authentication middleware
 	authMW := auth.NewMiddleware(
 		authToken,
@@ -40,6 +50,7 @@ func NewServer(cfg *config.Config, authToken string, staticFS, templateFS fs.FS)
 	// Parse templates
 	tmpl, err := loadTemplates(templateFS)
 	if err != nil {
+		cancel()
 		return nil, fmt.Errorf("failed to load templates: %w", err)
 	}
 
@@ -63,6 +74,8 @@ func NewServer(cfg *config.Config, authToken string, staticFS, templateFS fs.FS)
 		logsH:      logsH,
 		staticFS:   staticFS,
 		templateFS: templateFS,
+		ctx:        ctx,
+		cancel:     cancel,
 	}, nil
 }
 
@@ -80,6 +93,10 @@ func (s *Server) Start() error {
 		log.Printf("Warning: failed to start autostart relays: %v", err)
 	}
 
+	// Start socat process monitor (checks every 10 seconds)
+	log.Printf("Starting socat process monitor...")
+	go s.socatH.StartProcessMonitor(s.ctx, 10*time.Second)
+
 	// Initialize autostart proxies
 	log.Printf("Initializing autostart proxies...")
 	if err := s.caddyH.InitializeAutostart(); err != nil {
@@ -91,7 +108,54 @@ func (s *Server) Start() error {
 	addr := fmt.Sprintf("%s:%d", s.cfg.Server.Host, s.cfg.Server.Port)
 	log.Printf("Starting Web UI server on %s", addr)
 
-	return http.ListenAndServe(addr, mux)
+	// Create HTTP server for graceful shutdown support
+	httpServer := &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+
+	// Set up signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	// Start server in goroutine
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- httpServer.ListenAndServe()
+	}()
+
+	// Wait for shutdown signal or server error
+	select {
+	case err := <-serverErr:
+		if err != nil && err != http.ErrServerClosed {
+			s.cancel()
+			return err
+		}
+	case sig := <-sigChan:
+		log.Printf("Received signal %v, initiating graceful shutdown...", sig)
+
+		// Cancel context to stop monitor goroutines
+		s.cancel()
+
+		// Stop all socat relays
+		log.Printf("Stopping all socat relays...")
+		if err := s.socatH.StopAllRelays(); err != nil {
+			log.Printf("Warning: failed to stop relays: %v", err)
+		}
+
+		// Graceful shutdown of HTTP server (30 second timeout)
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer shutdownCancel()
+
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			log.Printf("Server shutdown error: %v", err)
+			return err
+		}
+
+		log.Printf("Server stopped gracefully")
+	}
+
+	return nil
 }
 
 // setupRoutes configures all HTTP routes
@@ -104,8 +168,9 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.Handle("/api/tailscale/login", http.HandlerFunc(s.tailscaleH.Login))
 	mux.Handle("/api/tailscale/poll", http.HandlerFunc(s.tailscaleH.PollStatus))
 
-	// Static files
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(s.staticFS))))
+	// Static files with proper MIME types
+	fileServer := http.FileServer(http.FS(s.staticFS))
+	mux.Handle("/static/", http.StripPrefix("/static/", s.staticFileHandler(fileServer)))
 
 	// Protected routes (authentication required)
 	mux.Handle("/", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPAFallback)))
@@ -238,6 +303,25 @@ func loadTemplates(templateFS fs.FS) (*template.Template, error) {
 	}
 
 	return tmpl, nil
+}
+
+// staticFileHandler wraps the file server to set correct MIME types for static assets
+func (s *Server) staticFileHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set correct MIME type for SVG files
+		if len(r.URL.Path) > 4 && r.URL.Path[len(r.URL.Path)-4:] == ".svg" {
+			w.Header().Set("Content-Type", "image/svg+xml")
+		}
+		// Set correct MIME type for JavaScript files
+		if len(r.URL.Path) > 3 && r.URL.Path[len(r.URL.Path)-3:] == ".js" {
+			w.Header().Set("Content-Type", "application/javascript")
+		}
+		// Set correct MIME type for CSS files
+		if len(r.URL.Path) > 4 && r.URL.Path[len(r.URL.Path)-4:] == ".css" {
+			w.Header().Set("Content-Type", "text/css")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // formatSize formats bytes into human-readable size

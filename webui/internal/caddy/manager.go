@@ -90,6 +90,12 @@ func (m *Manager) GetUpstreams() ([]UpstreamStatus, error) {
 	return m.proxyManager.GetUpstreams()
 }
 
+// GetProxiesStatus returns a map of proxy IDs to their running status in Caddy
+func (m *Manager) GetProxiesStatus() (map[string]bool, error) {
+	return m.proxyManager.GetProxiesStatus()
+}
+
+
 // InitializeServer ensures the HTTP server is configured in Caddy
 func (m *Manager) InitializeServer(listenAddrs []string) error {
 	if err := m.proxyManager.InitializeServer(listenAddrs); err != nil {

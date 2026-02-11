@@ -206,15 +206,15 @@
           <form id="proxyForm">
             <input type="hidden" id="proxy-id" />
             <div class="mb-3">
-              <label for="proxy-port" class="form-label">Port (Optional)</label>
-              <input type="number" class="form-control" id="proxy-port" min="1" max="65535"
-                placeholder="Leave empty for default HTTPS (443)">
-              <div class="form-text">Custom port for the proxy (optional, defaults to 443)</div>
+              <label for="proxy-port" class="form-label">Port</label>
+              <input type="number" class="form-control" id="proxy-port" required min="1" max="65535"
+                placeholder="e.g., 8443">
+              <div class="form-text">Custom port for the proxy (80, 443, and 8021 are reserved)</div>
             </div>
             <div class="mb-3">
               <label for="proxy-target" class="form-label">Target</label>
               <input type="text" class="form-control" id="proxy-target" required
-                placeholder="e.g., http://localhost:3000">
+                placeholder="e.g., mempool.embassy:8080">
               <div class="form-text">Backend URL to proxy requests to</div>
             </div>
             <div class="mb-3">

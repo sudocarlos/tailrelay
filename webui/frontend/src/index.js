@@ -597,9 +597,18 @@
     formData.append("autostart", autostart.toString());
     formData.append("enabled", "true");
 
-    if (port) {
-      formData.append("port", port);
+    if (!port) {
+      showAlert("danger", "Port is required");
+      return;
     }
+
+    const portNum = parseInt(port);
+    if ([80, 443, 8021].includes(portNum)) {
+      showAlert("danger", "Ports 80, 443, and 8021 are reserved and cannot be used");
+      return;
+    }
+
+    formData.append("port", port);
 
     if (id) {
       formData.append("id", id);

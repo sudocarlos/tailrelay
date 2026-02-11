@@ -275,6 +275,29 @@ func (pm *ProxyManager) GetUpstreams() ([]UpstreamStatus, error) {
 	return pm.client.GetReverseProxyUpstreams()
 }
 
+// GetProxiesStatus returns a map of proxy IDs to their running status in Caddy
+func (pm *ProxyManager) GetProxiesStatus() (map[string]bool, error) {
+	statusMap := make(map[string]bool)
+	servers, err := pm.listServers()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, server := range servers {
+		if server == nil {
+			continue
+		}
+		for _, route := range server.Routes {
+			proxy, err := pm.routeToProxyWithListen(route, server.Listen)
+			if err == nil && proxy.ID != "" {
+				statusMap[proxy.ID] = true
+			}
+		}
+	}
+	return statusMap, nil
+}
+
+
 // buildRoute converts a config.CaddyProxy to a Caddy Route with ReverseProxyHandler
 func (pm *ProxyManager) buildRoute(proxy config.CaddyProxy) (*Route, error) {
 	// Build the reverse proxy handler
