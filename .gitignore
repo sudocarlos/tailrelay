@@ -254,4 +254,6 @@ compose.yml
 Caddyfile
 tailscale*
 .github/prompts*
-.vscode*webui/webui
+.vscode*
+webui/webui
+node_modules/
