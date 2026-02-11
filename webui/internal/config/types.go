@@ -9,6 +9,8 @@ type Config struct {
 	Paths   PathsConfig   `yaml:"paths"`
 	Backup  BackupConfig  `yaml:"backup"`
 	Logging LoggingConfig `yaml:"logging"`
+	// Internal fields
+	ConfigFile string `yaml:"-"`
 }
 
 // ServerConfig contains HTTP server settings

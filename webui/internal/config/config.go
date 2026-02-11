@@ -37,6 +37,8 @@ func Load(filename string) (*Config, error) {
 		cfg.Paths.CaddyServerMap = "/var/lib/tailscale/caddy_servers.json"
 	}
 
+	cfg.ConfigFile = filename
+
 	return &cfg, nil
 }
 
@@ -49,6 +51,7 @@ func LoadOrCreate(filename string) (*Config, error) {
 		if err := Save(filename, cfg); err != nil {
 			return nil, fmt.Errorf("failed to save default config: %w", err)
 		}
+		cfg.ConfigFile = filename
 		return cfg, nil
 	}
 
