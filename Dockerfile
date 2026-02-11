@@ -20,8 +20,21 @@ RUN go mod download
 # Copy source code
 COPY webui/ ./
 
+# Build metadata arguments
+ARG VERSION=dev
+ARG COMMIT=none
+ARG DATE=unknown
+ARG BRANCH=unknown
+ARG BUILDER=docker
+
 # Build the Web UI binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" -o tailrelay-webui ./cmd/webui
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s \
+    -X github.com/sudocarlos/tailrelay-webui/cmd/webui.version=${VERSION} \
+    -X github.com/sudocarlos/tailrelay-webui/cmd/webui.commit=${COMMIT} \
+    -X github.com/sudocarlos/tailrelay-webui/cmd/webui.date=${DATE} \
+    -X github.com/sudocarlos/tailrelay-webui/cmd/webui.branch=${BRANCH} \
+    -X github.com/sudocarlos/tailrelay-webui/cmd/webui.builtBy=${BUILDER}" \
+    -o tailrelay-webui ./cmd/webui
 
 # Main image
 FROM tailscale/tailscale:$TAILSCALE_VERSION

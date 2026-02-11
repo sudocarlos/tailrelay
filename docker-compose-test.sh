@@ -9,7 +9,13 @@ if [[ -f .env ]]; then
 fi
 
 docker compose -f ${COMPOSE_FILE} down
-docker buildx build -t sudocarlos/tailrelay:dev --load .
+docker buildx build \
+  --build-arg VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev") \
+  --build-arg COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "none") \
+  --build-arg DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+  --build-arg BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown") \
+  --build-arg BUILDER=$(whoami) \
+  -t sudocarlos/tailrelay:dev --load .
 docker compose -f ${COMPOSE_FILE} up -d
 echo "Waiting for container to start..."
 sleep 3
