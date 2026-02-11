@@ -1,0 +1,156 @@
+{{template "base.html" .}}
+
+{{define "content"}}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <h2 class="card-header">Backup & Restore</h2>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h4>Create Backup</h4>
+                        <p>Create a full system backup including all configurations and state.</p>
+                        <form id="createBackupForm">
+                            <button type="submit" class="btn btn-primary">Create New Backup</button>
+                        </form>
+                    </div>
+                    <div class="col-md-6">
+                        <h4>Restore Backup</h4>
+                        <p>Upload a previously created backup file to restore the system.</p>
+                        <form id="uploadBackupForm" enctype="multipart/form-data">
+                            <div class="input-group">
+                                <input type="file" name="backup" class="form-control" accept=".tar.gz" required>
+                                <button type="submit" class="btn btn-warning">Upload & Restore</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <h3>Existing Backups</h3>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Filename</th>
+                                <th>Size</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{range .Backups}}
+                            <tr>
+                                <td>{{.Filename}}</td>
+                                <td>{{.Size}} bytes</td>
+                                <td>{{.Timestamp.Format "2006-01-02 15:04:05"}}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-info restore-btn" data-filename="{{.Filename}}">Restore</button>
+                                    <a href="/api/backup/download?filename={{.Filename}}" class="btn btn-sm btn-secondary">Download</a>
+                                    <button class="btn btn-sm btn-danger delete-btn" data-filename="{{.Filename}}">Delete</button>
+                                </td>
+                            </tr>
+                            {{else}}
+                            <tr>
+                                <td colspan="4" class="text-center">No backups found</td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('createBackupForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!confirm('Create a new backup?')) return;
+    
+    try {
+        const response = await fetch('/api/backup/create', { method: 'POST', body: JSON.stringify({}) });
+        const result = await response.json();
+        if (result.status === 'success') {
+            alert('Backup created successfully!');
+            window.location.reload();
+        } else {
+            alert('Error: ' + result.message);
+        }
+    } catch (err) {
+        alert('Failed to create backup: ' + err.message);
+    }
+});
+
+document.getElementById('uploadBackupForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!confirm('Upload and restore backup? This will overwrite current configuration!')) return;
+    
+    const formData = new FormData(e.target);
+    try {
+        const response = await fetch('/api/backup/upload', { method: 'POST', body: formData });
+        const result = await response.json();
+        if (result.status === 'success') {
+             // After upload, trigger restore
+             const restoreResponse = await fetch('/api/backup/restore', { 
+                 method: 'POST', 
+                 body: JSON.stringify({ filename: result.filename }) 
+             });
+             const restoreResult = await restoreResponse.json();
+             
+             if (restoreResult.status === 'success') {
+                 alert('Backup restored successfully! Services may restart.');
+                 window.location.reload();
+             } else {
+                 alert('Restore failed: ' + restoreResult.message);
+             }
+        } else {
+            alert('Upload failed: ' + result.message);
+        }
+    } catch (err) {
+        alert('Operation failed: ' + err.message);
+    }
+});
+
+document.querySelectorAll('.restore-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const filename = btn.getAttribute('data-filename');
+        if (!confirm(`Restore ${filename}? This will overwrite current configuration!`)) return;
+
+        try {
+            const response = await fetch('/api/backup/restore', { 
+                method: 'POST', 
+                body: JSON.stringify({ filename }) 
+            });
+            const result = await response.json();
+            if (result.status === 'success') {
+                alert('Backup restored successfully!');
+                window.location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (err) {
+            alert('Failed to restore: ' + err.message);
+        }
+    });
+});
+
+document.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const filename = btn.getAttribute('data-filename');
+        if (!confirm(`Delete backup ${filename}?`)) return;
+
+        try {
+            const response = await fetch(`/api/backup/delete?filename=${filename}`, { method: 'DELETE' });
+            const result = await response.json();
+            if (result.status === 'success') {
+                window.location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (err) {
+            alert('Failed to delete: ' + err.message);
+        }
+    });
+});
+</script>
+{{end}}
