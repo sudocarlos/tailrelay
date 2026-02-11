@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/sudocarlos/tailrelay-webui/internal/config"
 	"github.com/sudocarlos/tailrelay-webui/internal/socat"
@@ -37,6 +39,16 @@ func NewSocatHandler(cfg *config.Config, templates *template.Template) *SocatHan
 // InitializeAutostart starts all relays with autostart enabled
 func (h *SocatHandler) InitializeAutostart() error {
 	return h.manager.StartAll()
+}
+
+// StartProcessMonitor starts the background process monitor
+func (h *SocatHandler) StartProcessMonitor(ctx context.Context, interval time.Duration) {
+	h.manager.MonitorProcesses(ctx, interval)
+}
+
+// StopAllRelays stops all running relays
+func (h *SocatHandler) StopAllRelays() error {
+	return h.manager.StopAll()
 }
 
 // List renders the socat relay management page
@@ -148,7 +160,9 @@ func (h *SocatHandler) Update(w http.ResponseWriter, r *http.Request) {
 	// Stop if running
 	if existing.PID != 0 {
 		if err := h.manager.StopRelay(existing); err != nil {
-			log.Printf("Warning: failed to stop relay: %v", err)
+			log.Printf("Error stopping relay before update: %v", err)
+			http.Error(w, fmt.Sprintf("Failed to stop existing relay: %v", err), http.StatusInternalServerError)
+			return
 		}
 	}
 
@@ -200,7 +214,9 @@ func (h *SocatHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	// Stop if running
 	if relay.PID != 0 {
 		if err := h.manager.StopRelay(relay); err != nil {
-			log.Printf("Warning: failed to stop relay: %v", err)
+			log.Printf("Error stopping relay before delete: %v", err)
+			http.Error(w, fmt.Sprintf("Failed to stop relay: %v", err), http.StatusInternalServerError)
+			return
 		}
 	}
 
@@ -261,12 +277,16 @@ func (h *SocatHandler) Toggle(w http.ResponseWriter, r *http.Request) {
 	if request.Enabled {
 		relay.Enabled = true
 		if err := h.manager.StartRelay(relay); err != nil {
-			log.Printf("Warning: failed to start relay: %v", err)
+			log.Printf("Error starting relay: %v", err)
+			http.Error(w, fmt.Sprintf("Failed to start relay: %v", err), http.StatusInternalServerError)
+			return
 		}
 	} else {
 		if relay.PID != 0 {
 			if err := h.manager.StopRelay(relay); err != nil {
-				log.Printf("Warning: failed to stop relay: %v", err)
+				log.Printf("Error stopping relay: %v", err)
+				http.Error(w, fmt.Sprintf("Failed to stop relay: %v", err), http.StatusInternalServerError)
+				return
 			}
 		}
 	}

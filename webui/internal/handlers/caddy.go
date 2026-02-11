@@ -270,7 +270,17 @@ func (h *CaddyHandler) APIList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	running, _ := h.manager.GetStatus()
+	// Get global Caddy status
+	caddyRunning, _ := h.manager.GetStatus()
+
+	// Get status of individual proxies
+	proxyStatuses, err := h.manager.GetProxiesStatus()
+	if err != nil {
+		log.Printf("Error getting proxy statuses: %v", err)
+		// Fallback: assume not running if check fails, or rely on enabled flag if caddy is running?
+		// Safer to assume not running to avoid false positives.
+		proxyStatuses = make(map[string]bool)
+	}
 
 	response := make([]struct {
 		config.CaddyProxy
@@ -278,12 +288,20 @@ func (h *CaddyHandler) APIList(w http.ResponseWriter, r *http.Request) {
 	}, 0, len(proxies))
 
 	for _, proxy := range proxies {
+		isRunning := false
+		if caddyRunning && proxy.Enabled {
+			// Check if it's actually active in Caddy
+			if status, ok := proxyStatuses[proxy.ID]; ok {
+				isRunning = status
+			}
+		}
+
 		response = append(response, struct {
 			config.CaddyProxy
 			Running bool `json:"running"`
 		}{
 			CaddyProxy: proxy,
-			Running:    running,
+			Running:    isRunning,
 		})
 	}
 
@@ -340,7 +358,12 @@ func (h *CaddyHandler) parseProxyFromMultipart(r *http.Request) (config.CaddyPro
 		if err != nil {
 			return config.CaddyProxy{}, fmt.Errorf("invalid port")
 		}
+		if port == 80 || port == 443 || port == 8021 {
+			return config.CaddyProxy{}, fmt.Errorf("ports 80, 443, and 8021 are reserved")
+		}
 		proxy.Port = port
+	} else {
+		return config.CaddyProxy{}, fmt.Errorf("port is required")
 	}
 
 	proxy.Enabled = parseBool(r.FormValue("enabled"))
