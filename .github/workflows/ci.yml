@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webui/frontend
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install dependencies
+        run: npm install
+        
+      - name: Build
+        run: npm run build
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webui
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache-dependency-path: webui/go.sum
+          
+      - name: Vet
+        run: go vet ./...
+        
+      - name: Test
+        run: go test -v ./...
+        
+      - name: Build
+        run: go build -v ./...
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Frontend Dependencies
+        working-directory: webui/frontend
+        run: npm install
+
+      - name: Build Frontend
+        working-directory: webui/frontend
+        run: npm run build
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Make script executable
+        run: chmod +x docker-compose-test.sh start.sh
+        
+      - name: Build and Test
+        run: ./docker-compose-test.sh
+        env:
+          TAILRELAY_HOST: tailrelay-test
+          TAILNET_DOMAIN: example.com
+          COMPOSE_FILE: compose-test.yml
