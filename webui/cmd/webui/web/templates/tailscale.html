@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="10">
+    <title>Tailscale - Tailrelay Web UI</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <h1>⚡ Tailrelay Web UI</h1>
+            <ul>
+                <li><a href="/">Dashboard</a></li>
+                <li><a href="/tailscale">Tailscale</a></li>
+                <li><a href="/caddy">Caddy</a></li>
+                <li><a href="/socat">Socat</a></li>
+                <li><a href="/backup">Backup</a></li>
+                <li><a href="/logs">Logs</a></li>
+                <li><a href="/logout">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2>Tailscale Status</h2>
+        
+        <div class="card">
+            <h2>Connection</h2>
+            <table>
+                <tr>
+                    <th>Status</th>
+                    <td>
+                        {{if .Summary.Connected}}
+                            <span class="status-indicator active"></span> {{.StateFormatted}}
+                        {{else}}
+                            <span class="status-indicator inactive"></span> {{.StateFormatted}}
+                        {{end}}
+                    </td>
+                </tr>
+                <tr>
+                    <th>Hostname</th>
+                    <td>{{.Summary.Hostname}}</td>
+                </tr>
+                <tr>
+                    <th>MagicDNS Name</th>
+                    <td>{{.Summary.MagicDNSName}}</td>
+                </tr>
+                <tr>
+                    <th>IPv4 Address</th>
+                    <td>{{.Summary.IPv4}}</td>
+                </tr>
+                <tr>
+                    <th>IPv6 Address</th>
+                    <td>{{.Summary.IPv6}}</td>
+                </tr>
+                <tr>
+                    <th>Tailnet</th>
+                    <td>{{.Summary.TailnetName}}</td>
+                </tr>
+                <tr>
+                    <th>Version</th>
+                    <td>{{.Summary.Version}}</td>
+                </tr>
+            </table>
+
+            {{if .Summary.Health}}
+            <div class="alert alert-error mt-2">
+                <strong>Health Issues:</strong>
+                <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                    {{range .Summary.Health}}
+                    <li>{{.}}</li>
+                    {{end}}
+                </ul>
+            </div>
+            {{end}}
+        </div>
+
+        <div class="card">
+            <h2>Actions</h2>
+            {{if .Summary.Connected}}
+                <button onclick="disconnect()" class="btn btn-danger">Disconnect</button>
+                <button onclick="logout()" class="btn btn-secondary">Logout</button>
+            {{else}}
+                {{if eq .Summary.BackendState "NeedsLogin"}}
+                    <button onclick="login()" class="btn">Login to Tailscale</button>
+                    <div id="auth-info" style="display:none; margin-top: 1rem;">
+                        <div class="alert alert-info">
+                            <p><strong>Authentication Required</strong></p>
+                            <p>Visit this URL to authenticate:</p>
+                            <p><a id="auth-url" href="#" target="_blank" style="color: #2196F3; word-break: break-all;"></a></p>
+                            <p style="margin-top: 1rem;">Checking connection status...</p>
+                        </div>
+                    </div>
+                {{else}}
+                    <button onclick="connect()" class="btn">Connect</button>
+                {{end}}
+            {{end}}
+        </div>
+
+        <div class="card">
+            <h2>Peers ({{.Summary.ActivePeers}}/{{.Summary.PeerCount}} active)</h2>
+            {{if .Peers}}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Hostname</th>
+                        <th>OS</th>
+                        <th>IPv4</th>
+                        <th>Relay</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Peers}}
+                    <tr>
+                        <td>
+                            {{if .Online}}
+                                {{if .Active}}
+                                    <span class="status-indicator active"></span> Active
+                                {{else}}
+                                    <span class="status-indicator active"></span> Online
+                                {{end}}
+                            {{else}}
+                                <span class="status-indicator inactive"></span> Offline
+                            {{end}}
+                        </td>
+                        <td>{{.Hostname}}</td>
+                        <td>{{.OS}}</td>
+                        <td>{{.IPv4}}</td>
+                        <td>{{if .Relay}}{{.Relay}}{{else}}-{{end}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+            {{else}}
+            <p>No peers connected</p>
+            {{end}}
+        </div>
+    </div>
+
+    <script>
+        function login() {
+            fetch('/api/tailscale/login', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.auth_url) {
+                        document.getElementById('auth-url').href = data.auth_url;
+                        document.getElementById('auth-url').textContent = data.auth_url;
+                        document.getElementById('auth-info').style.display = 'block';
+                        // Poll for connection status
+                        pollConnection();
+                    }
+                })
+                .catch(err => alert('Failed to initiate login: ' + err));
+        }
+
+        function logout() {
+            if (confirm('Are you sure you want to logout from Tailscale?')) {
+                fetch('/api/tailscale/logout', { method: 'POST' })
+                    .then(() => location.reload())
+                    .catch(err => alert('Failed to logout: ' + err));
+            }
+        }
+
+        function connect() {
+            fetch('/api/tailscale/connect', { method: 'POST' })
+                .then(() => location.reload())
+                .catch(err => alert('Failed to connect: ' + err));
+        }
+
+        function disconnect() {
+            if (confirm('Are you sure you want to disconnect from Tailscale?')) {
+                fetch('/api/tailscale/disconnect', { method: 'POST' })
+                    .then(() => location.reload())
+                    .catch(err => alert('Failed to disconnect: ' + err));
+            }
+        }
+
+        function pollConnection() {
+            const interval = setInterval(() => {
+                fetch('/api/tailscale/poll')
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.connected) {
+                            clearInterval(interval);
+                            location.reload();
+                        }
+                    });
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

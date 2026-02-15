@@ -1,0 +1,22 @@
+server:
+  host: "0.0.0.0"
+  port: 8023
+
+auth:
+  token_file: "/tmp/.webui_token"
+  enable_tailscale_auth: false
+  enable_token_auth: true
+
+paths:
+  caddy_config: "/tmp/Caddyfile"
+  socat_relay_config: "/tmp/relays.json"
+  caddy_proxy_config: "/tmp/proxies.json"
+  caddy_server_map: "/tmp/caddy_servers.json"
+  state_dir: "/tmp"
+  backup_dir: "/tmp/backups"
+  certificates_dir: "/tmp"
+
+backup:
+  auto_backup_enabled: false
+  auto_backup_schedule: "0 2 * * *"
+  retention_count: 10

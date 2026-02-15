@@ -1,5 +1,5 @@
-# Created by https://www.toptal.com/developers/gitignore/api/python,macos,go
-# Edit at https://www.toptal.com/developers/gitignore?templates=python,macos,go
+# Created by https://www.toptal.com/developers/gitignore/api/python,macos,go,visualstudiocode
+# Edit at https://www.toptal.com/developers/gitignore?templates=python,macos,go,visualstudiocode
 
 ### Go ###
 # If you prefer the allow list template instead of the deny list, see community template:
@@ -11,9 +11,6 @@
 *.dll
 *.so
 *.dylib
-
-# Local dev build output
-data/
 
 # Test binary, built with `go test -c`
 *.test
@@ -67,7 +64,6 @@ __pycache__/
 *$py.class
 
 # C extensions
-*.so
 
 # Distribution / packaging
 .Python
@@ -191,10 +187,6 @@ ENV/
 env.bak/
 venv.bak/
 
-# Frontend build artifacts
-webui/frontend/node_modules/
-webui/frontend/package-lock.json
-
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -236,6 +228,14 @@ poetry.toml
 # LSP config files
 pyrightconfig.json
 
+### VisualStudioCode ###
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
 # Local History for Visual Studio Code
 .history/
 
@@ -247,13 +247,12 @@ pyrightconfig.json
 .history
 .ionide
 
-# End of https://www.toptal.com/developers/gitignore/api/python,macos,go
+# End of https://www.toptal.com/developers/gitignore/api/python,macos,go,visualstudiocode
 
 docker-compose.yml
 compose.yml
 Caddyfile
-tailscale*
-.github/prompts*
-.vscode*
+tailscale/
 webui/webui
 node_modules/
+data/
