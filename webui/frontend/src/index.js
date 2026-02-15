@@ -12,6 +12,8 @@
     currentEditType: null,
     deleteTarget: null,
     removeTlsCert: false,
+    backups: [],
+    currentView: "dashboard",
   };
 
   const elements = {
@@ -33,6 +35,23 @@
     saveProxyBtn: document.getElementById("save-proxy-btn"),
     confirmDeleteBtn: document.getElementById("confirm-delete-btn"),
     removeTlsCertBtn: document.getElementById("proxy-tls-cert-remove"),
+
+    // Navigation
+    navDashboard: document.getElementById("nav-dashboard"),
+    navBackups: document.getElementById("nav-backups"),
+
+    // Views
+    dashboardView: document.getElementById("dashboard-view"),
+    backupsView: document.getElementById("backups-view"),
+
+    // Backup elements
+    backupList: document.getElementById("backup-list"),
+    backupEmptyState: document.getElementById("backup-empty-state"),
+    createBackupBtn: document.getElementById("create-backup-btn"),
+    uploadBackupBtn: document.getElementById("upload-backup-btn"),
+    confirmUploadBtn: document.getElementById("confirm-upload-btn"),
+    uploadBackupForm: document.getElementById("uploadBackupForm"),
+    backupFile: document.getElementById("backupFile"),
   };
 
   const tooltips = [];
@@ -246,6 +265,213 @@
     initTooltips();
   };
 
+  const renderBackups = () => {
+    const list = elements.backupList;
+    if (!list) return;
+
+    list.innerHTML = "";
+
+    if (!state.backups.length) {
+      elements.backupEmptyState.classList.remove("d-none");
+      return;
+    }
+
+    elements.backupEmptyState.classList.add("d-none");
+
+    state.backups.forEach(backup => {
+      const row = document.createElement("tr");
+
+      const date = new Date(backup.Timestamp);
+      const sizeFormatted = formatSize(backup.Size);
+      const type = backup.Metadata?.BackupType || "full";
+
+      row.innerHTML = `
+        <td><strong>${backup.Filename}</strong></td>
+        <td>${sizeFormatted}</td>
+        <td>${date.toLocaleString()}</td>
+        <td><span class="badge text-bg-secondary">${type}</span></td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-outline-primary download-backup-btn me-1" data-filename="${backup.Filename}">
+            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-download"></use></svg>
+            Download
+          </button>
+          <button class="btn btn-sm btn-outline-warning restore-backup-btn me-1" data-filename="${backup.Filename}">
+            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-arrow-counterclockwise"></use></svg>
+            Restore
+          </button>
+          <button class="btn btn-sm btn-outline-danger delete-backup-btn" data-filename="${backup.Filename}">
+            <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-trash"></use></svg>
+          </button>
+        </td>
+      `;
+
+      list.appendChild(row);
+    });
+  };
+
+  const formatSize = (bytes) => {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  };
+
+  const switchView = (view) => {
+    state.currentView = view;
+
+    // Update nav
+    if (view === "dashboard") {
+      elements.navDashboard.classList.add("active");
+      elements.navBackups.classList.remove("active");
+      elements.dashboardView.classList.remove("d-none");
+      elements.backupsView.classList.add("d-none");
+      // Show FAB in dashboard
+      document.querySelector(".fab-container").classList.remove("d-none");
+    } else {
+      elements.navDashboard.classList.remove("active");
+      elements.navBackups.classList.add("active");
+      elements.dashboardView.classList.add("d-none");
+      elements.backupsView.classList.remove("d-none");
+      // Hide FAB in backups
+      document.querySelector(".fab-container").classList.add("d-none");
+
+      refreshBackups();
+    }
+  };
+
+  const refreshBackups = async () => {
+    try {
+      const data = await fetchJSON("/api/backup/list");
+      state.backups = data.backups || [];
+      renderBackups();
+    } catch (error) {
+      showAlert("danger", "Failed to load backups: " + error.message);
+    }
+  };
+
+  const handleCreateBackup = async () => {
+    if (!confirm("Create a new full system backup?")) return;
+
+    try {
+      elements.createBackupBtn.disabled = true;
+      await fetchJSON("/api/backup/create", {
+        method: "POST",
+        body: JSON.stringify({ backup_type: "full" })
+      });
+
+      showAlert("success", "Backup created successfully");
+      await refreshBackups();
+    } catch (error) {
+      showAlert("danger", error.message);
+    } finally {
+      elements.createBackupBtn.disabled = false;
+    }
+  };
+
+  const handleUploadBackup = () => {
+    const modal = new bootstrap.Modal(document.getElementById("uploadBackupModal"));
+    elements.uploadBackupForm.reset();
+    modal.show();
+  };
+
+  const handleConfirmUpload = async () => {
+    const fileInput = elements.backupFile;
+    if (!fileInput.files.length) {
+      showAlert("warning", "Please select a file");
+      return;
+    }
+
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append("backup", file);
+
+    try {
+      elements.confirmUploadBtn.disabled = true;
+
+      // Upload
+      const uploadResp = await fetch("/api/backup/upload", {
+        method: "POST",
+        body: formData,
+        headers: {
+          // No Content-Type header, let browser set boundary
+        }
+      });
+
+      if (!uploadResp.ok) {
+        throw new Error(await uploadResp.text());
+      }
+
+      const uploadResult = await uploadResp.json();
+      const filename = uploadResult.filename;
+
+      // Restore
+      showAlert("info", "Upload successful. Restoring...");
+      await fetchJSON("/api/backup/restore", {
+        method: "POST",
+        body: JSON.stringify({ filename })
+      });
+
+      bootstrap.Modal.getInstance(document.getElementById("uploadBackupModal")).hide();
+      showAlert("success", "System restored successfully. Reloading...");
+      setTimeout(() => location.reload(), 2000);
+
+    } catch (error) {
+      showAlert("danger", "Operation failed: " + error.message);
+      elements.confirmUploadBtn.disabled = false;
+    }
+  };
+
+  const handleRestoreBackup = async (filename) => {
+    if (!confirm(`Restore from backup "${filename}"? Current configuration will be overwritten.`)) return;
+
+    try {
+      await fetchJSON("/api/backup/restore", {
+        method: "POST",
+        body: JSON.stringify({ filename })
+      });
+
+      showAlert("success", "System restored successfully. Reloading...");
+      setTimeout(() => location.reload(), 2000);
+    } catch (error) {
+      showAlert("danger", error.message);
+    }
+  };
+
+  const handleDeleteBackup = async (filename) => {
+    if (!confirm(`Delete backup "${filename}"?`)) return;
+
+    try {
+      await fetchJSON(`/api/backup/delete?filename=${encodeURIComponent(filename)}`, {
+        method: "DELETE"
+      });
+
+      showAlert("success", "Backup deleted");
+      await refreshBackups();
+    } catch (error) {
+      showAlert("danger", error.message);
+    }
+  };
+
+  const handleDownloadBackup = (filename) => {
+    window.location.href = `/api/backup/download?filename=${encodeURIComponent(filename)}`;
+  };
+
+  const handleBackupListClick = (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+
+    const filename = btn.dataset.filename;
+
+    if (btn.classList.contains("download-backup-btn")) {
+      handleDownloadBackup(filename);
+    } else if (btn.classList.contains("restore-backup-btn")) {
+      handleRestoreBackup(filename);
+    } else if (btn.classList.contains("delete-backup-btn")) {
+      handleDeleteBackup(filename);
+    }
+  };
+
   const initTooltips = () => {
     document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((node) => {
       tooltips.push(new bootstrap.Tooltip(node));
@@ -298,19 +524,19 @@
 
   const toggleAutostart = async (type, id, autostart) => {
     const url = type === "relay" ? "/api/socat/update" : "/api/caddy/update";
-    
+
     // Get the current item first
     const currentItem = type === "relay"
       ? state.relays.find(r => r.relay.id === id)?.relay
       : state.proxies.find(p => p.id === id);
-    
+
     if (!currentItem) {
       throw new Error(`${type} not found`);
     }
-    
+
     // Update with new autostart value
     const updated = { ...currentItem, autostart };
-    
+
     await fetchJSON(url, {
       method: "POST",
       body: JSON.stringify(updated),
@@ -351,7 +577,7 @@
 
     const { type, id } = toggle.dataset;
     const autostart = toggle.checked;
-    
+
     toggle.disabled = true;
 
     try {
@@ -444,10 +670,10 @@
   const openRelayModal = (relay = null) => {
     const modal = new bootstrap.Modal(document.getElementById("relayModal"));
     const modalTitle = document.querySelector("#relayModal .modal-title");
-    
+
     state.currentEditItem = relay;
     state.currentEditType = "relay";
-    
+
     if (relay) {
       // Edit mode
       modalTitle.textContent = "Edit Relay";
@@ -463,7 +689,7 @@
       document.getElementById("relay-id").value = "";
       document.getElementById("relay-autostart").checked = true;
     }
-    
+
     modal.show();
   };
 
@@ -473,11 +699,11 @@
     const certCurrent = document.getElementById("proxy-tls-cert-current");
     const certFilename = document.getElementById("proxy-tls-cert-filename");
     const certFileInput = document.getElementById("proxy-tls-cert");
-    
+
     state.currentEditItem = proxy;
     state.currentEditType = "proxy";
     state.removeTlsCert = false; // Reset remove flag
-    
+
     if (proxy) {
       // Edit mode
       modalTitle.textContent = "Edit Proxy";
@@ -486,7 +712,7 @@
       document.getElementById("proxy-target").value = proxy.target;
       document.getElementById("proxy-trusted-proxies").checked = proxy.trusted_proxies ?? false;
       document.getElementById("proxy-autostart").checked = proxy.autostart ?? false;
-      
+
       // Show current TLS cert if exists
       certFileInput.value = "";
       if (proxy.tls_cert_file) {
@@ -505,7 +731,7 @@
       certFileInput.value = "";
       certCurrent.style.display = "none";
     }
-    
+
     modal.show();
   };
 
@@ -561,12 +787,12 @@
 
     // Always use MagicDNS hostname (strip trailing dot)
     const hostname = state.tailnetFQDN.replace(/\.$/, '');
-    
+
     if (!hostname) {
       showAlert("danger", "MagicDNS hostname not available. Please ensure Tailscale is connected.");
       return;
     }
-    
+
     if (!target) {
       showAlert("danger", "Please fill in the target URL");
       return;
@@ -581,7 +807,7 @@
         showAlert("danger", "Invalid certificate file. Please upload a .pem, .crt, or .cer file.");
         return;
       }
-      
+
       // Check file size (max 1MB for cert files)
       if (tlsCertFile.size > 1024 * 1024) {
         showAlert("danger", "Certificate file too large. Maximum size is 1MB.");
@@ -627,7 +853,7 @@
     try {
       elements.saveProxyBtn.disabled = true;
       const url = id ? "/api/caddy/update" : "/api/caddy/create";
-      
+
       // Use fetch without JSON content-type for FormData
       const response = await fetch(url, {
         method: "POST",
@@ -655,10 +881,10 @@
   const openDeleteModal = (type, id, name) => {
     const modal = new bootstrap.Modal(document.getElementById("deleteModal"));
     const message = document.getElementById("delete-message");
-    
+
     state.deleteTarget = { type, id };
     message.textContent = `Are you sure you want to delete ${type === "relay" ? "relay" : "proxy"} "${name}"? This action cannot be undone.`;
-    
+
     modal.show();
   };
 
@@ -671,10 +897,10 @@
 
     try {
       elements.confirmDeleteBtn.disabled = true;
-      const url = type === "relay" 
+      const url = type === "relay"
         ? `/api/socat/delete?id=${encodeURIComponent(id)}`
         : `/api/caddy/delete?id=${encodeURIComponent(id)}`;
-      
+
       await fetchJSON(url, { method: "POST" });
 
       bootstrap.Modal.getInstance(document.getElementById("deleteModal")).hide();
@@ -800,12 +1026,52 @@
       e.preventDefault();
       saveProxy();
     });
+
+    // Backup events
+    if (elements.navDashboard) {
+      elements.navDashboard.addEventListener("click", (e) => {
+        e.preventDefault();
+        switchView("dashboard");
+      });
+    }
+
+    if (elements.navBackups) {
+      elements.navBackups.addEventListener("click", (e) => {
+        e.preventDefault();
+        switchView("backups");
+      });
+    }
+
+    if (elements.createBackupBtn) {
+      elements.createBackupBtn.addEventListener("click", handleCreateBackup);
+    }
+
+    if (elements.uploadBackupBtn) {
+      elements.uploadBackupBtn.addEventListener("click", handleUploadBackup);
+    }
+
+    if (elements.confirmUploadBtn) {
+      elements.confirmUploadBtn.addEventListener("click", handleConfirmUpload);
+    }
+
+    if (elements.backupList) {
+      elements.backupList.addEventListener("click", handleBackupListClick);
+    }
+
+    // Brand link to dashboard
+    const brandLink = document.getElementById("nav-brand");
+    if (brandLink) {
+      brandLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        switchView("dashboard");
+      });
+    }
   };
 
   const init = async () => {
     // Set theme before content loads to prevent flash
     setTheme(getPreferredTheme());
-    
+
     bindEvents();
     await refreshData();
     await loadLogs();
