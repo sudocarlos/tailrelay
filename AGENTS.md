@@ -1,16 +1,10 @@
 # Agent Development Guide
 
-This guide provides coding agents with essential information for working with the tailrelay codebase, plus operational rules and recommended commands for development tasks.
+Essential information for coding agents working with the tailrelay codebase.
 
 ## Project Overview
 
-**tailrelay** is a Docker container that combines Tailscale, Caddy, socat, and a Go-based Web UI to expose local services (especially Start9 services) to a Tailscale network. The repo includes:
-
-- Docker image building (multi-stage) with Tailscale, Caddy, socat, and Web UI
-- Shell script orchestration for service startup
-- Go Web UI (Caddy Admin API integration)
-- Python and Bash integration tests
-- Docker Compose for development and testing
+**tailrelay** is a Docker container combining Tailscale, Caddy, socat, and a Go Web UI to expose local services to a Tailscale network. For detailed component knowledge, see the [Skills Directory](#skills-directory) below.
 
 ## LLM Operational Rules (Read First)
 
@@ -21,345 +15,97 @@ This guide provides coding agents with essential information for working with th
 5. **When running commands**, keep output small and relevant (pipe/grep if needed).
 6. **If a change affects external behavior**, update README or release notes as required.
 
-## Build, Test & Development Commands
+## Skills Directory
 
-### Make Targets (Preferred)
+Detailed component knowledge is organized into Agent Skills at `.agents/skills/`:
 
-```bash
-# Show available targets
-make help
+| Skill | Path | When to Use |
+|-------|------|-------------|
+| **Tailscale** | `.agents/skills/tailscale/SKILL.md` | VPN daemon, CLI, authentication, MagicDNS, HTTPS certs |
+| **Caddy** | `.agents/skills/caddy/SKILL.md` | Reverse proxy Admin API, CRUD ops, @id tags, TLS |
+| **socat** | `.agents/skills/socat/SKILL.md` | TCP relays, RELAY_LIST, process management |
+| **Web UI** | `.agents/skills/webui/SKILL.md` | Go app, handlers, auth, backup, frontend SPA, build |
+| **Docker/CI** | `.agents/skills/docker-ci/SKILL.md` | Dockerfile, Compose, GitHub Actions, testing |
 
-# Build Web UI binary locally (writes data/tailrelay-webui)
-make dev-build
+Read the relevant SKILL.md before making changes to that component.
 
-# Build dev Docker image using local binary
-make dev-docker-build
+## Quick Reference Commands
 
-# Remove build artifacts
-make clean
-```
-
-### Build Docker Images
+### Make Targets
 
 ```bash
-# Development image (multi-stage)
-docker buildx build -t sudocarlos/tailrelay:dev --load .
-
-# Production image
-docker buildx build -t sudocarlos/tailrelay:latest .
+make help              # Show all targets
+make frontend-build    # Build SPA assets (Node.js/npm)
+make dev-build         # Build Go binary with metadata (includes frontend-build)
+make dev-docker-build  # Build dev Docker image (includes dev-build)
+make clean             # Remove build artifacts
 ```
 
-### Development Environment (Compose)
+### Testing
 
 ```bash
-# Start test environment
-docker compose -f compose-test.yml up -d
-
-# View logs
-docker compose -f compose-test.yml logs tailrelay-test
-
-# Stop test environment
-docker compose -f compose-test.yml down
-
-# Check listening ports
-docker exec -it tailrelay-test netstat -tulnp | grep LISTEN
+cd webui && go test ./...       # Go unit tests
+python docker-compose-test.py   # Python integration suite
+./docker-compose-test.sh        # Bash integration suite
+./test_proxy_api.sh             # API endpoint tests
 ```
 
-### Run Tests
+### Docker
 
 ```bash
-# Full integration test suite (Python)
-python docker-compose-test.py
-
-# Full integration test suite (Bash)
-./docker-compose-test.sh
-
-# API-level test (Web UI / Caddy API)
-./test_proxy_api.sh
+docker buildx build -t sudocarlos/tailrelay:latest --load .  # Production build
+docker compose -f compose-test.yml up -d                      # Start test env
+docker compose -f compose-test.yml down                       # Stop test env
 ```
 
-### Running Single Health Checks
+### Health Checks
 
 ```bash
-curl -sSL http://${TAILRELAY_HOST}:8080 && echo success || echo fail
-curl -sSL http://${TAILRELAY_HOST}:9002/healthz && echo success || echo fail
+curl -sSL http://${TAILRELAY_HOST}:8080   # HTTP proxy
+curl -sSL http://${TAILRELAY_HOST}:9002/healthz  # Tailscale health
+curl -sSL http://localhost:8021            # Web UI
 ```
 
-## Web UI Development Workflow
+## Code Style Quick Reference
 
-Fast iteration without rebuilding the full image:
-
-1. Build the Web UI binary: `make dev-build`
-2. Mount `./data/tailrelay-webui` into the container (see compose-test.yml)
-3. Restart the container: `docker compose -f compose-test.yml restart tailrelay`
-4. Repeat as needed
-
-### Building Web UI Standalone
-
-```bash
-# Build from webui directory
-cd webui
-go build -o ../data/tailrelay-webui ./cmd/webui
-
-# Or use Make target from project root
-make dev-build
-```
-
-### Running Web UI Standalone
-
-```bash
-# With default config (/var/lib/tailscale/webui.yaml)
-./data/tailrelay-webui
-
-# With custom config
-./data/tailrelay-webui --config /path/to/webui.yaml
-
-# Show version
-./data/tailrelay-webui --version
-```
-
-### Web UI Testing
-
-```bash
-# Run Go tests
-cd webui
-go test ./...
-
-# Build and test locally with custom config
-go build -o ../data/tailrelay-webui ./cmd/webui
-../data/tailrelay-webui --config ./config/webui.yaml
-```
-
-## Architecture Notes
-
-- **Container entrypoint**: [start.sh](start.sh) orchestrates tailscaled, Web UI, optional socat relays, and Caddy startup.
-- **Web UI**: Go application in [webui/](webui/) with embedded templates/static assets.
-- **Caddy config**: Managed via Caddy Admin API; legacy Caddyfile remains for compatibility.
-- **Relays**: `RELAY_LIST` is supported for migration but Web UI is preferred.
-
-### Web UI Architecture
-
-The Web UI is a lightweight Go application that provides:
-
-- **Dashboard**: System status overview
-- **Tailscale Management**: Login, status, device list
-- **Caddy Proxy Management**: Add/edit/delete HTTP/HTTPS reverse proxies via Caddy Admin API
-- **Socat Relay Management**: Add/edit/delete TCP relays
-- **Backup & Restore**: Full configuration and certificate backup
-- **Authentication**: Tailscale network auth + token-based access for scripts
-
-#### Caddy API Integration (v0.3.0)
-
-The Web UI uses **Caddy's Admin API** directly instead of file-based Caddyfile management:
-
-- ✅ **Zero-downtime configuration changes** - No reload/restart needed
-- ✅ **5-10x faster operations** - Direct API calls vs file regeneration
-- ✅ **Atomic updates** - Changes apply instantly and safely
-- ✅ **Better error handling** - Immediate feedback from Caddy
-- ✅ **No file system dependencies** - Pure HTTP-based management
-
-See `webui/CADDY_API_GUIDE.md` for detailed documentation and `webui/MIGRATION_SUMMARY.md` for migration information.
-
-#### Web UI Project Structure
-
-```
-webui/
-├── cmd/webui/          # Main application entry point
-│   └── web/            # Embedded static assets and templates
-├── internal/
-│   ├── auth/           # Authentication middleware
-│   ├── backup/         # Backup and restore functionality
-│   ├── caddy/          # Caddy API integration
-│   │   ├── api_client.go      # HTTP client for Caddy Admin API
-│   │   ├── api_types.go       # Caddy JSON config structures
-│   │   ├── proxy_manager.go   # High-level proxy management
-│   │   ├── manager.go          # Simplified manager interface
-│   │   ├── migration.go        # Migration utilities
-│   │   ├── caddyfile.go        # Legacy Caddyfile support
-│   │   ├── legacy.go           # Legacy compatibility layer
-│   │   └── server_map.go       # Server mapping utilities
-│   ├── config/         # Configuration management
-│   ├── handlers/       # HTTP request handlers
-│   ├── logger/         # Logging utilities
-│   ├── socat/          # Socat process management
-│   ├── tailscale/      # Tailscale CLI integration
-│   └── web/            # HTTP server and routing
-├── config/             # Example configuration files
-├── examples/           # Usage examples
-├── frontend/           # Frontend build system (Node.js/npm)
-├── web/                # Legacy static assets and templates
-├── README.md           # Web UI overview and quickstart
-├── CADDY_API_GUIDE.md  # Comprehensive API documentation
-├── MIGRATION_SUMMARY.md # Migration guide from Caddyfile to API
-└── IMPLEMENTATION_SUMMARY.md # Technical implementation details
-```
-
-#### Web UI Configuration
-
-See `webui/config/webui.yaml` for example configuration. Key settings:
-
-- **server.port**: Web UI port (default: 8021)
-- **auth.enable_tailscale_auth**: Allow auth from Tailscale network IPs
-- **auth.enable_token_auth**: Require authentication token
-- **paths.***: File paths for configurations and state
-
-#### Web UI Authentication
-
-Two authentication methods supported:
-
-1. **Tailscale Network Authentication**: Automatic authentication from Tailscale IPs (100.x.y.z). If device not connected, login page shows Tailscale login link and polls until connected.
-2. **Token Authentication**: Token-based access for scripted or legacy flows (token generated on first run and saved to configured token file).
-
-#### RELAY_LIST Migration
-
-On first startup, if `RELAY_LIST` environment variable is set and `relays.json` doesn't exist, the Web UI automatically migrates relay configuration to JSON format.
-
-Format: `RELAY_LIST=port:host:port,port:host:port`
-
-After migration, remove `RELAY_LIST` and manage relays through Web UI.
-
-#### Web UI Dependencies
-
-- Go 1.21+
-- `gopkg.in/yaml.v3` - YAML configuration parsing
-- Standard library for all other functionality
-
-#### Bootstrap Icons
-
-The SPA uses a lightweight Bootstrap Icons SVG sprite at:
-- `webui/cmd/webui/web/static/vendor/bootstrap-icons/bootstrap-icons.svg`
-
-To update Bootstrap Icons to the latest version:
-
-```bash
-# Update to latest version
-./update-bootstrap-icons.sh
-
-# Update to specific version
-./update-bootstrap-icons.sh 1.11.3
-```
-
-The script will:
-1. Download the specified (or latest) Bootstrap Icons release
-2. Backup the current sprite file
-3. Extract and install the new sprite
-4. Show file size and icon count comparison
-5. Provide next steps for testing and committing
-
-If swapping in full Bootstrap Icons distribution manually, keep sprite in same path or update template references.
-
-## Code Style Guidelines
-
-### Shell Scripts (Bash/sh)
-
-- Use `.sh` extension for shell scripts
-- Shebangs: `#!/usr/bin/env bash` (Bash), `#!/bin/ash` (Alpine entrypoint)
-- 4-space indentation, no tabs
-- Env vars: `UPPER_SNAKE_CASE`, locals: `lower_snake_case`
-- Quote variables: `"$VAR"` unless word splitting intended
-- `set -e` for fail-fast, `set -x` for debugging
-
-### Python Scripts
-
-- Standard library imports first, third-party second
-- Use type hints for function parameters/returns
-- Prefer f-strings for messages
-- Handle subprocess timeouts gracefully; return error codes
-
-### Go (Web UI)
-
-- Follow standard Go formatting (`gofmt`)
-- Keep handlers in `internal/handlers/` and business logic in `internal/*`
-- Prefer explicit error handling; avoid panics for runtime conditions
-- Keep config types in `internal/config`
-
-### Dockerfile
-
-- Use `ARG` for build-time values, `ENV` for runtime
-- Combine `RUN` steps to reduce layers
-- Pin base image versions via `TAILSCALE_VERSION`
-
-### Caddyfile Configuration
-
-- Use tabs for indentation (Caddy convention)
-- One site block per listening address
-- Use full domain with port: `host.domain.ts.net:port`
+| Language | Key Rules |
+|----------|-----------|
+| **Go** | `gofmt`, handlers in `internal/handlers/`, explicit error handling, no panics |
+| **Shell** | `#!/usr/bin/env bash` (or `#!/bin/ash` for Alpine), 4-space indent, quote `"$VARS"` |
+| **Python** | Type hints, f-strings, handle subprocess timeouts, stdlib first |
+| **Dockerfile** | `ARG` for build-time, `ENV` for runtime, combine `RUN` steps |
 
 ## Environment Variables
 
-**Required:**
-- `TS_HOSTNAME` - Tailscale machine name (must match Caddy config and Web UI)
-- `TS_STATE_DIR` - Tailscale state directory (default: `/var/lib/tailscale/`)
-
-**Optional:**
-- `RELAY_LIST` - Comma-separated `port:host:port` relay definitions (legacy)
-- `TS_EXTRA_FLAGS` - Additional Tailscale flags
-- `TS_AUTH_ONCE` - Authenticate once (default: `true`)
-- `TS_ENABLE_METRICS` - Enable metrics endpoint (default: `true`)
-- `TS_ENABLE_HEALTH_CHECK` - Enable health check endpoint (default: `true`)
-
-**Test .env variables:**
-- `TAILRELAY_HOST` - Test container hostname
-- `TAILNET_DOMAIN` - Tailnet domain for testing
-- `COMPOSE_FILE` - Path to Compose file
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `TS_HOSTNAME` | *(required)* | Tailscale machine name |
+| `TS_STATE_DIR` | `/var/lib/tailscale/` | Tailscale state directory |
+| `RELAY_LIST` | *(empty)* | Legacy comma-separated relay definitions |
+| `TS_EXTRA_FLAGS` | *(empty)* | Additional Tailscale flags |
+| `TS_AUTH_ONCE` | `true` | Authenticate once |
+| `TS_ENABLE_METRICS` | `true` | Enable `:9002/metrics` |
+| `TS_ENABLE_HEALTH_CHECK` | `true` | Enable `:9002/healthz` |
 
 ## File Map
 
 ```
-.
-├── Dockerfile                  # Multi-stage container build (includes building the Web UI binary in a builder stage)
-├── Dockerfile.dev              # Development image that copies the locally-built `data/tailrelay-webui` binary
-├── start.sh                    # Container entrypoint: starts tailscaled, Web UI, optional socat relays, and Caddy
-├── webui/                      # Go Web UI source tree (see details below)
-├── webui.yaml                  # Default runtime config for the Web UI included in the image
-├── data/                       # Local build outputs (e.g., `tailrelay-webui` produced by `make dev-build`)
-├── compose-test.yml            # Docker Compose config used for development and integration testing
-├── docker-compose-test.py      # Python-driven integration test harness (env-driven, curl checks)
-├── docker-compose-test.sh      # Bash wrapper test script for quick runs
-├── test_proxy_api.sh           # Example script that exercises Web UI/Caddy API endpoints (uses `curl`)
-├── update-bootstrap-icons.sh   # Script to update Bootstrap Icons SVG sprite to latest or specific version
-├── requirements.txt            # Python dependencies for the test harness (python-dotenv, etc.)
-├── Caddyfile.example           # Example/legacy Caddyfile for manual Caddy configuration or troubleshooting
-└── README.md                   # Project overview and developer documentation
+├── AGENTS.md               # This file — agent entry point
+├── Dockerfile / .dev        # Container images
+├── Makefile                 # Build targets
+├── start.sh                 # Container entrypoint
+├── webui/                   # Go Web UI (see webui skill)
+├── compose-test.yml         # Test Compose config
+├── docker-compose-test.*    # Integration test scripts
+├── .agents/skills/          # Agent Skills (see table above)
+├── .agent/workflows/        # Dev workflows (dev-build, docker-test)
+└── .github/workflows/       # CI pipeline
 ```
-
-## Testing Strategy
-
-- Build dev image
-- Start containers via Compose
-- Wait ~3 seconds for services to initialize
-- Run curl health checks
-- Validate ports and logs
-- Clean up containers
-
-**Health Check Endpoints:**
-- HTTP proxy: `:8080`, `:8081`
-- HTTPS proxy: `:8443`
-- Tailscale health: `:9002/healthz`
-- Tailscale metrics: `:9002/metrics`
-
-## Common Pitfalls & Notes
-
-1. **File Persistence**: Start9 removes files on reboot; back up `/home/start9/tailscale`.
-2. **Hostname Matching**: `TS_HOSTNAME` must match the Tailscale hostname used in config.
-3. **Tailnet Domain**: Use the exact Tailnet name from Tailscale Admin console.
-4. **RELAY_LIST Format**: Strict `port:host:port` parsing; migrate to Web UI.
-5. **Docker Network**: Use `--net start9` for Start9 deployments.
-6. **TLS Certificates**: HTTPS must be enabled in Tailscale admin.
-7. **Container Execution**: `start.sh` keeps tailscaled and the Web UI running in the foreground.
-
-## Version Information
-
-- Container version: `v0.3.0` (see `start.sh` and release notes)
-- Tailscale base: `v1.92.5` (Dockerfile ARG)
-- Go version: `1.21` (Dockerfile ARG)
 
 ## Making Changes
 
-When modifying the project:
-
 1. Update version in `start.sh` (and release notes as needed)
-2. Rebuild the image (dev or prod)
-3. Run Python and Bash test scripts
+2. Rebuild: `make dev-build` or `make dev-docker-build`
+3. Run tests: `go test ./...` + integration scripts
 4. Validate health endpoints
-5. Update README.md for user-facing changes
+5. Update `README.md` for user-facing changes
