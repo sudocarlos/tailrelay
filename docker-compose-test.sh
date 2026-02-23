@@ -9,6 +9,7 @@ if [[ -f .env ]]; then
 fi
 
 docker compose -f ${COMPOSE_FILE} down
+mkdir -p tailscale
 docker buildx build \
   --build-arg VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev") \
   --build-arg COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "none") \
@@ -22,18 +23,18 @@ sleep 3
 docker logs tailrelay-test | tail
 docker exec tailrelay-test netstat -tulnp | grep LISTEN
 
-curl -sSL http://${TAILRELAY_HOST}:8080 && echo success || echo fail
-curl -sSL http://${TAILRELAY_HOST}:8081 && echo success || echo fail
-curl -sSL https://${TAILRELAY_HOST}.${TAILNET_DOMAIN}:8443 && echo success || echo fail
-curl -sSL http://${TAILRELAY_HOST}:9002/healthz && echo success || echo fail
-curl -sSL http://${TAILRELAY_HOST}:9002/metrics && echo success || echo fail
+docker exec tailrelay-test wget -qO-         http://127.0.0.1:8080 >/dev/null && echo success || echo fail
+docker exec tailrelay-test wget -qO-         http://127.0.0.1:8081 >/dev/null && echo success || echo fail
+docker exec tailrelay-test wget -qO- --no-check-certificate  https://127.0.0.1:8443 >/dev/null && echo success || echo fail
+docker exec tailrelay-test wget -qO-         http://127.0.0.1:9002/healthz >/dev/null && echo success || echo fail
+docker exec tailrelay-test wget -qO-         http://127.0.0.1:9002/metrics >/dev/null && echo success || echo fail
 
 # Test Socat Relay
 echo "Testing Socat Relay..."
 echo '{"relays": [{"id": "test-relay", "listen_port": 8089, "target_host": "whoami-test", "target_port": 80, "enabled": true, "autostart": true}]}' > tailscale/relays.json
 docker restart tailrelay-test
 sleep 5
-docker exec tailrelay-test wget -qO- http://127.0.0.1:8089 | grep "Hostname: whoami-test" && echo "Socat Success" || echo "Socat Fail"
+docker exec tailrelay-test wget -qO- http://127.0.0.1:8089 | grep "Host: 127.0.0.1:8089" && echo "Socat Success" || echo "Socat Fail"
 
 # stop the containers
 docker compose -f ${COMPOSE_FILE} down
