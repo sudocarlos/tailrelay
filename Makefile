@@ -1,4 +1,4 @@
-.PHONY: frontend-build dev-build dev-docker-build clean help
+.PHONY: frontend-build dev-build dev-docker-build release clean help
 
 # Build metadata
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -6,6 +6,11 @@ COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 BRANCH ?= $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 BUILDER ?= $(shell whoami)
+
+# Container registries
+DOCKERHUB_REPO ?= sudocarlos/tailrelay
+GHCR_REPO ?= ghcr.io/sudocarlos/tailrelay
+PLATFORMS ?= linux/amd64,linux/arm64
 
 # Go build flags with metadata
 LDFLAGS = -w -s \
@@ -54,3 +59,26 @@ clean: ## Remove build artifacts
 	@echo "Cleaning build artifacts..."
 	rm -rf data/tailrelay-webui
 	@echo "✅ Clean complete"
+
+release: ## Build and push multi-platform release to Docker Hub + GHCR
+	@if echo "$(VERSION)" | grep -q dirty; then \
+		echo "❌ Working tree is dirty. Commit or stash changes first."; \
+		exit 1; \
+	fi
+	@echo "🚀 Building and pushing release $(VERSION)"
+	@echo "  Platforms: $(PLATFORMS)"
+	@echo "  Docker Hub: $(DOCKERHUB_REPO):$(VERSION)"
+	@echo "  GHCR:       $(GHCR_REPO):$(VERSION)"
+	docker buildx build \
+		--platform $(PLATFORMS) \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		--build-arg DATE=$(DATE) \
+		--build-arg BRANCH=$(BRANCH) \
+		--build-arg BUILDER=$(BUILDER) \
+		-t $(DOCKERHUB_REPO):$(VERSION) \
+		-t $(DOCKERHUB_REPO):latest \
+		-t $(GHCR_REPO):$(VERSION) \
+		-t $(GHCR_REPO):latest \
+		--push .
+	@echo "✅ Release $(VERSION) pushed to Docker Hub and GHCR"
