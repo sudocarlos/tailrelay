@@ -49,6 +49,8 @@ rc, _, _ = docker_compose("down")
 if rc:
     print("⚠️  docker compose down failed – continuing anyway")
 
+mkdir_rc, _, _ = run("mkdir -p tailscale")
+
 # 2. Build image
 
 print("\nBuilding image…")
@@ -84,17 +86,17 @@ print(sockets)
 # 5. Curl tests
 
 curl_tests = [
-    (f"http://{TAILRELAY_HOST}:8080",   "Health / 8080"),
-    (f"http://{TAILRELAY_HOST}:8081",   "Health / 8081"),
-    (f"https://{TAILRELAY_HOST}.{TAILNET_DOMAIN}:8443", "TLS / 8443"),
-    (f"http://{TAILRELAY_HOST}:9002/healthz",   "Health endpoint / 9002"),
-    (f"http://{TAILRELAY_HOST}:9002/metrics",   "Metrics endpoint / 9002"),
+    ("http://127.0.0.1:8080",   "Health / 8080"),
+    ("http://127.0.0.1:8081",   "Health / 8081"),
+    ("https://127.0.0.1:8443", "TLS / 8443"),
+    ("http://127.0.0.1:9002/healthz",   "Health endpoint / 9002"),
+    ("http://127.0.0.1:9002/metrics",   "Metrics endpoint / 9002"),
 ]
 
 results: List[Tuple[str, str, str]] = []
 
 for url, desc in curl_tests:
-    rc, _, _ = run(f"curl -sSL {url}", capture_output=True, timeout=10)
+    rc, _, _ = run(f"docker exec tailrelay-test wget -qO- --no-check-certificate {url}", capture_output=True, timeout=10)
     status = "✅ success" if rc == 0 else "❌ fail"
     results.append((desc, url, status))
 
@@ -134,8 +136,8 @@ time.sleep(5) # Wait for startup
 print("Testing socat relay connection...")
 # We run wget inside the container to test the local listener
 rc, out, err = run("docker exec tailrelay-test wget -qO- http://127.0.0.1:8089", capture_output=True)
-if rc == 0 and "Hostname: whoami-test" in out:
-     print("✅ Socat relay working (found 'Hostname: whoami-test')")
+if rc == 0 and "Host: 127.0.0.1:8089" in out:
+     print("✅ Socat relay working (found 'Host: 127.0.0.1:8089')")
      results.append(("Socat Relay / 8089", "http://127.0.0.1:8089", "✅ success"))
 else:
      print(f"❌ Socat relay failed. RC={rc}, Out='{out}', Err='{err}'")

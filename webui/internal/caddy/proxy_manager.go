@@ -95,6 +95,10 @@ func (pm *ProxyManager) AddProxy(proxy config.CaddyProxy) (*config.CaddyProxy, e
 			Routes: []Route{*route},
 		}
 
+		if err := pm.ensureHTTPServersPath(); err != nil {
+			logger.Error("caddy", "Failed to ensure HTTP path: %v", err)
+		}
+
 		if err := pm.client.PutConfig(path, server); err != nil {
 			logger.Error("caddy", "Failed to create server %s for %s:%d via Caddy API: %v", serverName, proxy.Hostname, proxy.Port, err)
 			// Clean up metadata
@@ -180,6 +184,10 @@ func (pm *ProxyManager) UpdateProxy(proxy config.CaddyProxy) error {
 		path := fmt.Sprintf("/apps/http/servers/%s", serverName)
 
 		// Use PUT if server doesn't exist (create), PATCH if it exists (update)
+		if err := pm.ensureHTTPServersPath(); err != nil {
+			logger.Error("caddy", "Failed to ensure HTTP path: %v", err)
+		}
+
 		var apiErr error
 		if serverExists {
 			apiErr = pm.client.PatchConfig(path, server)
@@ -603,6 +611,30 @@ func extractIDFromLocation(location string) (string, error) {
 	return id, nil
 }
 
+func (pm *ProxyManager) ensureHTTPServersPath() error {
+	_, err := pm.client.GetConfig("/apps/http/servers")
+	if err == nil {
+		// Path already exists, nothing to do
+		return nil
+	}
+
+	// Check if this is the "invalid traversal path" or 404 error
+	var httpErr *HTTPError
+	if errors.As(err, &httpErr) {
+		if httpErr.StatusCode == http.StatusNotFound ||
+			(httpErr.StatusCode == http.StatusBadRequest && strings.Contains(httpErr.Body, "invalid traversal path")) {
+			// We can safely PATCH the root config to ensure the path exists without destroying data
+			initPayload := map[string]interface{}{
+				"apps": map[string]interface{}{
+					"http": map[string]interface{}{},
+				},
+			}
+			return pm.client.PatchConfig("/", initPayload)
+		}
+	}
+	return err
+}
+
 // InitializeServer ensures the HTTP server exists in Caddy config
 func (pm *ProxyManager) InitializeServer(listenAddrs []string) error {
 	if len(listenAddrs) == 0 {
@@ -612,6 +644,10 @@ func (pm *ProxyManager) InitializeServer(listenAddrs []string) error {
 	server := &HTTPServer{
 		Listen: listenAddrs,
 		Routes: []Route{},
+	}
+
+	if err := pm.ensureHTTPServersPath(); err != nil {
+		return fmt.Errorf("ensure http path: %w", err)
 	}
 
 	serverName, err := pm.allocateServerName()
