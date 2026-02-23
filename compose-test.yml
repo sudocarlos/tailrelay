@@ -11,7 +11,7 @@ services:
         - tailrelay_devnet
 
     tailrelay:
-        image: sudocarlos/tailrelay:dev
+        image: sudocarlos/tailrelay:dev-local
         container_name: tailrelay-test
         volumes:
             - ./tailscale/:/var/lib/tailscale
