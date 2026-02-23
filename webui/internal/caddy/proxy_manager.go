@@ -2,8 +2,10 @@ package caddy
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -629,12 +631,25 @@ func (pm *ProxyManager) InitializeServer(listenAddrs []string) error {
 func (pm *ProxyManager) listServers() (map[string]*HTTPServer, error) {
 	data, err := pm.client.GetConfig("/apps/http/servers")
 	if err != nil {
+		// When Caddy config is empty ({}), the servers path doesn't exist yet and
+		// Caddy returns a 404. Treat this as an empty server list so callers can
+		// proceed normally (e.g. AddProxy can still allocate a new server name).
+		var httpErr *HTTPError
+		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
+			return map[string]*HTTPServer{}, nil
+		}
 		return nil, err
 	}
 
 	var servers map[string]*HTTPServer
 	if err := json.Unmarshal(data, &servers); err != nil {
 		return nil, fmt.Errorf("unmarshal servers: %w", err)
+	}
+
+	// json.Unmarshal of a JSON null yields nil; normalize to a non-nil empty map
+	// so callers can iterate safely.
+	if servers == nil {
+		servers = map[string]*HTTPServer{}
 	}
 
 	return servers, nil
