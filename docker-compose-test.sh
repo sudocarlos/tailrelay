@@ -31,7 +31,7 @@ docker exec tailrelay-test wget -qO-         http://127.0.0.1:9002/metrics >/dev
 
 # Test Socat Relay
 echo "Testing Socat Relay..."
-echo '{"relays": [{"id": "test-relay", "listen_port": 8089, "target_host": "whoami-test", "target_port": 80, "enabled": true, "autostart": true}]}' > tailscale/relays.json
+docker exec tailrelay-test sh -c "echo '{\"relays\": [{\"id\": \"test-relay\", \"listen_port\": 8089, \"target_host\": \"whoami-test\", \"target_port\": 80, \"enabled\": true, \"autostart\": true}]}' > /var/lib/tailscale/relays.json"
 docker restart tailrelay-test
 sleep 5
 docker exec tailrelay-test wget -qO- http://127.0.0.1:8089 | grep "Host: 127.0.0.1:8089" && echo "Socat Success" || echo "Socat Fail"
