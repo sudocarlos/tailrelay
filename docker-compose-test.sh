@@ -20,7 +20,7 @@ docker compose -f ${COMPOSE_FILE} up -d
 echo "Waiting for container to start..."
 sleep 3
 docker logs tailrelay-test | tail
-docker exec -it tailrelay-test netstat -tulnp | grep LISTEN
+docker exec tailrelay-test netstat -tulnp | grep LISTEN
 
 curl -sSL http://${TAILRELAY_HOST}:8080 && echo success || echo fail
 curl -sSL http://${TAILRELAY_HOST}:8081 && echo success || echo fail
