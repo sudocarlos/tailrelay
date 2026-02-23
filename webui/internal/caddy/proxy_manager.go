@@ -2,15 +2,17 @@ package caddy
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"sync"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/config"
-	"github.com/sudocarlos/tailrelay-webui/internal/logger"
+	"github.com/sudocarlos/tailrelay/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/logger"
 )
 
 // ProxyManager manages Caddy reverse proxies via the admin API
@@ -296,7 +298,6 @@ func (pm *ProxyManager) GetProxiesStatus() (map[string]bool, error) {
 	}
 	return statusMap, nil
 }
-
 
 // buildRoute converts a config.CaddyProxy to a Caddy Route with ReverseProxyHandler
 func (pm *ProxyManager) buildRoute(proxy config.CaddyProxy) (*Route, error) {
@@ -629,12 +630,28 @@ func (pm *ProxyManager) InitializeServer(listenAddrs []string) error {
 func (pm *ProxyManager) listServers() (map[string]*HTTPServer, error) {
 	data, err := pm.client.GetConfig("/apps/http/servers")
 	if err != nil {
+		// When Caddy config is empty ({}), the servers path doesn't exist yet and
+		// Caddy returns a 404 (or 400 Bad Request with "invalid traversal path").
+		// Treat this as an empty server list so callers can proceed normally.
+		var httpErr *HTTPError
+		if errors.As(err, &httpErr) {
+			if httpErr.StatusCode == http.StatusNotFound ||
+				(httpErr.StatusCode == http.StatusBadRequest && strings.Contains(httpErr.Body, "invalid traversal path")) {
+				return map[string]*HTTPServer{}, nil
+			}
+		}
 		return nil, err
 	}
 
 	var servers map[string]*HTTPServer
 	if err := json.Unmarshal(data, &servers); err != nil {
 		return nil, fmt.Errorf("unmarshal servers: %w", err)
+	}
+
+	// json.Unmarshal of a JSON null yields nil; normalize to a non-nil empty map
+	// so callers can iterate safely.
+	if servers == nil {
+		servers = map[string]*HTTPServer{}
 	}
 
 	return servers, nil

@@ -29,11 +29,11 @@ ARG BUILDER=docker
 
 # Build the Web UI binary
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s \
-    -X github.com/sudocarlos/tailrelay-webui/cmd/webui.version=${VERSION} \
-    -X github.com/sudocarlos/tailrelay-webui/cmd/webui.commit=${COMMIT} \
-    -X github.com/sudocarlos/tailrelay-webui/cmd/webui.date=${DATE} \
-    -X github.com/sudocarlos/tailrelay-webui/cmd/webui.branch=${BRANCH} \
-    -X github.com/sudocarlos/tailrelay-webui/cmd/webui.builtBy=${BUILDER}" \
+    -X github.com/sudocarlos/tailrelay/cmd/webui.version=${VERSION} \
+    -X github.com/sudocarlos/tailrelay/cmd/webui.commit=${COMMIT} \
+    -X github.com/sudocarlos/tailrelay/cmd/webui.date=${DATE} \
+    -X github.com/sudocarlos/tailrelay/cmd/webui.branch=${BRANCH} \
+    -X github.com/sudocarlos/tailrelay/cmd/webui.builtBy=${BUILDER}" \
     -o tailrelay-webui ./cmd/webui
 
 # Main image

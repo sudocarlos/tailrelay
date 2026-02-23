@@ -11,8 +11,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/logger"
+	"github.com/sudocarlos/tailrelay/internal/logger"
 )
+
+// HTTPError represents an HTTP API error with the response status code.
+// It is returned by APIClient methods when Caddy responds with a 4xx or 5xx status.
+type HTTPError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("API error %d: %s", e.StatusCode, e.Body)
+}
 
 const (
 	// DefaultAdminAPI is the default Caddy admin API address
@@ -103,7 +114,7 @@ func (c *APIClient) doRequestWithHeaders(method, path string, body interface{}) 
 
 	if resp.StatusCode >= 400 {
 		logger.Error("caddy", "Caddy API error %d for %s %s: %s", resp.StatusCode, method, url, string(respBody))
-		return nil, nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBody))
+		return nil, nil, &HTTPError{StatusCode: resp.StatusCode, Body: string(respBody)}
 	}
 
 	return respBody, resp.Header, nil

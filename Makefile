@@ -9,11 +9,11 @@ BUILDER ?= $(shell whoami)
 
 # Go build flags with metadata
 LDFLAGS = -w -s \
-	-X github.com/sudocarlos/tailrelay-webui/cmd/webui.version=$(VERSION) \
-	-X github.com/sudocarlos/tailrelay-webui/cmd/webui.commit=$(COMMIT) \
-	-X github.com/sudocarlos/tailrelay-webui/cmd/webui.date=$(DATE) \
-	-X github.com/sudocarlos/tailrelay-webui/cmd/webui.branch=$(BRANCH) \
-	-X github.com/sudocarlos/tailrelay-webui/cmd/webui.builtBy=$(BUILDER)
+	-X github.com/sudocarlos/tailrelay/cmd/webui.version=$(VERSION) \
+	-X github.com/sudocarlos/tailrelay/cmd/webui.commit=$(COMMIT) \
+	-X github.com/sudocarlos/tailrelay/cmd/webui.date=$(DATE) \
+	-X github.com/sudocarlos/tailrelay/cmd/webui.branch=$(BRANCH) \
+	-X github.com/sudocarlos/tailrelay/cmd/webui.builtBy=$(BUILDER)
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'

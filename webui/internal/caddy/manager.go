@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/config"
 )
 
 // Manager handles Caddy API-based management

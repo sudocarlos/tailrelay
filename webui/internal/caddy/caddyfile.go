@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/config"
 )
 
 // GenerateCaddyfile generates a Caddyfile from proxy configurations

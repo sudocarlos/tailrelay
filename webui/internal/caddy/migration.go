@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/config"
 )
 
 // MigrationHelper helps migrate from file-based proxy management to API-based

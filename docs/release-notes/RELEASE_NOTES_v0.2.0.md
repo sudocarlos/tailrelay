@@ -59,10 +59,10 @@ sudo podman exec start9.tailscale cat /var/lib/tailscale/.webui_token
 
 ### 📚 Documentation
 
-- Comprehensive [README](https://github.com/sudocarlos/tailscale-socaddy-proxy/blob/main/README.md) with Web UI sections
-- Full [CHANGELOG](https://github.com/sudocarlos/tailscale-socaddy-proxy/blob/main/CHANGELOG.md) with API documentation
+- Comprehensive [README](https://github.com/sudocarlos/tailrelay/blob/main/README.md) with Web UI sections
+- Full [CHANGELOG](https://github.com/sudocarlos/tailrelay/blob/main/CHANGELOG.md) with API documentation
 - Troubleshooting guide and upgrade instructions
-- [AGENTS.md](https://github.com/sudocarlos/tailscale-socaddy-proxy/blob/main/AGENTS.md) for developers
+- [AGENTS.md](https://github.com/sudocarlos/tailrelay/blob/main/AGENTS.md) for developers
 
 ### ⚠️ Breaking Changes
 
@@ -78,7 +78,7 @@ sudo podman exec start9.tailscale cat /var/lib/tailscale/.webui_token
 4. Start new container with `-p 8021:8021` for Web UI access
 5. Access Web UI and migrate configurations
 
-See [CHANGELOG.md](https://github.com/sudocarlos/tailscale-socaddy-proxy/blob/main/CHANGELOG.md#upgrading-from-v011-to-v020) for detailed upgrade instructions.
+See [CHANGELOG.md](https://github.com/sudocarlos/tailrelay/blob/main/CHANGELOG.md#upgrading-from-v011-to-v020) for detailed upgrade instructions.
 
 ### 🐛 Known Issues
 
@@ -87,10 +87,10 @@ See [CHANGELOG.md](https://github.com/sudocarlos/tailscale-socaddy-proxy/blob/ma
 
 ### 🙏 Feedback
 
-Please report issues or suggestions on the [GitHub Issues](https://github.com/sudocarlos/tailscale-socaddy-proxy/issues) page.
+Please report issues or suggestions on the [GitHub Issues](https://github.com/sudocarlos/tailrelay/issues) page.
 
 ---
 
-**Full Changelog**: https://github.com/sudocarlos/tailscale-socaddy-proxy/blob/main/CHANGELOG.md
+**Full Changelog**: https://github.com/sudocarlos/tailrelay/blob/main/CHANGELOG.md
 
 **Docker Hub**: https://hub.docker.com/r/sudocarlos/tailrelay

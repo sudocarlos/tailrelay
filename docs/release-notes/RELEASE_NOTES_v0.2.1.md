@@ -187,7 +187,7 @@ With this API foundation, future versions can more easily support:
 ## 📞 Support
 
 For questions, issues, or feedback:
-- GitHub Issues: https://github.com/sudocarlos/tailscale-socaddy-proxy/issues
+- GitHub Issues: https://github.com/sudocarlos/tailrelay/issues
 - Documentation: See `webui/CADDY_API_GUIDE.md` for detailed information
 - Migration Guide: See `webui/MIGRATION_SUMMARY.md` for migration details
 
@@ -197,4 +197,4 @@ This improvement was inspired by feedback on the previous Caddyfile-based approa
 
 ---
 
-**Full Changelog**: https://github.com/sudocarlos/tailscale-socaddy-proxy/compare/v0.2.0...v0.2.1
+**Full Changelog**: https://github.com/sudocarlos/tailrelay/compare/v0.2.0...v0.2.1
