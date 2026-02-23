@@ -299,7 +299,6 @@ func (pm *ProxyManager) GetProxiesStatus() (map[string]bool, error) {
 	return statusMap, nil
 }
 
-
 // buildRoute converts a config.CaddyProxy to a Caddy Route with ReverseProxyHandler
 func (pm *ProxyManager) buildRoute(proxy config.CaddyProxy) (*Route, error) {
 	// Build the reverse proxy handler
@@ -632,11 +631,14 @@ func (pm *ProxyManager) listServers() (map[string]*HTTPServer, error) {
 	data, err := pm.client.GetConfig("/apps/http/servers")
 	if err != nil {
 		// When Caddy config is empty ({}), the servers path doesn't exist yet and
-		// Caddy returns a 404. Treat this as an empty server list so callers can
-		// proceed normally (e.g. AddProxy can still allocate a new server name).
+		// Caddy returns a 404 (or 400 Bad Request with "invalid traversal path").
+		// Treat this as an empty server list so callers can proceed normally.
 		var httpErr *HTTPError
-		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
-			return map[string]*HTTPServer{}, nil
+		if errors.As(err, &httpErr) {
+			if httpErr.StatusCode == http.StatusNotFound ||
+				(httpErr.StatusCode == http.StatusBadRequest && strings.Contains(httpErr.Body, "invalid traversal path")) {
+				return map[string]*HTTPServer{}, nil
+			}
 		}
 		return nil, err
 	}
