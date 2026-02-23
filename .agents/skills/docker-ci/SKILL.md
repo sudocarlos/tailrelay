@@ -154,7 +154,7 @@ Handles `SIGTERM`/`SIGINT` for graceful shutdown.
 
 | Component | Version |
 |-----------|---------|
-| Container | `v0.4.0` (see `start.sh`) |
+| Container | `v0.4.1` (see `start.sh`) |
 | Tailscale base | `v1.92.5` (Dockerfile ARG) |
 | Go | `1.21` (Dockerfile ARG) |
 | Node.js (CI) | `20` |
