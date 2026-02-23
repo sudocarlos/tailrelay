@@ -253,6 +253,7 @@ docker-compose.yml
 compose.yml
 Caddyfile
 tailscale/
+!webui/internal/tailscale/
 webui/webui
 node_modules/
 data/
