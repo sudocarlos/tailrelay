@@ -8,10 +8,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/caddy"
-	"github.com/sudocarlos/tailrelay-webui/internal/config"
-	"github.com/sudocarlos/tailrelay-webui/internal/logger"
-	"github.com/sudocarlos/tailrelay-webui/internal/web"
+	"github.com/sudocarlos/tailrelay/internal/caddy"
+	"github.com/sudocarlos/tailrelay/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/logger"
+	"github.com/sudocarlos/tailrelay/internal/web"
 )
 
 //go:embed web/templates/* web/static/*

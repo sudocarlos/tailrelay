@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/logger"
+	"github.com/sudocarlos/tailrelay/internal/logger"
 )
 
 const (

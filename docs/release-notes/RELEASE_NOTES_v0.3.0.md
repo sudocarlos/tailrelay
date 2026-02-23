@@ -112,5 +112,5 @@ echo "$tailrelay_caddy_routes" | jq
 
 ---
 
-**Full Changelog**: https://github.com/sudocarlos/tailscale-socaddy-proxy/compare/v0.2.1...v0.3.0
+**Full Changelog**: https://github.com/sudocarlos/tailrelay/compare/v0.2.1...v0.3.0
 ````

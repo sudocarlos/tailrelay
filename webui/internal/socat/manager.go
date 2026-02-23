@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/config"
-	"github.com/sudocarlos/tailrelay-webui/internal/logger"
+	"github.com/sudocarlos/tailrelay/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/logger"
 )
 
 // Manager handles socat process management

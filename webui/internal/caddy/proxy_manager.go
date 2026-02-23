@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/config"
-	"github.com/sudocarlos/tailrelay-webui/internal/logger"
+	"github.com/sudocarlos/tailrelay/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/logger"
 )
 
 // ProxyManager manages Caddy reverse proxies via the admin API

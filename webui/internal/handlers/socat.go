@@ -11,8 +11,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/config"
-	"github.com/sudocarlos/tailrelay-webui/internal/socat"
+	"github.com/sudocarlos/tailrelay/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/socat"
 )
 
 // SocatHandler handles socat-related requests

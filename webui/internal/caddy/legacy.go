@@ -4,7 +4,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/logger"
+	"github.com/sudocarlos/tailrelay/internal/logger"
 )
 
 var warnLegacyOnce sync.Once

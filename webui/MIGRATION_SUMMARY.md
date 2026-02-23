@@ -248,7 +248,7 @@ For questions or issues:
 
 1. Check `CADDY_API_GUIDE.md` for detailed documentation
 2. Review Caddy Admin API docs: https://caddyserver.com/docs/api
-3. Check GitHub issues: https://github.com/sudocarlos/tailscale-socaddy-proxy/issues
+3. Check GitHub issues: https://github.com/sudocarlos/tailrelay/issues
 4. Review container logs for error messages
 
 ## Conclusion

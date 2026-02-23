@@ -13,9 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/auth"
-	"github.com/sudocarlos/tailrelay-webui/internal/config"
-	"github.com/sudocarlos/tailrelay-webui/internal/handlers"
+	"github.com/sudocarlos/tailrelay/internal/auth"
+	"github.com/sudocarlos/tailrelay/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/handlers"
 )
 
 // Server represents the HTTP server

@@ -41,7 +41,7 @@ This implementation replaces the previous file-based Caddy management (Caddyfile
 ### Basic Operations
 
 ```go
-import "github.com/sudocarlos/tailrelay-webui/internal/caddy"
+import "github.com/sudocarlos/tailrelay/internal/caddy"
 
 // Create manager
 manager := caddy.NewManager("http://localhost:2019", "tailrelay")

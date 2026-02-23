@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/backup"
-	"github.com/sudocarlos/tailrelay-webui/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/backup"
+	"github.com/sudocarlos/tailrelay/internal/config"
 )
 
 // BackupHandler handles backup-related requests

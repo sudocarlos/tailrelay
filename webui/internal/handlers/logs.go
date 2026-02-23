@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/logger"
+	"github.com/sudocarlos/tailrelay/internal/logger"
 )
 
 // Handler is a base handler with templates
