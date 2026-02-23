@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/config"
 )
 
 // Manager handles backup and restore operations

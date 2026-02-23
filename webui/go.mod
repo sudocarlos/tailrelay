@@ -1,4 +1,4 @@
-module github.com/sudocarlos/tailrelay-webui
+module github.com/sudocarlos/tailrelay
 
 go 1.21
 

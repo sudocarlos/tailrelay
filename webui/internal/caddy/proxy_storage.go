@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/config"
 )
 
 // LoadProxyMetadata loads proxy metadata from JSON file

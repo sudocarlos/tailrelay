@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/caddy"
-	"github.com/sudocarlos/tailrelay-webui/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/caddy"
+	"github.com/sudocarlos/tailrelay/internal/config"
 )
 
 // Example usage of the new Caddy API integration

@@ -3,8 +3,8 @@
 A Docker container that exposes local services to your Tailscale network. Combines **Tailscale VPN**, **Caddy reverse proxy**, **socat TCP relays**, and a **Web UI** for browser-based management.
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/sudocarlos/tailrelay)](https://hub.docker.com/r/sudocarlos/tailrelay)
-[![GitHub Release](https://img.shields.io/github/v/release/sudocarlos/tailscale-socaddy-proxy)](https://github.com/sudocarlos/tailscale-socaddy-proxy/releases)
-[![License](https://img.shields.io/github/license/sudocarlos/tailscale-socaddy-proxy)](https://github.com/sudocarlos/tailscale-socaddy-proxy/blob/main/LICENSE)
+[![GitHub Release](https://img.shields.io/github/v/release/sudocarlos/tailrelay)](https://github.com/sudocarlos/tailrelay/releases)
+[![License](https://img.shields.io/github/license/sudocarlos/tailrelay)](https://github.com/sudocarlos/tailrelay/blob/main/LICENSE)
 
 ## Features
 
@@ -340,16 +340,16 @@ docker exec tailrelay nc -zv target-host target-port
 
 Contributions welcome:
 
-- **Issues**: [GitHub Issues](https://github.com/sudocarlos/tailscale-socaddy-proxy/issues)
-- **Pull Requests**: [GitHub PRs](https://github.com/sudocarlos/tailscale-socaddy-proxy/pulls)
+- **Issues**: [GitHub Issues](https://github.com/sudocarlos/tailrelay/issues)
+- **Pull Requests**: [GitHub PRs](https://github.com/sudocarlos/tailrelay/pulls)
 - **Documentation**: Help improve docs or add examples
 
 ### Development Setup
 
 ```bash
 # Clone repository
-git clone https://github.com/sudocarlos/tailscale-socaddy-proxy.git
-cd tailscale-socaddy-proxy
+git clone https://github.com/sudocarlos/tailrelay.git
+cd tailrelay
 
 # Build locally
 docker build -t tailrelay:dev .

@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/caddy"
-	"github.com/sudocarlos/tailrelay-webui/internal/config"
-	"github.com/sudocarlos/tailrelay-webui/internal/tailscale"
+	"github.com/sudocarlos/tailrelay/internal/caddy"
+	"github.com/sudocarlos/tailrelay/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/tailscale"
 )
 
 // DashboardHandler handles dashboard-related requests

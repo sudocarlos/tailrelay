@@ -3,8 +3,8 @@ package caddy
 import (
 	"fmt"
 
-	"github.com/sudocarlos/tailrelay-webui/internal/config"
-	"github.com/sudocarlos/tailrelay-webui/internal/logger"
+	"github.com/sudocarlos/tailrelay/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/logger"
 )
 
 // MigrateExistingProxies discovers and syncs existing proxies from Caddy to metadata storage
