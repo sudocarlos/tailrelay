@@ -11,11 +11,11 @@ services:
         - tailrelay_devnet
 
     tailrelay:
-        image: sudocarlos/tailrelay:dev-local
+        image: sudocarlos/tailrelay:dev
         container_name: tailrelay-test
         volumes:
             - ./tailscale/:/var/lib/tailscale
-            - ./tailscale/Caddyfile:/etc/caddy/Caddyfile
+            # - ./tailscale/Caddyfile:/etc/caddy/Caddyfile
         environment:
             - TS_HOSTNAME=tailrelay-dev
             - MAX_LOG_BODY_SIZE=0
