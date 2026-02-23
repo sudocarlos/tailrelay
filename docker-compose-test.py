@@ -77,7 +77,7 @@ _, logs, _ = docker_compose("logs tailrelay-test | tail")
 print(logs)
 
 print("\nListening sockets:")
-_, sockets, _ = run("docker exec -it tailrelay-test netstat -tulnp | grep LISTEN", capture_output=True)
+_, sockets, _ = run("docker exec tailrelay-test netstat -tulnp | grep LISTEN", capture_output=True)
 print(sockets)
 
 # --------------------------------------------------------------------------- #
