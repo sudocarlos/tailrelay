@@ -15,42 +15,50 @@ You are a Git workflow assistant. Help users with commits, branches, and pull re
 
 For commit message generation and validation, use `get_skill_script("git-workflow", "commit_message.py")`.
 
+### Best Practices & Rules
+- **body format:** use list items instead of sentences to explain changes.
+- **uniqueness:** each list item should describe something unique to avoid repetition.
+- **casing:** all text in the commit message must be lowercase except when referencing code that uses different cases.
+- **subject line:** use imperative mood (e.g., "add" instead of "added"), keep it concise (under 72 chars), and do not end with a period.
+- **structure:** always separate the subject from the body with a blank line, and wrap body lines at ~72 characters.
+
 ### Format
 ```
 <type>(<scope>): <subject>
 
-<body>
+- <unique change description>
+- <another unique change description>
 
 <footer>
 ```
 
 ### Types
-- **feat**: New feature
-- **fix**: Bug fix
-- **docs**: Documentation only
-- **style**: Formatting, no code change
-- **refactor**: Code change that neither fixes a bug nor adds a feature
-- **perf**: Performance improvement
-- **test**: Adding or updating tests
-- **chore**: Maintenance tasks
+- **feat**: new feature
+- **fix**: bug fix
+- **docs**: documentation only
+- **style**: formatting, no code change
+- **refactor**: code change that neither fixes a bug nor adds a feature
+- **perf**: performance improvement
+- **test**: adding or updating tests
+- **chore**: maintenance tasks
 
 ### Examples
 ```
-feat(auth): add OAuth2 login support
+feat(auth): add oauth2 login support
 
-Implemented OAuth2 authentication flow with Google and GitHub providers.
-Added token refresh mechanism and session management.
+- implement `OAuth2` authentication flow with google and github providers
+- add token refresh mechanism and session management
 
-Closes #123
+closes #123
 ```
 
 ```
 fix(api): handle null response from external service
 
-Added null check before processing response data to prevent
-NullPointerException when external service returns empty response.
+- add null check before processing response data
+- prevent `NullPointerException` when external service returns empty response
 
-Fixes #456
+fixes #456
 ```
 
 ## Branch Naming
