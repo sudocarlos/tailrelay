@@ -145,3 +145,131 @@ body {
 [data-bs-theme="dark"] .fab-menu .dropdown-item:hover {
   background-color: rgba(255, 255, 255, 0.1);
 }
+
+/* =============================================
+   Console chevron rotation
+   ============================================= */
+.console-toggle-chevron {
+  transition: transform 0.25s ease;
+}
+
+.collapsed .console-toggle-chevron {
+  transform: rotate(-90deg);
+}
+
+/* =============================================
+   Status dot (replaces badges)
+   ============================================= */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.running {
+  background-color: var(--bs-success);
+  box-shadow: 0 0 0 3px rgba(var(--bs-success-rgb), 0.25);
+}
+
+.status-dot.stopped {
+  background-color: var(--bs-secondary);
+}
+
+/* =============================================
+   Toast container (bottom-right corner)
+   ============================================= */
+.toast-container-custom {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 1090;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.5rem;
+  max-width: 360px;
+}
+
+/* =============================================
+   Guided tour overlay & popover
+   ============================================= */
+.tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  pointer-events: auto;
+}
+
+.tour-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 2001;
+  transition: opacity 0.2s ease;
+}
+
+.tour-highlight {
+  position: absolute;
+  z-index: 2002;
+  border-radius: 6px;
+  box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+
+.tour-popover {
+  position: absolute;
+  z-index: 2003;
+  background: var(--bs-body-bg, #fff);
+  color: var(--bs-body-color, #212529);
+  border-radius: 0.6rem;
+  padding: 1.25rem;
+  max-width: 320px;
+  min-width: 240px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  pointer-events: auto;
+}
+
+.tour-popover h6 {
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.tour-popover p {
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  color: var(--bs-secondary-color, #6c757d);
+}
+
+.tour-popover-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tour-step-indicator {
+  font-size: 0.8rem;
+  color: var(--bs-secondary-color, #6c757d);
+}
+
+/* =============================================
+   Empty state
+   ============================================= */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1.5rem;
+}
+
+.empty-state svg {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 1rem;
+  color: var(--bs-secondary-color, #6c757d);
+  opacity: 0.5;
+}
+
+.empty-state p {
+  margin-bottom: 1rem;
+  color: var(--bs-secondary-color, #6c757d);
+}
