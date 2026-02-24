@@ -121,21 +121,25 @@ func (m *Manager) InitializeAutostart() error {
 	skipped := 0
 	for _, proxy := range proxies {
 		if proxy.Autostart {
-			if proxy.Enabled {
-				// Already enabled, count it
-				started++
-				log.Printf("Proxy %s (ID: %s) has autostart enabled and is already active", proxy.Hostname, proxy.ID)
-			} else {
-				// Enable it now
-				proxy.Enabled = true
-				if err := m.UpdateProxy(proxy); err != nil {
-					log.Printf("Warning: failed to autostart proxy %s (ID: %s): %v", proxy.Hostname, proxy.ID, err)
-					continue
-				}
-				started++
-				log.Printf("Autostarted proxy %s (ID: %s)", proxy.Hostname, proxy.ID)
+			// Always sync state to Caddy API to ensure the route exists after a container restart
+			proxy.Enabled = true
+			if err := m.UpdateProxy(proxy); err != nil {
+				log.Printf("Warning: failed to autostart proxy %s (ID: %s): %v", proxy.Hostname, proxy.ID, err)
+				skipped++
+				continue
 			}
+			started++
+			log.Printf("Autostarted proxy %s (ID: %s)", proxy.Hostname, proxy.ID)
 		} else {
+			// Check if we need to sync disabled state (if it was previously thought to be enabled)
+			if proxy.Enabled {
+				proxy.Enabled = false
+				if err := m.UpdateProxy(proxy); err != nil {
+					log.Printf("Warning: failed to sync disabled state for proxy %s (ID: %s): %v", proxy.Hostname, proxy.ID, err)
+				} else {
+					log.Printf("Disabled non-autostart proxy %s (ID: %s)", proxy.Hostname, proxy.ID)
+				}
+			}
 			skipped++
 		}
 	}

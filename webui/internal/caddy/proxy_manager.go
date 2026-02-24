@@ -612,27 +612,52 @@ func extractIDFromLocation(location string) (string, error) {
 }
 
 func (pm *ProxyManager) ensureHTTPServersPath() error {
-	_, err := pm.client.GetConfig("/apps/http/servers")
-	if err == nil {
-		// Path already exists, nothing to do
+	// Instead of querying /apps/http/servers which triggers a 400 error in Caddy's logs
+	// if the path doesn't exist, we query the root config and check locally.
+	data, err := pm.client.GetConfig("/")
+	if err != nil {
+		var httpErr *HTTPError
+		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
+			// Root config doesn't exist, it's empty
+			data = []byte(`{}`)
+		} else {
+			return fmt.Errorf("failed to get root config: %w", err)
+		}
+	}
+
+	dataStr := strings.TrimSpace(string(data))
+	if len(dataStr) == 0 || dataStr == "null" {
+		data = []byte(`{}`)
+	}
+
+	var root map[string]interface{}
+	if err := json.Unmarshal(data, &root); err != nil {
+		return fmt.Errorf("failed to parse root config: %w", err)
+	}
+
+	apps, ok := root["apps"].(map[string]interface{})
+	if !ok {
+		apps = make(map[string]interface{})
+	}
+
+	httpApp, ok := apps["http"].(map[string]interface{})
+	if !ok {
+		// Path doesn't exist, safely create it
+		initPayload := map[string]interface{}{
+			"apps": map[string]interface{}{
+				"http": map[string]interface{}{},
+			},
+		}
+		return pm.client.PatchConfig("/", initPayload)
+	}
+
+	if _, ok := httpApp["servers"]; !ok {
+		// servers key doesn't exist yet but http does, nothing to patch since
+		// adding a server will automatically create the servers map.
 		return nil
 	}
 
-	// Check if this is the "invalid traversal path" or 404 error
-	var httpErr *HTTPError
-	if errors.As(err, &httpErr) {
-		if httpErr.StatusCode == http.StatusNotFound ||
-			(httpErr.StatusCode == http.StatusBadRequest && strings.Contains(httpErr.Body, "invalid traversal path")) {
-			// We can safely PATCH the root config to ensure the path exists without destroying data
-			initPayload := map[string]interface{}{
-				"apps": map[string]interface{}{
-					"http": map[string]interface{}{},
-				},
-			}
-			return pm.client.PatchConfig("/", initPayload)
-		}
-	}
-	return err
+	return nil
 }
 
 // InitializeServer ensures the HTTP server exists in Caddy config
@@ -664,28 +689,54 @@ func (pm *ProxyManager) InitializeServer(listenAddrs []string) error {
 }
 
 func (pm *ProxyManager) listServers() (map[string]*HTTPServer, error) {
-	data, err := pm.client.GetConfig("/apps/http/servers")
+	// Query root config instead of /apps/http/servers to avoid 400 errors
+	// when the path doesn't exist yet
+	data, err := pm.client.GetConfig("/")
 	if err != nil {
-		// When Caddy config is empty ({}), the servers path doesn't exist yet and
-		// Caddy returns a 404 (or 400 Bad Request with "invalid traversal path").
-		// Treat this as an empty server list so callers can proceed normally.
 		var httpErr *HTTPError
-		if errors.As(err, &httpErr) {
-			if httpErr.StatusCode == http.StatusNotFound ||
-				(httpErr.StatusCode == http.StatusBadRequest && strings.Contains(httpErr.Body, "invalid traversal path")) {
-				return map[string]*HTTPServer{}, nil
-			}
+		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
+			// Root config doesn't exist, treat as empty server list
+			return map[string]*HTTPServer{}, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("failed to get root config: %w", err)
+	}
+
+	dataStr := strings.TrimSpace(string(data))
+	if len(dataStr) == 0 || dataStr == "null" {
+		return map[string]*HTTPServer{}, nil
+	}
+
+	var root map[string]interface{}
+	if err := json.Unmarshal(data, &root); err != nil {
+		return nil, fmt.Errorf("failed to parse root config: %w", err)
+	}
+
+	apps, ok := root["apps"].(map[string]interface{})
+	if !ok {
+		return map[string]*HTTPServer{}, nil
+	}
+
+	httpApp, ok := apps["http"].(map[string]interface{})
+	if !ok {
+		return map[string]*HTTPServer{}, nil
+	}
+
+	serversRaw, ok := httpApp["servers"]
+	if !ok || serversRaw == nil {
+		return map[string]*HTTPServer{}, nil
+	}
+
+	// Marshaling just the servers part to unmarshal into our struct map
+	serversData, err := json.Marshal(serversRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal servers data: %w", err)
 	}
 
 	var servers map[string]*HTTPServer
-	if err := json.Unmarshal(data, &servers); err != nil {
+	if err := json.Unmarshal(serversData, &servers); err != nil {
 		return nil, fmt.Errorf("unmarshal servers: %w", err)
 	}
 
-	// json.Unmarshal of a JSON null yields nil; normalize to a non-nil empty map
-	// so callers can iterate safely.
 	if servers == nil {
 		servers = map[string]*HTTPServer{}
 	}
@@ -720,15 +771,13 @@ func (pm *ProxyManager) getServerNameForProxy(proxy config.CaddyProxy) (string, 
 
 // serverExistsInCaddy checks if a server name actually exists in Caddy's configuration
 func (pm *ProxyManager) serverExistsInCaddy(serverName string) bool {
-	path := fmt.Sprintf("/apps/http/servers/%s", serverName)
-	data, err := pm.client.GetConfig(path)
+	// Use listServers to avoid 400 errors when checking paths
+	servers, err := pm.listServers()
 	if err != nil {
 		return false
 	}
-	// Caddy returns "null" for non-existent paths
-	dataStr := strings.TrimSpace(string(data))
-	exists := len(dataStr) > 0 && dataStr != "null"
-	logger.Debug("caddy", "Checking if server %s exists in Caddy: %v (data: %s)", serverName, exists, dataStr)
+	_, exists := servers[serverName]
+	logger.Debug("caddy", "Checking if server %s exists in Caddy: %v", serverName, exists)
 	return exists
 }
 
