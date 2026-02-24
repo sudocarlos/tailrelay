@@ -14,6 +14,7 @@
     removeTlsCert: false,
     backups: [],
     currentView: "dashboard",
+    tourActive: false,
   };
 
   const elements = {
@@ -22,10 +23,12 @@
     itemCount: document.getElementById("item-count"),
     alertContainer: document.getElementById("alert-container"),
     logOutput: document.getElementById("log-output"),
-    logLevel: document.getElementById("log-level"),
-    logLevelSelect: document.getElementById("log-level-select"),
+    logLevelBtn: document.getElementById("log-level-btn"),
+    logLevelItems: document.querySelectorAll(".log-level-item"),
     refresh: document.getElementById("refresh"),
     clearLogs: document.getElementById("clear-logs"),
+    copyLogs: document.getElementById("copy-logs"),
+    consoleToggle: document.getElementById("console-toggle"),
     filterRelay: document.getElementById("filter-relay"),
     filterProxy: document.getElementById("filter-proxy"),
     themeToggle: document.getElementById("theme-toggle"),
@@ -35,6 +38,8 @@
     saveProxyBtn: document.getElementById("save-proxy-btn"),
     confirmDeleteBtn: document.getElementById("confirm-delete-btn"),
     removeTlsCertBtn: document.getElementById("proxy-tls-cert-remove"),
+    helpTourBtn: document.getElementById("help-tour-btn"),
+    toastContainer: document.getElementById("toast-container"),
 
     // Navigation
     navDashboard: document.getElementById("nav-dashboard"),
@@ -56,7 +61,9 @@
 
   const tooltips = [];
 
+  // =============================================
   // Dark mode management
+  // =============================================
   const getPreferredTheme = () => {
     const stored = localStorage.getItem("theme");
     if (stored) {
@@ -83,6 +90,9 @@
     setTheme(next);
   };
 
+  // =============================================
+  // Network
+  // =============================================
   const fetchJSON = async (url, options = {}) => {
     const response = await fetch(url, {
       credentials: "same-origin",
@@ -106,24 +116,68 @@
     elements.lastUpdated.textContent = now.toLocaleTimeString();
   };
 
-  const showAlert = (type, message) => {
-    const alert = document.createElement("div");
-    alert.className = `alert alert-${type} alert-dismissible fade show`;
-    alert.setAttribute("role", "alert");
-    alert.innerHTML = `
-      <div>${message}</div>
-      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  // =============================================
+  // Toast notifications (replaces showAlert)
+  // =============================================
+  const showToast = (type, message) => {
+    const iconMap = {
+      success: "bi-check-circle-fill",
+      danger: "bi-exclamation-triangle-fill",
+      warning: "bi-exclamation-triangle-fill",
+      info: "bi-info-circle-fill",
+    };
+
+    const colorMap = {
+      success: "text-success",
+      danger: "text-danger",
+      warning: "text-warning",
+      info: "text-info",
+    };
+
+    const icon = iconMap[type] || "bi-info-circle-fill";
+    const color = colorMap[type] || "text-info";
+
+    const toastEl = document.createElement("div");
+    toastEl.className = "toast show border-0 shadow-sm";
+    toastEl.setAttribute("role", "alert");
+    toastEl.setAttribute("aria-live", "assertive");
+    toastEl.setAttribute("aria-atomic", "true");
+    toastEl.innerHTML = `
+      <div class="toast-body d-flex align-items-start gap-2">
+        <svg class="bi ${color} flex-shrink-0" style="width:1.25em;height:1.25em" aria-hidden="true">
+          <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#${icon}"></use>
+        </svg>
+        <div class="flex-grow-1">${message}</div>
+        <button type="button" class="btn-close btn-close-sm ms-2" aria-label="Close"></button>
+      </div>
     `;
-    elements.alertContainer.appendChild(alert);
+
+    toastEl.querySelector(".btn-close").addEventListener("click", () => {
+      toastEl.classList.remove("show");
+      setTimeout(() => toastEl.remove(), 200);
+    });
+
+    elements.toastContainer.appendChild(toastEl);
+
     setTimeout(() => {
-      alert.classList.remove("show");
-      alert.addEventListener("transitionend", () => alert.remove());
-    }, 6000);
+      toastEl.classList.remove("show");
+      setTimeout(() => toastEl.remove(), 200);
+    }, 5000);
   };
 
+  // Keep showAlert as alias for backward compat in backup code
+  const showAlert = showToast;
+
+  // =============================================
+  // Render helpers
+  // =============================================
   const formatRelayTitle = (relay) => {
     const fqdn = state.tailnetFQDN || "unknown";
-    return `tcp://${fqdn}:${relay.listen_port} → ${relay.target_host}:${relay.target_port}`;
+    return `tcp://${fqdn}:${relay.listen_port}`;
+  };
+
+  const formatRelayTarget = (relay) => {
+    return `→ ${relay.target_host}:${relay.target_port}`;
   };
 
   const formatProxyLink = (proxy) => {
@@ -132,16 +186,59 @@
     return `<a class="proxy-link" href="${url}" target="_blank" rel="noopener">${url}</a>`;
   };
 
+  const emptyStateSvg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="10" y="20" width="60" height="40" rx="4" />
+      <line x1="10" y1="32" x2="70" y2="32" />
+      <circle cx="18" cy="26" r="2" fill="currentColor" />
+      <circle cx="26" cy="26" r="2" fill="currentColor" />
+      <circle cx="34" cy="26" r="2" fill="currentColor" />
+      <line x1="30" y1="44" x2="50" y2="44" />
+      <line x1="25" y1="50" x2="55" y2="50" />
+    </svg>
+  `;
+
   const renderEmpty = (message) => {
+    let ctaLabel, ctaType;
+    if (state.showRelays && !state.showProxies) {
+      ctaLabel = "Add a Relay";
+      ctaType = "relay";
+    } else if (!state.showRelays && state.showProxies) {
+      ctaLabel = "Add a Proxy";
+      ctaType = "proxy";
+    } else {
+      ctaLabel = "Add a Proxy or Relay";
+      ctaType = "both";
+    }
+
     elements.items.innerHTML = `
       <div class="col-12">
         <div class="card">
-          <div class="card-body text-center text-muted">
-            ${message}
+          <div class="card-body empty-state">
+            ${emptyStateSvg}
+            <p>${message}</p>
+            <button class="btn btn-primary btn-sm empty-state-cta" data-type="${ctaType}">
+              <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-plus-lg"></use></svg>
+              ${ctaLabel}
+            </button>
           </div>
         </div>
       </div>
     `;
+
+    // Bind CTA
+    elements.items.querySelector(".empty-state-cta")?.addEventListener("click", (e) => {
+      const type = e.currentTarget.dataset.type;
+      if (type === "relay") {
+        openRelayModal();
+      } else if (type === "proxy") {
+        openProxyModal();
+      } else {
+        // Open the FAB dropdown
+        const fabBtn = document.getElementById("fab-button");
+        if (fabBtn) bootstrap.Dropdown.getOrCreateInstance(fabBtn).toggle();
+      }
+    });
   };
 
   const renderItems = () => {
@@ -169,11 +266,11 @@
       if (!state.showRelays && !state.showProxies) {
         renderEmpty("Enable TCP relays or HTTPS proxies to view items.");
       } else if (state.showRelays && !state.showProxies) {
-        renderEmpty("No TCP relays configured.");
+        renderEmpty("No TCP relays configured. Get started by adding one.");
       } else if (!state.showRelays && state.showProxies) {
-        renderEmpty("No HTTPS proxies configured.");
+        renderEmpty("No HTTPS proxies configured. Get started by adding one.");
       } else {
-        renderEmpty("No relays or proxies configured.");
+        renderEmpty("No relays or proxies configured. Get started by adding one.");
       }
       return;
     }
@@ -183,8 +280,11 @@
         if (item.type === "relay") {
           const relay = item.relay;
           const running = item.running;
-          const statusBadge = running ? "text-bg-success" : "text-bg-secondary";
           const autostart = relay.autostart ?? false;
+          const statusClass = running ? "running" : "stopped";
+          const statusLabel = running ? "Running" : "Stopped";
+          const actionIcon = running ? "bi-pause-fill" : "bi-play-fill";
+          const actionTooltip = running ? "Pause" : "Start";
           return `
             <div class="col-12">
               <div class="card h-100">
@@ -194,23 +294,26 @@
                       <svg class="bi text-primary" data-bs-toggle="tooltip" title="TCP Relay (served by socat)" aria-hidden="true" style="width: 1.25em; height: 1.25em;"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-diagram-3"></use></svg>
                       <span class="fw-semibold">${formatRelayTitle(relay)}</span>
                     </div>
+                    <div class="small text-muted mt-1">${formatRelayTarget(relay)}</div>
                   </div>
                   <div class="d-flex align-items-center gap-2">
-                    <span class="badge ${statusBadge}">${running ? "Running" : "Stopped"}</span>
+                    <span class="d-flex align-items-center gap-1">
+                      <span class="status-dot ${statusClass}"></span>
+                      <small class="text-muted">${statusLabel}</small>
+                    </span>
                     <div class="form-check form-switch m-0" data-bs-toggle="tooltip" title="Start automatically on container boot">
                       <input class="form-check-input autostart-toggle" type="checkbox" role="switch" 
                              ${autostart ? "checked" : ""} 
                              data-type="relay" data-id="${relay.id}">
                       <label class="form-check-label small text-muted">Autostart</label>
                     </div>
-                    <button class="btn btn-outline-secondary btn-sm action-btn" data-type="relay" data-id="${relay.id}" data-running="${running}">
-                      <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#${running ? "bi-pause-fill" : "bi-play-fill"}"></use></svg>
-                      ${running ? "Pause" : "Start"}
+                    <button class="btn btn-outline-secondary btn-sm action-btn" data-type="relay" data-id="${relay.id}" data-running="${running}" data-bs-toggle="tooltip" title="${actionTooltip}">
+                      <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#${actionIcon}"></use></svg>
                     </button>
-                    <button class="btn btn-outline-primary btn-sm edit-btn" data-type="relay" data-id="${relay.id}">
+                    <button class="btn btn-outline-primary btn-sm edit-btn" data-type="relay" data-id="${relay.id}" data-bs-toggle="tooltip" title="Edit">
                       <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-pencil"></use></svg>
                     </button>
-                    <button class="btn btn-outline-danger btn-sm delete-btn" data-type="relay" data-id="${relay.id}" data-name="tcp://${state.tailnetFQDN}:${relay.listen_port}">
+                    <button class="btn btn-outline-danger btn-sm delete-btn" data-type="relay" data-id="${relay.id}" data-name="tcp://${state.tailnetFQDN}:${relay.listen_port}" data-bs-toggle="tooltip" title="Delete">
                       <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-trash"></use></svg>
                     </button>
                   </div>
@@ -222,10 +325,12 @@
 
         const proxy = item.proxy;
         const running = proxy.running ?? proxy.Running;
-        const runningBadge = running ? "text-bg-success" : "text-bg-secondary";
-        const runningLabel = running ? "Running" : "Stopped";
         const autostart = proxy.autostart ?? false;
         const proxyName = proxy.port ? `${proxy.hostname}:${proxy.port}` : proxy.hostname;
+        const statusClass = running ? "running" : "stopped";
+        const statusLabel = running ? "Running" : "Stopped";
+        const actionIcon = proxy.enabled ? "bi-pause-fill" : "bi-play-fill";
+        const actionTooltip = proxy.enabled ? "Pause" : "Start";
         return `
           <div class="col-12">
             <div class="card h-100">
@@ -233,25 +338,28 @@
                 <div class="flex-grow-1">
                   <div class="d-flex align-items-center gap-2 flex-wrap">
                     <svg class="bi text-primary" data-bs-toggle="tooltip" title="HTTPS Proxy (served by Caddy)" aria-hidden="true" style="width: 1.25em; height: 1.25em;"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-shield-lock"></use></svg>
-                    <span class="fw-semibold">${formatProxyLink(proxy)} → ${proxy.target}</span>
+                    <span class="fw-semibold">${formatProxyLink(proxy)}</span>
                   </div>
+                  <div class="small text-muted mt-1">→ ${proxy.target}</div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                  <span class="badge ${runningBadge}">${runningLabel}</span>
+                  <span class="d-flex align-items-center gap-1">
+                    <span class="status-dot ${statusClass}"></span>
+                    <small class="text-muted">${statusLabel}</small>
+                  </span>
                   <div class="form-check form-switch m-0" data-bs-toggle="tooltip" title="Start automatically on container boot">
                     <input class="form-check-input autostart-toggle" type="checkbox" role="switch" 
                            ${autostart ? "checked" : ""} 
                            data-type="proxy" data-id="${proxy.id}">
                     <label class="form-check-label small text-muted">Autostart</label>
                   </div>
-                  <button class="btn btn-outline-secondary btn-sm action-btn" data-type="proxy" data-id="${proxy.id}" data-enabled="${proxy.enabled}">
-                    <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#${proxy.enabled ? "bi-pause-fill" : "bi-play-fill"}"></use></svg>
-                    ${proxy.enabled ? "Pause" : "Start"}
+                  <button class="btn btn-outline-secondary btn-sm action-btn" data-type="proxy" data-id="${proxy.id}" data-enabled="${proxy.enabled}" data-bs-toggle="tooltip" title="${actionTooltip}">
+                    <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#${actionIcon}"></use></svg>
                   </button>
-                  <button class="btn btn-outline-primary btn-sm edit-btn" data-type="proxy" data-id="${proxy.id}">
+                  <button class="btn btn-outline-primary btn-sm edit-btn" data-type="proxy" data-id="${proxy.id}" data-bs-toggle="tooltip" title="Edit">
                     <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-pencil"></use></svg>
                   </button>
-                  <button class="btn btn-outline-danger btn-sm delete-btn" data-type="proxy" data-id="${proxy.id}" data-name="https://${proxyName}">
+                  <button class="btn btn-outline-danger btn-sm delete-btn" data-type="proxy" data-id="${proxy.id}" data-name="https://${proxyName}" data-bs-toggle="tooltip" title="Delete">
                     <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-trash"></use></svg>
                   </button>
                 </div>
@@ -265,6 +373,9 @@
     initTooltips();
   };
 
+  // =============================================
+  // Backup logic (kept intact, nav hidden)
+  // =============================================
   const renderBackups = () => {
     const list = elements.backupList;
     if (!list) return;
@@ -320,20 +431,17 @@
   const switchView = (view) => {
     state.currentView = view;
 
-    // Update nav
     if (view === "dashboard") {
       elements.navDashboard.classList.add("active");
-      elements.navBackups.classList.remove("active");
+      if (elements.navBackups) elements.navBackups.classList.remove("active");
       elements.dashboardView.classList.remove("d-none");
-      elements.backupsView.classList.add("d-none");
-      // Show FAB in dashboard
+      if (elements.backupsView) elements.backupsView.classList.add("d-none");
       document.querySelector(".fab-container").classList.remove("d-none");
     } else {
       elements.navDashboard.classList.remove("active");
-      elements.navBackups.classList.add("active");
+      if (elements.navBackups) elements.navBackups.classList.add("active");
       elements.dashboardView.classList.add("d-none");
-      elements.backupsView.classList.remove("d-none");
-      // Hide FAB in backups
+      if (elements.backupsView) elements.backupsView.classList.remove("d-none");
       document.querySelector(".fab-container").classList.add("d-none");
 
       refreshBackups();
@@ -346,7 +454,7 @@
       state.backups = data.backups || [];
       renderBackups();
     } catch (error) {
-      showAlert("danger", "Failed to load backups: " + error.message);
+      showToast("danger", "Failed to load backups: " + error.message);
     }
   };
 
@@ -354,31 +462,31 @@
     if (!confirm("Create a new full system backup?")) return;
 
     try {
-      elements.createBackupBtn.disabled = true;
+      if (elements.createBackupBtn) elements.createBackupBtn.disabled = true;
       await fetchJSON("/api/backup/create", {
         method: "POST",
         body: JSON.stringify({ backup_type: "full" })
       });
 
-      showAlert("success", "Backup created successfully");
+      showToast("success", "Backup created successfully");
       await refreshBackups();
     } catch (error) {
-      showAlert("danger", error.message);
+      showToast("danger", error.message);
     } finally {
-      elements.createBackupBtn.disabled = false;
+      if (elements.createBackupBtn) elements.createBackupBtn.disabled = false;
     }
   };
 
   const handleUploadBackup = () => {
     const modal = new bootstrap.Modal(document.getElementById("uploadBackupModal"));
-    elements.uploadBackupForm.reset();
+    if (elements.uploadBackupForm) elements.uploadBackupForm.reset();
     modal.show();
   };
 
   const handleConfirmUpload = async () => {
     const fileInput = elements.backupFile;
-    if (!fileInput.files.length) {
-      showAlert("warning", "Please select a file");
+    if (!fileInput || !fileInput.files.length) {
+      showToast("warning", "Please select a file");
       return;
     }
 
@@ -387,15 +495,11 @@
     formData.append("backup", file);
 
     try {
-      elements.confirmUploadBtn.disabled = true;
+      if (elements.confirmUploadBtn) elements.confirmUploadBtn.disabled = true;
 
-      // Upload
       const uploadResp = await fetch("/api/backup/upload", {
         method: "POST",
         body: formData,
-        headers: {
-          // No Content-Type header, let browser set boundary
-        }
       });
 
       if (!uploadResp.ok) {
@@ -405,20 +509,19 @@
       const uploadResult = await uploadResp.json();
       const filename = uploadResult.filename;
 
-      // Restore
-      showAlert("info", "Upload successful. Restoring...");
+      showToast("info", "Upload successful. Restoring...");
       await fetchJSON("/api/backup/restore", {
         method: "POST",
         body: JSON.stringify({ filename })
       });
 
       bootstrap.Modal.getInstance(document.getElementById("uploadBackupModal")).hide();
-      showAlert("success", "System restored successfully. Reloading...");
+      showToast("success", "System restored successfully. Reloading...");
       setTimeout(() => location.reload(), 2000);
 
     } catch (error) {
-      showAlert("danger", "Operation failed: " + error.message);
-      elements.confirmUploadBtn.disabled = false;
+      showToast("danger", "Operation failed: " + error.message);
+      if (elements.confirmUploadBtn) elements.confirmUploadBtn.disabled = false;
     }
   };
 
@@ -431,10 +534,10 @@
         body: JSON.stringify({ filename })
       });
 
-      showAlert("success", "System restored successfully. Reloading...");
+      showToast("success", "System restored successfully. Reloading...");
       setTimeout(() => location.reload(), 2000);
     } catch (error) {
-      showAlert("danger", error.message);
+      showToast("danger", error.message);
     }
   };
 
@@ -446,10 +549,10 @@
         method: "DELETE"
       });
 
-      showAlert("success", "Backup deleted");
+      showToast("success", "Backup deleted");
       await refreshBackups();
     } catch (error) {
-      showAlert("danger", error.message);
+      showToast("danger", error.message);
     }
   };
 
@@ -472,6 +575,9 @@
     }
   };
 
+  // =============================================
+  // Tooltips
+  // =============================================
   const initTooltips = () => {
     document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((node) => {
       tooltips.push(new bootstrap.Tooltip(node));
@@ -485,6 +591,9 @@
     }
   };
 
+  // =============================================
+  // Data
+  // =============================================
   const refreshData = async () => {
     try {
       const [relays, proxies, status] = await Promise.all([
@@ -506,7 +615,7 @@
       renderItems();
       setLastUpdated();
     } catch (error) {
-      showAlert("danger", error.message);
+      showToast("danger", error.message);
     }
   };
 
@@ -525,7 +634,6 @@
   const toggleAutostart = async (type, id, autostart) => {
     const url = type === "relay" ? "/api/socat/update" : "/api/caddy/update";
 
-    // Get the current item first
     const currentItem = type === "relay"
       ? state.relays.find(r => r.relay.id === id)?.relay
       : state.proxies.find(p => p.id === id);
@@ -534,7 +642,6 @@
       throw new Error(`${type} not found`);
     }
 
-    // Update with new autostart value
     const updated = { ...currentItem, autostart };
 
     await fetchJSON(url, {
@@ -563,7 +670,7 @@
 
       await refreshData();
     } catch (error) {
-      showAlert("danger", error.message);
+      showToast("danger", error.message);
     } finally {
       button.disabled = false;
     }
@@ -584,14 +691,16 @@
       await toggleAutostart(type, id, autostart);
       await refreshData();
     } catch (error) {
-      showAlert("danger", error.message);
-      // Revert the toggle on error
+      showToast("danger", error.message);
       toggle.checked = !autostart;
     } finally {
       toggle.disabled = false;
     }
   };
 
+  // =============================================
+  // Logs
+  // =============================================
   const appendLogEntry = (entry) => {
     if (!entry || !entry.message) {
       return;
@@ -616,14 +725,13 @@
       const data = await fetchJSON("/api/logs");
       state.logs = data.logs || [];
       state.logLevel = data.level || "INFO";
-      elements.logLevel.textContent = state.logLevel;
-      if (elements.logLevelSelect) {
-        elements.logLevelSelect.value = state.logLevel;
+      if (elements.logLevelBtn) {
+        elements.logLevelBtn.textContent = state.logLevel;
       }
       elements.logOutput.textContent = "";
       state.logs.forEach(appendLogEntry);
     } catch (error) {
-      showAlert("warning", error.message);
+      showToast("warning", error.message);
     }
   };
 
@@ -634,12 +742,11 @@
         body: JSON.stringify({ level }),
       });
       state.logLevel = response.level || level;
-      elements.logLevel.textContent = state.logLevel;
-      if (elements.logLevelSelect) {
-        elements.logLevelSelect.value = state.logLevel;
+      if (elements.logLevelBtn) {
+        elements.logLevelBtn.textContent = state.logLevel;
       }
     } catch (error) {
-      showAlert("warning", error.message);
+      showToast("warning", error.message);
     }
   };
 
@@ -661,12 +768,29 @@
       }
     };
     stream.onerror = () => {
-      showAlert("warning", "Log stream disconnected. Retrying...");
+      showToast("warning", "Log stream disconnected. Retrying...");
     };
 
     state.logStream = stream;
   };
 
+  const copyLogs = async () => {
+    const text = elements.logOutput.textContent;
+    if (!text.trim()) {
+      showToast("info", "No logs to copy");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast("success", "Logs copied to clipboard");
+    } catch {
+      showToast("danger", "Failed to copy logs");
+    }
+  };
+
+  // =============================================
+  // Modals
+  // =============================================
   const openRelayModal = (relay = null) => {
     const modal = new bootstrap.Modal(document.getElementById("relayModal"));
     const modalTitle = document.querySelector("#relayModal .modal-title");
@@ -675,7 +799,6 @@
     state.currentEditType = "relay";
 
     if (relay) {
-      // Edit mode
       modalTitle.textContent = "Edit Relay";
       document.getElementById("relay-id").value = relay.id;
       document.getElementById("relay-listen-port").value = relay.listen_port;
@@ -683,7 +806,6 @@
       document.getElementById("relay-target-port").value = relay.target_port;
       document.getElementById("relay-autostart").checked = relay.autostart ?? false;
     } else {
-      // Add mode
       modalTitle.textContent = "Add Relay";
       document.getElementById("relayForm").reset();
       document.getElementById("relay-id").value = "";
@@ -702,10 +824,9 @@
 
     state.currentEditItem = proxy;
     state.currentEditType = "proxy";
-    state.removeTlsCert = false; // Reset remove flag
+    state.removeTlsCert = false;
 
     if (proxy) {
-      // Edit mode
       modalTitle.textContent = "Edit Proxy";
       document.getElementById("proxy-id").value = proxy.id;
       document.getElementById("proxy-port").value = proxy.port || "";
@@ -713,7 +834,6 @@
       document.getElementById("proxy-trusted-proxies").checked = proxy.trusted_proxies ?? false;
       document.getElementById("proxy-autostart").checked = proxy.autostart ?? false;
 
-      // Show current TLS cert if exists
       certFileInput.value = "";
       if (proxy.tls_cert_file) {
         const basename = proxy.tls_cert_file.split('/').pop();
@@ -723,7 +843,6 @@
         certCurrent.style.display = "none";
       }
     } else {
-      // Add mode
       modalTitle.textContent = "Add Proxy";
       document.getElementById("proxyForm").reset();
       document.getElementById("proxy-id").value = "";
@@ -743,7 +862,7 @@
     const autostart = document.getElementById("relay-autostart").checked;
 
     if (!listenPort || !targetHost || !targetPort) {
-      showAlert("danger", "Please fill in all required fields");
+      showToast("danger", "Please fill in all required fields");
       return;
     }
 
@@ -768,10 +887,10 @@
       });
 
       bootstrap.Modal.getInstance(document.getElementById("relayModal")).hide();
-      showAlert("success", `Relay ${id ? "updated" : "created"} successfully`);
+      showToast("success", `Relay ${id ? "updated" : "created"} successfully`);
       await refreshData();
     } catch (error) {
-      showAlert("danger", error.message);
+      showToast("danger", error.message);
     } finally {
       elements.saveRelayBtn.disabled = false;
     }
@@ -785,16 +904,15 @@
     const autostart = document.getElementById("proxy-autostart").checked;
     const tlsCertFile = document.getElementById("proxy-tls-cert").files[0];
 
-    // Always use MagicDNS hostname (strip trailing dot)
     const hostname = state.tailnetFQDN.replace(/\.$/, '');
 
     if (!hostname) {
-      showAlert("danger", "MagicDNS hostname not available. Please ensure Tailscale is connected.");
+      showToast("danger", "MagicDNS hostname not available. Please ensure Tailscale is connected.");
       return;
     }
 
     if (!target) {
-      showAlert("danger", "Please fill in the target URL");
+      showToast("danger", "Please fill in the target URL");
       return;
     }
 
@@ -804,18 +922,16 @@
       const fileName = tlsCertFile.name.toLowerCase();
       const isValidExt = validExtensions.some(ext => fileName.endsWith(ext));
       if (!isValidExt) {
-        showAlert("danger", "Invalid certificate file. Please upload a .pem, .crt, or .cer file.");
+        showToast("danger", "Invalid certificate file. Please upload a .pem, .crt, or .cer file.");
         return;
       }
 
-      // Check file size (max 1MB for cert files)
       if (tlsCertFile.size > 1024 * 1024) {
-        showAlert("danger", "Certificate file too large. Maximum size is 1MB.");
+        showToast("danger", "Certificate file too large. Maximum size is 1MB.");
         return;
       }
     }
 
-    // Build FormData for multipart upload
     const formData = new FormData();
     formData.append("hostname", hostname);
     formData.append("target", target);
@@ -824,13 +940,13 @@
     formData.append("enabled", "true");
 
     if (!port) {
-      showAlert("danger", "Port is required");
+      showToast("danger", "Port is required");
       return;
     }
 
     const portNum = parseInt(port);
     if ([80, 443, 8021].includes(portNum)) {
-      showAlert("danger", "Ports 80, 443, and 8021 are reserved and cannot be used");
+      showToast("danger", "Ports 80, 443, and 8021 are reserved and cannot be used");
       return;
     }
 
@@ -840,12 +956,10 @@
       formData.append("id", id);
     }
 
-    // Add TLS cert file if selected
     if (tlsCertFile) {
       formData.append("tls_cert_upload", tlsCertFile);
     }
 
-    // Flag to remove existing cert
     if (state.removeTlsCert) {
       formData.append("remove_tls_cert", "true");
     }
@@ -854,7 +968,6 @@
       elements.saveProxyBtn.disabled = true;
       const url = id ? "/api/caddy/update" : "/api/caddy/create";
 
-      // Use fetch without JSON content-type for FormData
       const response = await fetch(url, {
         method: "POST",
         credentials: "same-origin",
@@ -869,10 +982,10 @@
       await response.json();
 
       bootstrap.Modal.getInstance(document.getElementById("proxyModal")).hide();
-      showAlert("success", `Proxy ${id ? "updated" : "created"} successfully`);
+      showToast("success", `Proxy ${id ? "updated" : "created"} successfully`);
       await refreshData();
     } catch (error) {
-      showAlert("danger", error.message);
+      showToast("danger", error.message);
     } finally {
       elements.saveProxyBtn.disabled = false;
     }
@@ -904,10 +1017,10 @@
       await fetchJSON(url, { method: "POST" });
 
       bootstrap.Modal.getInstance(document.getElementById("deleteModal")).hide();
-      showAlert("success", `${type === "relay" ? "Relay" : "Proxy"} deleted successfully`);
+      showToast("success", `${type === "relay" ? "Relay" : "Proxy"} deleted successfully`);
       await refreshData();
     } catch (error) {
-      showAlert("danger", error.message);
+      showToast("danger", error.message);
     } finally {
       elements.confirmDeleteBtn.disabled = false;
       state.deleteTarget = null;
@@ -949,6 +1062,193 @@
     openDeleteModal(type, id, name);
   };
 
+  // =============================================
+  // Guided Tour
+  // =============================================
+  const tourSteps = [
+    {
+      target: "#fab-button",
+      title: "Add Proxy or Relay",
+      description: "Click the + button to create a new HTTPS proxy or TCP relay. Proxies are served by Caddy, relays by socat.",
+    },
+    {
+      target: "#console-card",
+      title: "Debug Console",
+      description: "View real-time logs from all services. Use the log level selector to filter, and the copy button to grab all output.",
+    },
+    {
+      target: ".autostart-toggle",
+      title: "Autostart",
+      description: "Toggle this switch to automatically start a proxy or relay when the container boots. No manual intervention needed.",
+      fallbackText: "The Autostart toggle appears on each proxy/relay card. It lets services start automatically on boot.",
+    },
+    {
+      target: "#filter-relay",
+      title: "Filter Items",
+      description: "Use these toggles to show or hide TCP relays and HTTPS proxies in the list below.",
+    },
+  ];
+
+  let currentTourStep = -1;
+  let tourOverlay = null;
+
+  const startTour = () => {
+    if (state.tourActive) return;
+    state.tourActive = true;
+    currentTourStep = -1;
+
+    // Create overlay container
+    tourOverlay = document.createElement("div");
+    tourOverlay.className = "tour-overlay";
+    tourOverlay.innerHTML = `
+      <div class="tour-highlight"></div>
+      <div class="tour-popover"></div>
+    `;
+    document.body.appendChild(tourOverlay);
+
+    // Click backdrop to dismiss
+    tourOverlay.addEventListener("click", (e) => {
+      if (e.target === tourOverlay) endTour();
+    });
+
+    nextTourStep();
+  };
+
+  const nextTourStep = () => {
+    currentTourStep++;
+    if (currentTourStep >= tourSteps.length) {
+      endTour();
+      return;
+    }
+
+    const step = tourSteps[currentTourStep];
+    const targetEl = document.querySelector(step.target);
+    const highlight = tourOverlay.querySelector(".tour-highlight");
+    const popover = tourOverlay.querySelector(".tour-popover");
+
+    const isLast = currentTourStep === tourSteps.length - 1;
+
+    if (!targetEl) {
+      // If target not found (e.g., no items yet), show fallback
+      highlight.style.display = "none";
+      popover.style.position = "fixed";
+      popover.style.top = "50%";
+      popover.style.left = "50%";
+      popover.style.transform = "translate(-50%, -50%)";
+      popover.innerHTML = `
+        <h6>${step.title}</h6>
+        <p>${step.fallbackText || step.description}</p>
+        <div class="tour-popover-footer">
+          <span class="tour-step-indicator">${currentTourStep + 1} / ${tourSteps.length}</span>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary tour-skip-btn">Skip</button>
+            <button class="btn btn-sm btn-primary tour-next-btn">${isLast ? "Done" : "Next"}</button>
+          </div>
+        </div>
+      `;
+    } else {
+      highlight.style.display = "block";
+      const rect = targetEl.getBoundingClientRect();
+      const pad = 6;
+
+      highlight.style.top = `${rect.top - pad}px`;
+      highlight.style.left = `${rect.left - pad}px`;
+      highlight.style.width = `${rect.width + pad * 2}px`;
+      highlight.style.height = `${rect.height + pad * 2}px`;
+
+      // Position popover below or above target
+      popover.style.position = "fixed";
+      popover.style.transform = "none";
+      const popoverWidth = 320;
+
+      // Try below first
+      const belowTop = rect.bottom + 12;
+      const aboveTop = rect.top - 12;
+
+      if (belowTop + 200 < window.innerHeight) {
+        popover.style.top = `${belowTop}px`;
+      } else {
+        popover.style.top = `${aboveTop}px`;
+        popover.style.transform = "translateY(-100%)";
+      }
+
+      // Center horizontally relative to target, clamped to viewport
+      let left = rect.left + rect.width / 2 - popoverWidth / 2;
+      left = Math.max(16, Math.min(left, window.innerWidth - popoverWidth - 16));
+      popover.style.left = `${left}px`;
+
+      popover.innerHTML = `
+        <h6>${step.title}</h6>
+        <p>${step.description}</p>
+        <div class="tour-popover-footer">
+          <span class="tour-step-indicator">${currentTourStep + 1} / ${tourSteps.length}</span>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary tour-skip-btn">Skip</button>
+            <button class="btn btn-sm btn-primary tour-next-btn">${isLast ? "Done" : "Next"}</button>
+          </div>
+        </div>
+      `;
+    }
+
+    popover.querySelector(".tour-next-btn").addEventListener("click", nextTourStep);
+    popover.querySelector(".tour-skip-btn").addEventListener("click", endTour);
+  };
+
+  const endTour = () => {
+    state.tourActive = false;
+    currentTourStep = -1;
+    if (tourOverlay) {
+      tourOverlay.remove();
+      tourOverlay = null;
+    }
+  };
+
+  // =============================================
+  // Keyboard shortcuts
+  // =============================================
+  const handleKeyboardShortcuts = (e) => {
+    // Skip if typing in an input/textarea or modal is open
+    const tag = e.target.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    if (document.querySelector(".modal.show")) return;
+    if (state.tourActive) return;
+
+    switch (e.key.toLowerCase()) {
+      case "r":
+        e.preventDefault();
+        refreshData();
+        break;
+      case "n":
+        e.preventDefault();
+        const fabBtn = document.getElementById("fab-button");
+        if (fabBtn) bootstrap.Dropdown.getOrCreateInstance(fabBtn).toggle();
+        break;
+      case "?":
+        e.preventDefault();
+        startTour();
+        break;
+    }
+  };
+
+  // =============================================
+  // Console toggle state sync
+  // =============================================
+  const syncConsoleToggle = () => {
+    const consoleEl = document.getElementById("log-console");
+    const toggleBtn = elements.consoleToggle;
+    if (!consoleEl || !toggleBtn) return;
+
+    consoleEl.addEventListener("shown.bs.collapse", () => {
+      toggleBtn.classList.remove("collapsed");
+    });
+    consoleEl.addEventListener("hidden.bs.collapse", () => {
+      toggleBtn.classList.add("collapsed");
+    });
+  };
+
+  // =============================================
+  // Event binding
+  // =============================================
   const bindEvents = () => {
     elements.items.addEventListener("click", handleActionClick);
     elements.items.addEventListener("click", handleEditClick);
@@ -974,9 +1274,17 @@
       elements.logOutput.textContent = "";
     });
 
-    if (elements.logLevelSelect) {
-      elements.logLevelSelect.addEventListener("change", (event) => {
-        setLogLevel(event.target.value);
+    if (elements.copyLogs) {
+      elements.copyLogs.addEventListener("click", copyLogs);
+    }
+
+    if (elements.logLevelItems) {
+      elements.logLevelItems.forEach(item => {
+        item.addEventListener("click", (event) => {
+          event.preventDefault();
+          const newLevel = event.target.dataset.level;
+          setLogLevel(newLevel);
+        });
       });
     }
 
@@ -1012,7 +1320,7 @@
       elements.removeTlsCertBtn.addEventListener("click", () => {
         state.removeTlsCert = true;
         document.getElementById("proxy-tls-cert-current").style.display = "none";
-        showAlert("info", "Certificate will be removed when you save the proxy.");
+        showToast("info", "Certificate will be removed when you save the proxy.");
       });
     }
 
@@ -1027,7 +1335,7 @@
       saveProxy();
     });
 
-    // Backup events
+    // Backup events (kept intact — nav link hidden, but event handlers still work)
     if (elements.navDashboard) {
       elements.navDashboard.addEventListener("click", (e) => {
         e.preventDefault();
@@ -1066,13 +1374,28 @@
         switchView("dashboard");
       });
     }
+
+    // Help / Tour
+    if (elements.helpTourBtn) {
+      elements.helpTourBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        startTour();
+      });
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener("keydown", handleKeyboardShortcuts);
   };
 
+  // =============================================
+  // Init
+  // =============================================
   const init = async () => {
-    // Set theme before content loads to prevent flash
     setTheme(getPreferredTheme());
 
     bindEvents();
+    syncConsoleToggle();
+    initTooltips();
     await refreshData();
     await loadLogs();
     startLogStream();
