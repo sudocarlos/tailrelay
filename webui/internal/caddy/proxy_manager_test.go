@@ -15,11 +15,11 @@ func newTestProxyManager(t *testing.T, apiURL string) *ProxyManager {
 }
 
 // TestListServers_EmptyCaddyConfig verifies that listServers returns an empty map
-// (not an error) when Caddy's config is {} and the /apps/http/servers path returns 404.
+// (not an error) when Caddy's config is {} and the root path returns 404.
 func TestListServers_EmptyCaddyConfig(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error":"loading config path \"/apps/http/servers\": path not found"}`))
+		w.Write([]byte(`{"error":"loading config path \"/\": path not found"}`))
 	}))
 	defer srv.Close()
 
@@ -76,7 +76,7 @@ func TestListServers_EmptyObjectResponse(t *testing.T) {
 func TestAllocateServerName_EmptyCaddyConfig(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error":"path not found"}`))
+		w.Write([]byte(`{"error":"loading config path \"/\": path not found"}`))
 	}))
 	defer srv.Close()
 

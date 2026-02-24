@@ -34,9 +34,9 @@ const (
 
 // APIClient provides methods to interact with Caddy's admin API
 type APIClient struct {
-	BaseURL         string
-	HTTPClient      *http.Client
-	MaxLogBodySize  int
+	BaseURL        string
+	HTTPClient     *http.Client
+	MaxLogBodySize int
 }
 
 // NewAPIClient creates a new Caddy API client
@@ -113,7 +113,13 @@ func (c *APIClient) doRequestWithHeaders(method, path string, body interface{}) 
 	}
 
 	if resp.StatusCode >= 400 {
-		logger.Error("caddy", "Caddy API error %d for %s %s: %s", resp.StatusCode, method, url, string(respBody))
+		if method == http.MethodGet && (resp.StatusCode == http.StatusNotFound ||
+			(resp.StatusCode == http.StatusBadRequest && strings.Contains(string(respBody), "invalid traversal path"))) {
+			// Expected during checks when paths don't exist yet
+			logger.Debug("caddy", "Path not found (expected during checks): %d for %s %s: %s", resp.StatusCode, method, url, string(respBody))
+		} else {
+			logger.Error("caddy", "Caddy API error %d for %s %s: %s", resp.StatusCode, method, url, string(respBody))
+		}
 		return nil, nil, &HTTPError{StatusCode: resp.StatusCode, Body: string(respBody)}
 	}
 

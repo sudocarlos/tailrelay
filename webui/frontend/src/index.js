@@ -1083,7 +1083,7 @@
       fallbackText: "The Autostart toggle appears on each proxy/relay card. It lets services start automatically on boot.",
     },
     {
-      target: "#filter-relay",
+      target: "#filter-relay-buttons",
       title: "Filter Items",
       description: "Use these toggles to show or hide TCP relays and HTTPS proxies in the list below.",
     },
