@@ -35,6 +35,7 @@ type PathsConfig struct {
 	StateDir         string `yaml:"state_dir"`
 	BackupDir        string `yaml:"backup_dir"`
 	CertificatesDir  string `yaml:"certificates_dir"`
+	TargetsFile      string `yaml:"targets_file"`
 }
 
 // BackupConfig contains backup settings

@@ -243,6 +243,12 @@
               <div class="form-text">Port on which the relay will listen on your Tailnet</div>
             </div>
             <div class="mb-3">
+              <label for="relay-preset-target" class="form-label">Preset Target (Optional)</label>
+              <select class="form-select" id="relay-preset-target">
+                <option value="">Custom...</option>
+              </select>
+            </div>
+            <div class="mb-3">
               <label for="relay-target-host" class="form-label">Target Host</label>
               <input type="text" class="form-control" id="relay-target-host" required
                 placeholder="e.g., localhost or 192.168.1.100">
@@ -286,6 +292,12 @@
               <input type="number" class="form-control" id="proxy-port" required min="1" max="65535"
                 placeholder="e.g., 8443">
               <div class="form-text">Custom port for the proxy (80, 443, and 8021 are reserved)</div>
+            </div>
+            <div class="mb-3">
+              <label for="proxy-preset-target" class="form-label">Preset Target (Optional)</label>
+              <select class="form-select" id="proxy-preset-target">
+                <option value="">Custom...</option>
+              </select>
             </div>
             <div class="mb-3">
               <label for="proxy-target" class="form-label">Target</label>

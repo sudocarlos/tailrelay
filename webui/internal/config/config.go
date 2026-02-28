@@ -98,6 +98,7 @@ func DefaultConfig() *Config {
 			StateDir:         "/var/lib/tailscale",
 			BackupDir:        "/var/lib/tailscale/backups",
 			CertificatesDir:  "/data",
+			TargetsFile:      "/targets.json",
 		},
 		Backup: BackupConfig{
 			AutoBackupEnabled:  false,
