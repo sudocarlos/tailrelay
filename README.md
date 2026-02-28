@@ -28,7 +28,7 @@ A Docker container that exposes local services to your Tailscale network. Combin
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Tailscale Setup](#tailscale-setup)
-  - [Start9 Deployment](#start9-deployment)
+  - [StartOS Deployment](#startos-deployment)
 - [Development](#development)
   - [Local WebUI Development](#local-webui-development)
   - [Building](#building)
@@ -126,44 +126,16 @@ http://localhost:8021
 3. Verify or set your [Tailnet name](https://tailscale.com/kb/1217/tailnet-name)
 4. Scroll down and enable HTTPS under HTTPS Certificates
 
-### Start9 Deployment
+### StartOS Deployment
 
-### Start9 Deployment
+tailrelay is available as a StartOS package via [sudocarlos/tailrelay-startos](https://github.com/sudocarlos/tailrelay-startos).
 
-1. SSH into your Start9 server:
-   ```bash
-   ssh start9@SERVER-HOSTNAME
-   ```
+**Sideloading:**
 
-2. Create a directory for persistent data:
-   ```bash
-   mkdir -p /home/start9/tailscale
-   ```
-
-3. Run the container:
-   ```bash
-   sudo podman run --name start9.tailscale \
-     -v /home/start9/tailscale/:/var/lib/tailscale \
-     -e TS_HOSTNAME=start9 \
-     -p 8021:8021 \
-     --net start9 \
-     docker.io/sudocarlos/tailrelay:latest
-   ```
-
-4. Access the Web UI at `http://localhost:8021` and follow the login link
-
-**Environment Variables:**
-- `TS_HOSTNAME` - Tailnet machine name
-- `RELAY_LIST` - (Optional, deprecated) Comma-separated relay definitions. Use Web UI instead.
-- `MAX_LOG_BODY_SIZE` - Max bytes for Caddy API request/response body logging (0 = full body)
-
-**Volume Mounts:**
-- `/var/lib/tailscale` - Tailscale state, Web UI configs, backups
-
-**Network:**
-- `--net start9` - Required to access Start9 services
-
-See [Tailscale Docker docs](https://tailscale.com/kb/1282/docker) for more options.
+1. Download the latest `tailrelay.s9pk` from the [tailrelay-startos releases page](https://github.com/sudocarlos/tailrelay-startos/releases), or clone the repo and run `make` to build it yourself.
+2. In the StartOS web UI menu, navigate to **System → Sideload Service**.
+3. Drag and drop or select the `tailrelay.s9pk` file to install.
+4. Once installed, navigate to **Services → Tailrelay** and click **Start**.
 
 
 ## Development
