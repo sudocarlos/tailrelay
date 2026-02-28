@@ -13,6 +13,7 @@
     deleteTarget: null,
     removeTlsCert: false,
     backups: [],
+    targets: [],
     currentView: "dashboard",
     tourActive: false,
   };
@@ -57,6 +58,10 @@
     confirmUploadBtn: document.getElementById("confirm-upload-btn"),
     uploadBackupForm: document.getElementById("uploadBackupForm"),
     backupFile: document.getElementById("backupFile"),
+
+    // Targets
+    relayPresetTarget: document.getElementById("relay-preset-target"),
+    proxyPresetTarget: document.getElementById("proxy-preset-target"),
   };
 
   const tooltips = [];
@@ -596,10 +601,11 @@
   // =============================================
   const refreshData = async () => {
     try {
-      const [relays, proxies, status] = await Promise.all([
+      const [relays, proxies, status, targets] = await Promise.all([
         fetchJSON("/api/socat/relays"),
         fetchJSON("/api/caddy/proxies"),
         fetchJSON("/api/tailscale/status"),
+        fetchJSON("/api/targets"),
       ]);
 
       state.relays = relays.map((status) => ({
@@ -611,9 +617,11 @@
         running: proxy.running ?? proxy.Running,
       }));
       state.tailnetFQDN = status.MagicDNSName || status.magicDNSName || "";
+      state.targets = targets || [];
 
       renderItems();
       setLastUpdated();
+      populateTargetSelects();
     } catch (error) {
       showToast("danger", error.message);
     }
@@ -789,8 +797,26 @@
   };
 
   // =============================================
-  // Modals
+  // Modals & Targets
   // =============================================
+  const populateTargetSelects = () => {
+    [elements.relayPresetTarget, elements.proxyPresetTarget].forEach(select => {
+      if (!select) return;
+
+      // Keep only the first "Custom..." option
+      while (select.options.length > 1) {
+        select.remove(1);
+      }
+
+      state.targets.forEach((target, index) => {
+        // Option text shows target_name if present, else fallback
+        const label = target.target_name || `${target.app_id} (${target.port})`;
+        const option = new Option(label, index.toString());
+        select.add(option);
+      });
+    });
+  };
+
   const openRelayModal = (relay = null) => {
     const modal = new bootstrap.Modal(document.getElementById("relayModal"));
     const modalTitle = document.querySelector("#relayModal .modal-title");
@@ -805,11 +831,13 @@
       document.getElementById("relay-target-host").value = relay.target_host;
       document.getElementById("relay-target-port").value = relay.target_port;
       document.getElementById("relay-autostart").checked = relay.autostart ?? false;
+      elements.relayPresetTarget.value = "";
     } else {
       modalTitle.textContent = "Add Relay";
       document.getElementById("relayForm").reset();
       document.getElementById("relay-id").value = "";
       document.getElementById("relay-autostart").checked = true;
+      elements.relayPresetTarget.value = "";
     }
 
     modal.show();
@@ -842,6 +870,7 @@
       } else {
         certCurrent.style.display = "none";
       }
+      elements.proxyPresetTarget.value = "";
     } else {
       modalTitle.textContent = "Add Proxy";
       document.getElementById("proxyForm").reset();
@@ -849,6 +878,7 @@
       document.getElementById("proxy-autostart").checked = true;
       certFileInput.value = "";
       certCurrent.style.display = "none";
+      elements.proxyPresetTarget.value = "";
     }
 
     modal.show();
@@ -1334,6 +1364,34 @@
       e.preventDefault();
       saveProxy();
     });
+
+    // Handle preset target selection
+    if (elements.relayPresetTarget) {
+      elements.relayPresetTarget.addEventListener("change", (e) => {
+        const idx = e.target.value;
+        if (idx !== "") {
+          const target = state.targets[parseInt(idx)];
+          document.getElementById("relay-target-host").value = target.host || "";
+          if (target.port) {
+            document.getElementById("relay-target-port").value = target.port;
+          }
+        }
+      });
+    }
+
+    if (elements.proxyPresetTarget) {
+      elements.proxyPresetTarget.addEventListener("change", (e) => {
+        const idx = e.target.value;
+        if (idx !== "") {
+          const target = state.targets[parseInt(idx)];
+          let targetUrl = target.host || "";
+          if (target.port) {
+            targetUrl += `:${target.port}`;
+          }
+          document.getElementById("proxy-target").value = targetUrl;
+        }
+      });
+    }
 
     // Backup events (kept intact — nav link hidden, but event handlers still work)
     if (elements.navDashboard) {

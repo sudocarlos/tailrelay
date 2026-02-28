@@ -28,6 +28,7 @@ type Server struct {
 	caddyH     *handlers.CaddyHandler
 	socatH     *handlers.SocatHandler
 	backupH    *handlers.BackupHandler
+	targetsH   *handlers.TargetsHandler
 	logsH      *handlers.Handler
 	staticFS   fs.FS
 	templateFS fs.FS
@@ -60,6 +61,7 @@ func NewServer(cfg *config.Config, authToken string, staticFS, templateFS fs.FS)
 	caddyH := handlers.NewCaddyHandler(cfg, tmpl)
 	socatH := handlers.NewSocatHandler(cfg, tmpl)
 	backupH := handlers.NewBackupHandler(cfg, tmpl)
+	targetsH := handlers.NewTargetsHandler(cfg)
 	logsH := handlers.NewHandler(tmpl)
 
 	return &Server{
@@ -71,6 +73,7 @@ func NewServer(cfg *config.Config, authToken string, staticFS, templateFS fs.FS)
 		caddyH:     caddyH,
 		socatH:     socatH,
 		backupH:    backupH,
+		targetsH:   targetsH,
 		logsH:      logsH,
 		staticFS:   staticFS,
 		templateFS: templateFS,
@@ -175,6 +178,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	// Protected routes (authentication required)
 	mux.Handle("/", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPAFallback)))
 	mux.Handle("/api/status", s.authMW.RequireAuth(http.HandlerFunc(s.dashboardH.APIStatus)))
+	mux.Handle("/api/targets", s.authMW.RequireAuth(http.HandlerFunc(s.targetsH.APIList)))
 
 	// Tailscale routes
 	mux.Handle("/tailscale", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Status)))
