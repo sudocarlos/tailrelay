@@ -67,33 +67,8 @@
   const tooltips = [];
 
   // =============================================
-  // Dark mode management
+  // Dark mode management (provided by theme.bundle.js)
   // =============================================
-  const getPreferredTheme = () => {
-    const stored = localStorage.getItem("theme");
-    if (stored) {
-      return stored;
-    }
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  };
-
-  const setTheme = (theme) => {
-    document.documentElement.setAttribute("data-bs-theme", theme);
-    localStorage.setItem("theme", theme);
-    updateThemeIcon(theme);
-  };
-
-  const updateThemeIcon = (theme) => {
-    if (!elements.themeToggle) return;
-    const icon = theme === "dark" ? "bi-moon-stars-fill" : "bi-sun-fill";
-    elements.themeToggle.querySelector("use").setAttribute("href", `/static/vendor/bootstrap-icons/bootstrap-icons.svg#${icon}`);
-  };
-
-  const toggleTheme = () => {
-    const current = document.documentElement.getAttribute("data-bs-theme") || "light";
-    const next = current === "dark" ? "light" : "dark";
-    setTheme(next);
-  };
 
   // =============================================
   // Network
@@ -876,6 +851,7 @@
       document.getElementById("proxyForm").reset();
       document.getElementById("proxy-id").value = "";
       document.getElementById("proxy-autostart").checked = true;
+      document.getElementById("proxy-trusted-proxies").checked = true;
       certFileInput.value = "";
       certCurrent.style.display = "none";
       elements.proxyPresetTarget.value = "";
@@ -1295,8 +1271,8 @@
       renderItems();
     });
 
-    if (elements.themeToggle) {
-      elements.themeToggle.addEventListener("click", toggleTheme);
+    if (elements.themeToggle && window.tailrelayTheme) {
+      window.tailrelayTheme.initToggle(elements.themeToggle);
     }
 
     elements.refresh.addEventListener("click", refreshData);
@@ -1449,7 +1425,8 @@
   // Init
   // =============================================
   const init = async () => {
-    setTheme(getPreferredTheme());
+    // Theme is already applied by theme.bundle.js (loaded synchronously).
+    // Just bind events and start the app.
 
     bindEvents();
     syncConsoleToggle();
