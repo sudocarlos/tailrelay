@@ -237,28 +237,30 @@
           <form id="relayForm">
             <input type="hidden" id="relay-id" />
             <div class="mb-3">
-              <label for="relay-listen-port" class="form-label">Listen Port</label>
+              <label for="relay-listen-port" class="form-label">Tailrelay port</label>
               <input type="number" class="form-control" id="relay-listen-port" required min="1" max="65535"
-                placeholder="e.g., 8080">
-              <div class="form-text">Port on which the relay will listen on your Tailnet</div>
+                placeholder="">
+              <div class="form-text">
+                Listening port of tailrelay used to access the target service <br />
+                1 - 65535 (80, 443, and 8021 are reserved)
+              </div>
             </div>
             <div class="mb-3">
-              <label for="relay-preset-target" class="form-label">Preset Target (Optional)</label>
+              <label for="relay-preset-target" class="form-label">Presets (optional)</label>
               <select class="form-select" id="relay-preset-target">
                 <option value="">Custom...</option>
               </select>
             </div>
             <div class="mb-3">
-              <label for="relay-target-host" class="form-label">Target Host</label>
-              <input type="text" class="form-control" id="relay-target-host" required
-                placeholder="e.g., localhost or 192.168.1.100">
+              <label for="relay-target-host" class="form-label">Target host</label>
+              <input type="text" class="form-control" id="relay-target-host" required placeholder="">
               <div class="form-text">Hostname or IP address of the target service</div>
             </div>
             <div class="mb-3">
-              <label for="relay-target-port" class="form-label">Target Port</label>
+              <label for="relay-target-port" class="form-label">Target port</label>
               <input type="number" class="form-control" id="relay-target-port" required min="1" max="65535"
-                placeholder="e.g., 3000">
-              <div class="form-text">Port on which the target service is listening</div>
+                placeholder="">
+              <div class="form-text">Listening port of the target service</div>
             </div>
             <div class="form-check">
               <input class="form-check-input" type="checkbox" id="relay-autostart" checked>
@@ -289,26 +291,28 @@
             <input type="hidden" id="proxy-id" />
             <div class="mb-3">
               <label for="proxy-port" class="form-label">Port</label>
-              <input type="number" class="form-control" id="proxy-port" required min="1" max="65535"
-                placeholder="e.g., 8443">
-              <div class="form-text">Custom port for the proxy (80, 443, and 8021 are reserved)</div>
+              <input type="number" class="form-control" id="proxy-port" required min="1" max="65535" placeholder="">
+              <div class="form-text">
+                Listening port of tailrelay used to access the target service <br />
+                1 - 65535 (80, 443, and 8021 are reserved)
+              </div>
             </div>
             <div class="mb-3">
-              <label for="proxy-preset-target" class="form-label">Preset Target (Optional)</label>
+              <label for="proxy-preset-target" class="form-label">Presets (optional)</label>
               <select class="form-select" id="proxy-preset-target">
                 <option value="">Custom...</option>
               </select>
             </div>
             <div class="mb-3">
-              <label for="proxy-target" class="form-label">Target</label>
+              <label for="proxy-target" class="form-label">Target host:port</label>
               <input type="text" class="form-control" id="proxy-target" required
                 placeholder="e.g., mempool.embassy:8080">
-              <div class="form-text">Backend URL to proxy requests to</div>
+              <div class="form-text">Hostname or IP address and port of the target service</div>
             </div>
             <div class="mb-3">
-              <label for="proxy-tls-cert" class="form-label">TLS Certificate (Optional)</label>
+              <label for="proxy-tls-cert" class="form-label">TLS certificate (optional)</label>
               <input type="file" class="form-control" id="proxy-tls-cert" accept=".pem,.crt,.cer">
-              <div class="form-text">Upload TLS certificate for backend HTTPS connections</div>
+              <div class="form-text">Upload target's TLS certificate for HTTPS connections</div>
               <div id="proxy-tls-cert-current" class="d-flex align-items-center gap-2 mt-2"
                 style="display: none !important;">
                 <span class="badge text-bg-success">Current: <span id="proxy-tls-cert-filename"></span></span>
