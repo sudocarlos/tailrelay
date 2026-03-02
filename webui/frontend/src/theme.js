@@ -12,7 +12,7 @@
   const ICON_PATH = "/static/vendor/bootstrap-icons/bootstrap-icons.svg";
   const THEME_STORAGE_KEY = "theme";
   const PALETTE_STORAGE_KEY = "palette";
-  const ICONS = { dark: "bi-moon-stars-fill", light: "bi-sun-fill" };
+  const ICONS = { dark: "moon-stars-fill", light: "sun-fill" };
 
   const getPreferredTheme = () => {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);

@@ -103,10 +103,10 @@
   // =============================================
   const showToast = (type, message) => {
     const iconMap = {
-      success: "bi-check-circle-fill",
-      danger: "bi-exclamation-triangle-fill",
-      warning: "bi-exclamation-triangle-fill",
-      info: "bi-info-circle-fill",
+      success: "check-circle-fill",
+      danger: "exclamation-triangle-fill",
+      warning: "exclamation-triangle-fill",
+      info: "info-circle-fill",
     };
 
     const colorMap = {
@@ -116,7 +116,7 @@
       info: "text-info",
     };
 
-    const icon = iconMap[type] || "bi-info-circle-fill";
+    const icon = iconMap[type] || "info-circle-fill";
     const color = colorMap[type] || "text-info";
 
     const toastEl = document.createElement("div");
@@ -263,7 +263,7 @@
           const autostart = relay.autostart ?? false;
           const statusClass = running ? "running" : "stopped";
           const statusLabel = running ? "Running" : "Stopped";
-          const actionIcon = running ? "bi-pause-fill" : "bi-play-fill";
+          const actionIcon = running ? "pause-fill" : "play-fill";
           const actionTooltip = running ? "Pause" : "Start";
           const actionBtnClass = running ? "btn-outline-secondary" : "btn-outline-success";
           return `
@@ -310,7 +310,7 @@
         const proxyName = proxy.port ? `${proxy.hostname}:${proxy.port}` : proxy.hostname;
         const statusClass = running ? "running" : "stopped";
         const statusLabel = running ? "Running" : "Stopped";
-        const actionIcon = proxy.enabled ? "bi-pause-fill" : "bi-play-fill";
+        const actionIcon = proxy.enabled ? "pause-fill" : "play-fill";
         const actionTooltip = proxy.enabled ? "Pause" : "Start";
         const actionBtnClass = proxy.enabled ? "btn-outline-secondary" : "btn-outline-success";
         return `
