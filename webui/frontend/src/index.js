@@ -33,14 +33,16 @@
     filterRelay: document.getElementById("filter-relay"),
     filterProxy: document.getElementById("filter-proxy"),
     themeToggle: document.getElementById("theme-toggle"),
-    addRelayBtn: document.getElementById("add-relay-btn"),
-    addProxyBtn: document.getElementById("add-proxy-btn"),
-    saveRelayBtn: document.getElementById("save-relay-btn"),
-    saveProxyBtn: document.getElementById("save-proxy-btn"),
+    fabButton: document.getElementById("fab-button"),
+    saveItemBtn: document.getElementById("save-item-btn"),
     confirmDeleteBtn: document.getElementById("confirm-delete-btn"),
     removeTlsCertBtn: document.getElementById("proxy-tls-cert-remove"),
     helpTourBtn: document.getElementById("help-tour-btn"),
     toastContainer: document.getElementById("toast-container"),
+
+    // Modal tabs
+    relayTab: document.getElementById("relay-tab"),
+    proxyTab: document.getElementById("proxy-tab"),
 
     // Navigation
     navDashboard: document.getElementById("nav-dashboard"),
@@ -210,13 +212,11 @@
     elements.items.querySelector(".empty-state-cta")?.addEventListener("click", (e) => {
       const type = e.currentTarget.dataset.type;
       if (type === "relay") {
-        openRelayModal();
+        openAddModal("relay");
       } else if (type === "proxy") {
-        openProxyModal();
+        openAddModal("proxy");
       } else {
-        // Open the FAB dropdown
-        const fabBtn = document.getElementById("fab-button");
-        if (fabBtn) bootstrap.Dropdown.getOrCreateInstance(fabBtn).toggle();
+        openAddModal("relay");
       }
     });
   };
@@ -265,6 +265,7 @@
           const statusLabel = running ? "Running" : "Stopped";
           const actionIcon = running ? "bi-pause-fill" : "bi-play-fill";
           const actionTooltip = running ? "Pause" : "Start";
+          const actionBtnClass = running ? "btn-outline-secondary" : "btn-outline-success";
           return `
             <div class="col-12">
               <div class="card h-100">
@@ -273,21 +274,21 @@
                     <div class="d-flex align-items-center gap-2 flex-wrap">
                       <svg class="bi text-primary" data-bs-toggle="tooltip" title="TCP Relay (served by socat)" aria-hidden="true" style="width: 1.25em; height: 1.25em;"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-diagram-3"></use></svg>
                       <span class="fw-semibold">${formatRelayTitle(relay)}</span>
+                      <span class="status-dot ${statusClass} ms-1" data-bs-toggle="tooltip" title="${statusLabel}"></span>
                     </div>
-                    <div class="small text-muted mt-1">${formatRelayTarget(relay)}</div>
+                    <div class="small text-muted mt-1">
+                      ${formatRelayTarget(relay)}
+                    </div>
                   </div>
                   <div class="d-flex align-items-center gap-2">
-                    <span class="d-flex align-items-center gap-1">
-                      <span class="status-dot ${statusClass}"></span>
-                      <small class="text-muted">${statusLabel}</small>
-                    </span>
                     <div class="form-check form-switch m-0" data-bs-toggle="tooltip" title="Start automatically on container boot">
+                      <label class="form-check-label small text-muted">Autostart</label>
                       <input class="form-check-input autostart-toggle" type="checkbox" role="switch" 
                              ${autostart ? "checked" : ""} 
                              data-type="relay" data-id="${relay.id}">
-                      <label class="form-check-label small text-muted">Autostart</label>
                     </div>
-                    <button class="btn btn-outline-secondary btn-sm action-btn" data-type="relay" data-id="${relay.id}" data-running="${running}" data-bs-toggle="tooltip" title="${actionTooltip}">
+                    <div class="vr"></div>
+                    <button class="btn ${actionBtnClass} btn-sm action-btn" data-type="relay" data-id="${relay.id}" data-running="${running}" data-bs-toggle="tooltip" title="${actionTooltip}">
                       <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#${actionIcon}"></use></svg>
                     </button>
                     <button class="btn btn-outline-primary btn-sm edit-btn" data-type="relay" data-id="${relay.id}" data-bs-toggle="tooltip" title="Edit">
@@ -311,6 +312,7 @@
         const statusLabel = running ? "Running" : "Stopped";
         const actionIcon = proxy.enabled ? "bi-pause-fill" : "bi-play-fill";
         const actionTooltip = proxy.enabled ? "Pause" : "Start";
+        const actionBtnClass = proxy.enabled ? "btn-outline-secondary" : "btn-outline-success";
         return `
           <div class="col-12">
             <div class="card h-100">
@@ -319,21 +321,21 @@
                   <div class="d-flex align-items-center gap-2 flex-wrap">
                     <svg class="bi text-primary" data-bs-toggle="tooltip" title="HTTPS Proxy (served by Caddy)" aria-hidden="true" style="width: 1.25em; height: 1.25em;"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-shield-lock"></use></svg>
                     <span class="fw-semibold">${formatProxyLink(proxy)}</span>
+                    <span class="status-dot ${statusClass} ms-1" data-bs-toggle="tooltip" title="${statusLabel}"></span>
                   </div>
-                  <div class="small text-muted mt-1">→ ${proxy.target}</div>
+                  <div class="small text-muted mt-1">
+                    → ${proxy.target}
+                  </div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                  <span class="d-flex align-items-center gap-1">
-                    <span class="status-dot ${statusClass}"></span>
-                    <small class="text-muted">${statusLabel}</small>
-                  </span>
                   <div class="form-check form-switch m-0" data-bs-toggle="tooltip" title="Start automatically on container boot">
+                    <label class="form-check-label small text-muted">Autostart</label>
                     <input class="form-check-input autostart-toggle" type="checkbox" role="switch" 
                            ${autostart ? "checked" : ""} 
                            data-type="proxy" data-id="${proxy.id}">
-                    <label class="form-check-label small text-muted">Autostart</label>
                   </div>
-                  <button class="btn btn-outline-secondary btn-sm action-btn" data-type="proxy" data-id="${proxy.id}" data-enabled="${proxy.enabled}" data-bs-toggle="tooltip" title="${actionTooltip}">
+                  <div class="vr"></div>
+                  <button class="btn ${actionBtnClass} btn-sm action-btn" data-type="proxy" data-id="${proxy.id}" data-enabled="${proxy.enabled}" data-bs-toggle="tooltip" title="${actionTooltip}">
                     <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#${actionIcon}"></use></svg>
                   </button>
                   <button class="btn btn-outline-primary btn-sm edit-btn" data-type="proxy" data-id="${proxy.id}" data-bs-toggle="tooltip" title="Edit">
@@ -792,69 +794,122 @@
     });
   };
 
-  const openRelayModal = (relay = null) => {
-    const modal = new bootstrap.Modal(document.getElementById("relayModal"));
-    const modalTitle = document.querySelector("#relayModal .modal-title");
-
-    state.currentEditItem = relay;
-    state.currentEditType = "relay";
-
-    if (relay) {
-      modalTitle.textContent = "Edit Relay";
-      document.getElementById("relay-id").value = relay.id;
-      document.getElementById("relay-listen-port").value = relay.listen_port;
-      document.getElementById("relay-target-host").value = relay.target_host;
-      document.getElementById("relay-target-port").value = relay.target_port;
-      document.getElementById("relay-autostart").checked = relay.autostart ?? false;
-      elements.relayPresetTarget.value = "";
-    } else {
-      modalTitle.textContent = "Add Relay";
-      document.getElementById("relayForm").reset();
-      document.getElementById("relay-id").value = "";
-      document.getElementById("relay-autostart").checked = true;
-      elements.relayPresetTarget.value = "";
-    }
-
-    modal.show();
+  // Returns the currently active tab type ("relay" or "proxy")
+  const getActiveTabType = () => {
+    return elements.proxyTab?.classList.contains("active") ? "proxy" : "relay";
   };
 
-  const openProxyModal = (proxy = null) => {
-    const modal = new bootstrap.Modal(document.getElementById("proxyModal"));
-    const modalTitle = document.querySelector("#proxyModal .modal-title");
-    const certCurrent = document.getElementById("proxy-tls-cert-current");
-    const certFilename = document.getElementById("proxy-tls-cert-filename");
-    const certFileInput = document.getElementById("proxy-tls-cert");
+  // Switch the modal to the given tab and set enabled/disabled state
+  const setModalTab = (type, editing) => {
+    const relayTab = elements.relayTab;
+    const proxyTab = elements.proxyTab;
+    const relayPane = document.getElementById("relay-tab-pane");
+    const proxyPane = document.getElementById("proxy-tab-pane");
 
-    state.currentEditItem = proxy;
-    state.currentEditType = "proxy";
+    if (editing) {
+      // Disable the other tab when editing so only the relevant form is shown
+      if (type === "relay") {
+        relayTab.classList.add("active");
+        relayTab.setAttribute("aria-selected", "true");
+        relayTab.disabled = false;
+        proxyTab.classList.remove("active");
+        proxyTab.setAttribute("aria-selected", "false");
+        proxyTab.disabled = true;
+        relayPane.classList.add("show", "active");
+        proxyPane.classList.remove("show", "active");
+      } else {
+        proxyTab.classList.add("active");
+        proxyTab.setAttribute("aria-selected", "true");
+        proxyTab.disabled = false;
+        relayTab.classList.remove("active");
+        relayTab.setAttribute("aria-selected", "false");
+        relayTab.disabled = true;
+        proxyPane.classList.add("show", "active");
+        relayPane.classList.remove("show", "active");
+      }
+    } else {
+      // Both tabs enabled when adding; activate the requested one
+      relayTab.disabled = false;
+      proxyTab.disabled = false;
+      if (type === "relay") {
+        relayTab.classList.add("active");
+        relayTab.setAttribute("aria-selected", "true");
+        proxyTab.classList.remove("active");
+        proxyTab.setAttribute("aria-selected", "false");
+        relayPane.classList.add("show", "active");
+        proxyPane.classList.remove("show", "active");
+      } else {
+        proxyTab.classList.add("active");
+        proxyTab.setAttribute("aria-selected", "true");
+        relayTab.classList.remove("active");
+        relayTab.setAttribute("aria-selected", "false");
+        proxyPane.classList.add("show", "active");
+        relayPane.classList.remove("show", "active");
+      }
+    }
+  };
+
+  const openAddModal = (type = "relay", item = null) => {
+    const modal = new bootstrap.Modal(document.getElementById("addModal"));
+    const modalTitle = document.getElementById("addModalLabel");
+    const editing = item !== null;
+
+    state.currentEditItem = item;
+    state.currentEditType = type;
     state.removeTlsCert = false;
 
-    if (proxy) {
-      modalTitle.textContent = "Edit Proxy";
-      document.getElementById("proxy-id").value = proxy.id;
-      document.getElementById("proxy-port").value = proxy.port || "";
-      document.getElementById("proxy-target").value = proxy.target;
-      document.getElementById("proxy-trusted-proxies").checked = proxy.trusted_proxies ?? false;
-      document.getElementById("proxy-autostart").checked = proxy.autostart ?? false;
-
-      certFileInput.value = "";
-      if (proxy.tls_cert_file) {
-        const basename = proxy.tls_cert_file.split('/').pop();
-        certFilename.textContent = basename;
-        certCurrent.style.display = "flex";
-      } else {
-        certCurrent.style.display = "none";
-      }
-      elements.proxyPresetTarget.value = "";
+    if (editing) {
+      modalTitle.textContent = type === "relay" ? "Edit Relay" : "Edit Proxy";
     } else {
-      modalTitle.textContent = "Add Proxy";
-      document.getElementById("proxyForm").reset();
-      document.getElementById("proxy-id").value = "";
-      document.getElementById("proxy-autostart").checked = true;
-      document.getElementById("proxy-trusted-proxies").checked = true;
-      certFileInput.value = "";
-      certCurrent.style.display = "none";
-      elements.proxyPresetTarget.value = "";
+      modalTitle.textContent = "Add Configuration";
+    }
+
+    setModalTab(type, editing);
+
+    if (type === "relay") {
+      if (item) {
+        document.getElementById("relay-id").value = item.id;
+        document.getElementById("relay-listen-port").value = item.listen_port;
+        document.getElementById("relay-target-host").value = item.target_host;
+        document.getElementById("relay-target-port").value = item.target_port;
+        document.getElementById("relay-autostart").checked = item.autostart ?? false;
+        elements.relayPresetTarget.value = "";
+      } else {
+        document.getElementById("relayForm").reset();
+        document.getElementById("relay-id").value = "";
+        document.getElementById("relay-autostart").checked = true;
+        elements.relayPresetTarget.value = "";
+      }
+    } else {
+      const certCurrent = document.getElementById("proxy-tls-cert-current");
+      const certFilename = document.getElementById("proxy-tls-cert-filename");
+      const certFileInput = document.getElementById("proxy-tls-cert");
+
+      if (item) {
+        document.getElementById("proxy-id").value = item.id;
+        document.getElementById("proxy-port").value = item.port || "";
+        document.getElementById("proxy-target").value = item.target;
+        document.getElementById("proxy-trusted-proxies").checked = item.trusted_proxies ?? false;
+        document.getElementById("proxy-autostart").checked = item.autostart ?? false;
+
+        certFileInput.value = "";
+        if (item.tls_cert_file) {
+          const basename = item.tls_cert_file.split('/').pop();
+          certFilename.textContent = basename;
+          certCurrent.style.display = "flex";
+        } else {
+          certCurrent.style.display = "none";
+        }
+        elements.proxyPresetTarget.value = "";
+      } else {
+        document.getElementById("proxyForm").reset();
+        document.getElementById("proxy-id").value = "";
+        document.getElementById("proxy-autostart").checked = true;
+        document.getElementById("proxy-trusted-proxies").checked = true;
+        certFileInput.value = "";
+        certCurrent.style.display = "none";
+        elements.proxyPresetTarget.value = "";
+      }
     }
 
     modal.show();
@@ -885,20 +940,20 @@
     }
 
     try {
-      elements.saveRelayBtn.disabled = true;
+      elements.saveItemBtn.disabled = true;
       const url = id ? "/api/socat/update" : "/api/socat/create";
       await fetchJSON(url, {
         method: "POST",
         body: JSON.stringify(relay),
       });
 
-      bootstrap.Modal.getInstance(document.getElementById("relayModal")).hide();
+      bootstrap.Modal.getInstance(document.getElementById("addModal")).hide();
       showToast("success", `Relay ${id ? "updated" : "created"} successfully`);
       await refreshData();
     } catch (error) {
       showToast("danger", error.message);
     } finally {
-      elements.saveRelayBtn.disabled = false;
+      elements.saveItemBtn.disabled = false;
     }
   };
 
@@ -971,7 +1026,7 @@
     }
 
     try {
-      elements.saveProxyBtn.disabled = true;
+      elements.saveItemBtn.disabled = true;
       const url = id ? "/api/caddy/update" : "/api/caddy/create";
 
       const response = await fetch(url, {
@@ -987,13 +1042,13 @@
 
       await response.json();
 
-      bootstrap.Modal.getInstance(document.getElementById("proxyModal")).hide();
+      bootstrap.Modal.getInstance(document.getElementById("addModal")).hide();
       showToast("success", `Proxy ${id ? "updated" : "created"} successfully`);
       await refreshData();
     } catch (error) {
       showToast("danger", error.message);
     } finally {
-      elements.saveProxyBtn.disabled = false;
+      elements.saveItemBtn.disabled = false;
     }
   };
 
@@ -1045,12 +1100,12 @@
     if (type === "relay") {
       const relay = state.relays.find(r => r.relay.id === id)?.relay;
       if (relay) {
-        openRelayModal(relay);
+        openAddModal("relay", relay);
       }
     } else if (type === "proxy") {
       const proxy = state.proxies.find(p => p.id === id);
       if (proxy) {
-        openProxyModal(proxy);
+        openAddModal("proxy", proxy);
       }
     }
   };
@@ -1226,8 +1281,7 @@
         break;
       case "n":
         e.preventDefault();
-        const fabBtn = document.getElementById("fab-button");
-        if (fabBtn) bootstrap.Dropdown.getOrCreateInstance(fabBtn).toggle();
+        openAddModal("relay");
         break;
       case "?":
         e.preventDefault();
@@ -1295,26 +1349,21 @@
     }
 
     // FAB and modal events
-    if (elements.addRelayBtn) {
-      elements.addRelayBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        openRelayModal();
+    if (elements.fabButton) {
+      elements.fabButton.addEventListener("click", () => {
+        openAddModal("relay");
       });
     }
 
-    if (elements.addProxyBtn) {
-      elements.addProxyBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        openProxyModal();
+    if (elements.saveItemBtn) {
+      elements.saveItemBtn.addEventListener("click", () => {
+        const activeType = getActiveTabType();
+        if (activeType === "proxy") {
+          saveProxy();
+        } else {
+          saveRelay();
+        }
       });
-    }
-
-    if (elements.saveRelayBtn) {
-      elements.saveRelayBtn.addEventListener("click", saveRelay);
-    }
-
-    if (elements.saveProxyBtn) {
-      elements.saveProxyBtn.addEventListener("click", saveProxy);
     }
 
     if (elements.confirmDeleteBtn) {
