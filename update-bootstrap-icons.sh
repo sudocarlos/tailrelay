@@ -238,6 +238,10 @@ main() {
     log_success "Bootstrap Icons updated successfully!"
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo
+    log_warning "IMPORTANT: Bootstrap Icons v1.13.0+ dropped the 'bi-' prefix from SVG symbol IDs."
+    log_warning "When referencing icons in HTML, use '#icon-name' instead of '#bi-icon-name'."
+    log_warning "Example: <use href=\".../bootstrap-icons.svg#circle-half\"></use>"
+    echo
     log_info "Next steps:"
     echo "  1. Review changes: git diff $TARGET_PATH"
     echo "  2. Test the Web UI: make dev-build && make dev-docker-build"
