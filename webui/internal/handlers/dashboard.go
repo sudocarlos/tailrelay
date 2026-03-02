@@ -68,7 +68,7 @@ func (h *DashboardHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
 
 	data := map[string]interface{}{
 		"Title":          "Dashboard",
-		"Version":        "v0.2.0",
+		"Version":        "v0.6.0",
 		"TsSummary":      tsSummary,
 		"StateFormatted": tailscale.FormatBackendState(tsSummary.BackendState),
 		"RelayCount":     relayCount,
@@ -101,7 +101,7 @@ func (h *DashboardHandler) APIStatus(w http.ResponseWriter, r *http.Request) {
 
 	status := map[string]interface{}{
 		"timestamp": time.Now().Format(time.RFC3339),
-		"version":   "v0.2.0",
+		"version":   "v0.6.0",
 		"services": map[string]interface{}{
 			"webui": "running",
 			"tailscale": map[string]interface{}{
