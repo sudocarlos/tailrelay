@@ -1327,6 +1327,7 @@
 
     if (elements.themeToggle && window.tailrelayTheme) {
       window.tailrelayTheme.initToggle(elements.themeToggle);
+      window.tailrelayTheme.initPaletteDropdown(document.querySelectorAll(".palette-btn"));
     }
 
     elements.refresh.addEventListener("click", refreshData);

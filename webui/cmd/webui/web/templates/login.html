@@ -37,11 +37,26 @@
                         <svg class="bi text-primary" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-lightning-charge"></use></svg>
                         <h1 class="h4 mb-0 fw-semibold login-brand">Tailrelay</h1>
                     </div>
-                    <button id="theme-toggle" class="btn btn-sm btn-outline-secondary border-0" aria-label="Toggle theme">
-                        <svg class="bi" aria-hidden="true">
-                            <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-circle-half"></use>
-                        </svg>
-                    </button>
+                    <div class="d-flex align-items-center gap-1">
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary border-0" type="button" id="palette-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Change Theme Palette">
+                                <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-palette"></use></svg>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="palette-dropdown">
+                                <li><button class="dropdown-item palette-btn" data-palette="sunset">🌅 Sunset</button></li>
+                                <li><button class="dropdown-item palette-btn" data-palette="coral">🪸 Coral</button></li>
+                                <li><button class="dropdown-item palette-btn" data-palette="forest">🌲 Forest</button></li>
+                                <li><button class="dropdown-item palette-btn" data-palette="deepsea">🌊 Deep Sea</button></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><button class="dropdown-item palette-btn" data-palette="default">Bootstrap Default</button></li>
+                            </ul>
+                        </div>
+                        <button id="theme-toggle" class="btn btn-sm btn-outline-secondary border-0" aria-label="Toggle theme">
+                            <svg class="bi" aria-hidden="true">
+                                <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-circle-half"></use>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 <p class="text-muted">Connect Tailrelay to your Tailnet to access the Web UI.</p>
 
@@ -77,6 +92,7 @@
         </div>
     </div>
 
+    <script src="/static/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
     <script>
         (function () {
             const statusEl = document.getElementById("login-status");
@@ -87,6 +103,7 @@
 
             // Theme is applied by theme.bundle.js; just bind the toggle button.
             window.tailrelayTheme.initToggle(document.getElementById("theme-toggle"));
+            window.tailrelayTheme.initPaletteDropdown(document.querySelectorAll(".palette-btn"));
 
             // -- helpers (single-purpose) --
 

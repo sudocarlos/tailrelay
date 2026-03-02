@@ -1,5 +1,132 @@
-:root {
+:root, [data-palette="sunset"] {
   --tr-card-radius: 0.5rem;
+  --bs-primary: #77BEF0;
+  --bs-primary-rgb: 119, 190, 240;
+  --bs-success: #77BEF0;
+  --bs-success-rgb: 119, 190, 240;
+  --bs-warning: #FFCB61;
+  --bs-warning-rgb: 255, 203, 97;
+  --bs-info: #FF894F;
+  --bs-info-rgb: 255, 137, 79;
+  --bs-danger: #EA5B6F;
+  --bs-danger-rgb: 234, 91, 111;
+  
+  --bs-link-color: #77BEF0;
+  --bs-link-color-rgb: 119, 190, 240;
+}
+
+[data-palette="coral"] {
+  --bs-primary: #03A6A1;
+  --bs-primary-rgb: 3, 166, 161;
+  --bs-success: #03A6A1;
+  --bs-success-rgb: 3, 166, 161;
+  --bs-warning: #FFE3BB;
+  --bs-warning-rgb: 255, 227, 187;
+  --bs-info: #FFA673;
+  --bs-info-rgb: 255, 166, 115;
+  --bs-danger: #FF4F0F;
+  --bs-danger-rgb: 255, 79, 15;
+  
+  --bs-link-color: #03A6A1;
+  --bs-link-color-rgb: 3, 166, 161;
+}
+
+[data-palette="forest"] {
+  --bs-primary: #347433;
+  --bs-primary-rgb: 52, 116, 51;
+  --bs-success: #347433;
+  --bs-success-rgb: 52, 116, 51;
+  --bs-warning: #FFC107;
+  --bs-warning-rgb: 255, 193, 7;
+  --bs-info: #FF6F3C;
+  --bs-info-rgb: 255, 111, 60;
+  --bs-danger: #B22222;
+  --bs-danger-rgb: 178, 34, 34;
+  
+  --bs-link-color: #347433;
+  --bs-link-color-rgb: 52, 116, 51;
+}
+
+[data-palette="deepsea"] {
+  --bs-primary: #0A1D56;
+  --bs-primary-rgb: 10, 29, 86;
+  --bs-success: #0A1D56;
+  --bs-success-rgb: 10, 29, 86;
+  --bs-warning: #492E87;
+  --bs-warning-rgb: 73, 46, 135;
+  --bs-info: #37B5B6;
+  --bs-info-rgb: 55, 181, 182;
+  --bs-danger: #F2F597;
+  --bs-danger-rgb: 242, 245, 151;
+  
+  --bs-link-color: #0A1D56;
+  --bs-link-color-rgb: 10, 29, 86;
+}
+
+[data-palette="default"] {
+  --bs-primary: #0d6efd;
+  --bs-primary-rgb: 13, 110, 253;
+  --bs-success: #198754;
+  --bs-success-rgb: 25, 135, 84;
+  --bs-warning: #ffc107;
+  --bs-warning-rgb: 255, 193, 7;
+  --bs-info: #0dcaf0;
+  --bs-info-rgb: 13, 202, 240;
+  --bs-danger: #dc3545;
+  --bs-danger-rgb: 220, 53, 69;
+  
+  --bs-link-color: #0d6efd;
+  --bs-link-color-rgb: 13, 110, 253;
+}
+
+/* Base button overrides using local variables for primary palette */
+[data-palette]:not([data-palette="default"]) .btn-primary {
+  --bs-btn-bg: var(--bs-primary);
+  --bs-btn-border-color: var(--bs-primary);
+  --bs-btn-hover-bg: var(--bs-primary);
+  --bs-btn-hover-border-color: var(--bs-primary);
+  --bs-btn-active-bg: var(--bs-primary);
+  --bs-btn-active-border-color: var(--bs-primary);
+  --bs-btn-disabled-bg: var(--bs-primary);
+  --bs-btn-disabled-border-color: var(--bs-primary);
+  /* Ensure text is visible depending on background */
+  --bs-btn-color: #fff;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-active-color: #fff;
+}
+
+[data-palette]:not([data-palette="default"]) .btn-outline-primary {
+  --bs-btn-color: var(--bs-primary);
+  --bs-btn-border-color: var(--bs-primary);
+  --bs-btn-hover-bg: var(--bs-primary);
+  --bs-btn-hover-border-color: var(--bs-primary);
+  --bs-btn-active-bg: var(--bs-primary);
+  --bs-btn-active-border-color: var(--bs-primary);
+}
+
+[data-palette]:not([data-palette="default"]) .btn-danger {
+  --bs-btn-bg: var(--bs-danger);
+  --bs-btn-border-color: var(--bs-danger);
+  --bs-btn-hover-bg: var(--bs-danger);
+  --bs-btn-hover-border-color: var(--bs-danger);
+  --bs-btn-color: #fff;
+  --bs-btn-hover-color: #fff;
+}
+
+[data-palette]:not([data-palette="default"]) .btn-outline-danger {
+  --bs-btn-color: var(--bs-danger);
+  --bs-btn-border-color: var(--bs-danger);
+  --bs-btn-hover-bg: var(--bs-danger);
+  --bs-btn-hover-border-color: var(--bs-danger);
+}
+
+[data-palette]:not([data-palette="default"]) .btn-warning {
+  --bs-btn-bg: var(--bs-warning);
+  --bs-btn-border-color: var(--bs-warning);
+  --bs-btn-hover-bg: var(--bs-warning);
+  --bs-btn-hover-border-color: var(--bs-warning);
+  --bs-btn-color: #000;
+  --bs-btn-hover-color: #000;
 }
 
 body {

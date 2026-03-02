@@ -1,5 +1,65 @@
 /* Tailrelay Web UI - Minimal Stylesheet */
 
+:root, [data-palette="sunset"] {
+  --tr-primary: #77BEF0;
+  --tr-primary-hover: #5ca1d4;
+  --tr-danger: #EA5B6F;
+  --tr-danger-hover: #c94c5e;
+  --tr-warning: #FFCB61;
+  --tr-info: #FF894F;
+  --tr-bg-error: rgba(234, 91, 111, 0.15);
+  --tr-bg-success: rgba(119, 190, 240, 0.15);
+  --tr-bg-info: rgba(255, 137, 79, 0.15);
+}
+
+[data-palette="coral"] {
+  --tr-primary: #03A6A1;
+  --tr-primary-hover: #028682;
+  --tr-danger: #FF4F0F;
+  --tr-danger-hover: #db410b;
+  --tr-warning: #FFE3BB;
+  --tr-info: #FFA673;
+  --tr-bg-error: rgba(255, 79, 15, 0.15);
+  --tr-bg-success: rgba(3, 166, 161, 0.15);
+  --tr-bg-info: rgba(255, 166, 115, 0.15);
+}
+
+[data-palette="forest"] {
+  --tr-primary: #347433;
+  --tr-primary-hover: #265925;
+  --tr-danger: #B22222;
+  --tr-danger-hover: #8f1b1b;
+  --tr-warning: #FFC107;
+  --tr-info: #FF6F3C;
+  --tr-bg-error: rgba(178, 34, 34, 0.15);
+  --tr-bg-success: rgba(52, 116, 51, 0.15);
+  --tr-bg-info: rgba(255, 111, 60, 0.15);
+}
+
+[data-palette="deepsea"] {
+  --tr-primary: #0A1D56;
+  --tr-primary-hover: #07153d;
+  --tr-danger: #F2F597;
+  --tr-danger-hover: #d1d480;
+  --tr-warning: #492E87;
+  --tr-info: #37B5B6;
+  --tr-bg-error: rgba(242, 245, 151, 0.15);
+  --tr-bg-success: rgba(10, 29, 86, 0.15);
+  --tr-bg-info: rgba(55, 181, 182, 0.15);
+}
+
+[data-palette="default"] {
+  --tr-primary: #4CAF50;
+  --tr-primary-hover: #45a049;
+  --tr-danger: #f44336;
+  --tr-danger-hover: #da190b;
+  --tr-warning: #ffc107;
+  --tr-info: #2196F3;
+  --tr-bg-error: #3d1a1a;
+  --tr-bg-success: #1a3d1a;
+  --tr-bg-info: #1a2a3d;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -35,7 +95,7 @@ nav .container {
 
 nav h1 {
     font-size: 1.5rem;
-    color: #4CAF50;
+    color: var(--tr-primary);
 }
 
 nav ul {
@@ -51,7 +111,7 @@ nav a {
 }
 
 nav a:hover {
-    color: #4CAF50;
+    color: var(--tr-primary);
 }
 
 /* Cards */
@@ -64,7 +124,7 @@ nav a:hover {
 }
 
 .card h2 {
-    color: #4CAF50;
+    color: var(--tr-primary);
     margin-bottom: 1rem;
     font-size: 1.25rem;
 }
@@ -86,7 +146,7 @@ nav a:hover {
 }
 
 .status-card h3 {
-    color: #4CAF50;
+    color: var(--tr-primary);
     margin-bottom: 0.5rem;
     font-size: 1.1rem;
 }
@@ -106,11 +166,11 @@ nav a:hover {
 }
 
 .status-indicator.active {
-    background-color: #4CAF50;
+    background-color: var(--tr-primary);
 }
 
 .status-indicator.inactive {
-    background-color: #f44336;
+    background-color: var(--tr-danger);
 }
 
 /* Forms */
@@ -142,14 +202,14 @@ input:focus,
 select:focus,
 textarea:focus {
     outline: none;
-    border-color: #4CAF50;
+    border-color: var(--tr-primary);
 }
 
 /* Buttons */
 button,
 .btn {
     padding: 0.75rem 1.5rem;
-    background-color: #4CAF50;
+    background-color: var(--tr-primary);
     color: white;
     border: none;
     border-radius: 4px;
@@ -162,7 +222,7 @@ button,
 
 button:hover,
 .btn:hover {
-    background-color: #45a049;
+    background-color: var(--tr-primary-hover);
 }
 
 .btn-secondary {
@@ -174,11 +234,11 @@ button:hover,
 }
 
 .btn-danger {
-    background-color: #f44336;
+    background-color: var(--tr-danger);
 }
 
 .btn-danger:hover {
-    background-color: #da190b;
+    background-color: var(--tr-danger-hover);
 }
 
 /* Tables */
@@ -196,7 +256,7 @@ th, td {
 
 th {
     background-color: #1a1a1a;
-    color: #4CAF50;
+    color: var(--tr-primary);
     font-weight: bold;
 }
 
@@ -213,21 +273,21 @@ tr:hover {
 }
 
 .alert-error {
-    background-color: #3d1a1a;
-    border-color: #f44336;
-    color: #ffcdd2;
+    background-color: var(--tr-bg-error);
+    border-color: var(--tr-danger);
+    color: var(--tr-danger);
 }
 
 .alert-success {
-    background-color: #1a3d1a;
-    border-color: #4CAF50;
-    color: #c8e6c9;
+    background-color: var(--tr-bg-success);
+    border-color: var(--tr-primary);
+    color: var(--tr-primary);
 }
 
 .alert-info {
-    background-color: #1a2a3d;
-    border-color: #2196F3;
-    color: #bbdefb;
+    background-color: var(--tr-bg-info);
+    border-color: var(--tr-info);
+    color: var(--tr-info);
 }
 
 /* Login page */
@@ -242,7 +302,7 @@ tr:hover {
 
 .login-container h1 {
     text-align: center;
-    color: #4CAF50;
+    color: var(--tr-primary);
     margin-bottom: 2rem;
 }
 

@@ -22,6 +22,19 @@
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
         </ul>
         <div class="d-flex align-items-center gap-2">
+          <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary" type="button" id="palette-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Change Theme Palette">
+              <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-palette"></use></svg>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="palette-dropdown">
+              <li><button class="dropdown-item palette-btn" data-palette="sunset">🌅 Sunset</button></li>
+              <li><button class="dropdown-item palette-btn" data-palette="coral">🪸 Coral</button></li>
+              <li><button class="dropdown-item palette-btn" data-palette="forest">🌲 Forest</button></li>
+              <li><button class="dropdown-item palette-btn" data-palette="deepsea">🌊 Deep Sea</button></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><button class="dropdown-item palette-btn" data-palette="default">Bootstrap Default</button></li>
+            </ul>
+          </div>
           <button id="theme-toggle" class="btn btn-sm btn-outline-secondary" aria-label="Toggle theme">
             <svg class="bi" aria-hidden="true">
               <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-circle-half"></use>
