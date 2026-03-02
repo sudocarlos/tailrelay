@@ -20,9 +20,6 @@
       </button>
       <div class="collapse navbar-collapse" id="navbarNav">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-          <li class="nav-item">
-            <a class="nav-link active" aria-current="page" href="#" id="nav-dashboard">Dashboard</a>
-          </li>
         </ul>
         <div class="d-flex align-items-center gap-2">
           <button id="theme-toggle" class="btn btn-sm btn-outline-secondary" aria-label="Toggle theme">
@@ -204,139 +201,137 @@
 
   <!-- Floating Action Button -->
   <div class="fab-container">
-    <button id="fab-button" class="btn btn-primary fab rounded-circle shadow-lg" type="button" data-bs-toggle="dropdown"
-      aria-expanded="false">
+    <button id="fab-button" class="btn btn-primary fab rounded-circle shadow-lg" type="button"
+      aria-label="Add Relay or Proxy">
       <svg class="bi" style="width: 1.5em; height: 1.5em;" aria-hidden="true">
         <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-plus-lg"></use>
       </svg>
     </button>
-    <ul class="dropdown-menu dropdown-menu-end fab-menu">
-      <li><a id="add-relay-btn" class="dropdown-item" href="#">
-          <svg class="bi me-2" aria-hidden="true">
-            <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-diagram-3"></use>
-          </svg>
-          Add Relay
-        </a></li>
-      <li><a id="add-proxy-btn" class="dropdown-item" href="#">
-          <svg class="bi me-2" aria-hidden="true">
-            <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-shield-lock"></use>
-          </svg>
-          Add Proxy
-        </a></li>
-    </ul>
   </div>
 
-  <!-- Relay Modal -->
-  <div class="modal fade" id="relayModal" tabindex="-1" aria-labelledby="relayModalLabel" aria-hidden="true">
+  <!-- Add / Edit Modal (tabbed: Relay + Proxy) -->
+  <div class="modal fade" id="addModal" tabindex="-1" aria-labelledby="addModalLabel" aria-hidden="true">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="relayModalLabel">Add Relay</h5>
+          <h5 class="modal-title" id="addModalLabel">Add Configuration</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-          <form id="relayForm">
-            <input type="hidden" id="relay-id" />
-            <div class="mb-3">
-              <label for="relay-listen-port" class="form-label">Tailrelay port</label>
-              <input type="number" class="form-control" id="relay-listen-port" required min="1" max="65535"
-                placeholder="">
-              <div class="form-text">
-                Listening port of tailrelay used to access the target service <br />
-                1 - 65535 (80, 443, and 8021 are reserved)
-              </div>
-            </div>
-            <div class="mb-3">
-              <label for="relay-preset-target" class="form-label">Presets (optional)</label>
-              <select class="form-select" id="relay-preset-target">
-                <option value="">Custom...</option>
-              </select>
-            </div>
-            <div class="mb-3">
-              <label for="relay-target-host" class="form-label">Target host</label>
-              <input type="text" class="form-control" id="relay-target-host" required placeholder="">
-              <div class="form-text">Hostname or IP address of the target service</div>
-            </div>
-            <div class="mb-3">
-              <label for="relay-target-port" class="form-label">Target port</label>
-              <input type="number" class="form-control" id="relay-target-port" required min="1" max="65535"
-                placeholder="">
-              <div class="form-text">Listening port of the target service</div>
-            </div>
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="relay-autostart" checked>
-              <label class="form-check-label" for="relay-autostart">
-                Start automatically on container boot
-              </label>
-            </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-primary" id="save-relay-btn">Save</button>
-        </div>
-      </div>
-    </div>
-  </div>
+          <!-- Tabs -->
+          <ul class="nav nav-tabs mb-3" id="addModalTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="relay-tab" data-bs-toggle="tab" data-bs-target="#relay-tab-pane"
+                type="button" role="tab" aria-controls="relay-tab-pane" aria-selected="true">
+                <svg class="bi me-1" aria-hidden="true">
+                  <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-diagram-3"></use>
+                </svg>
+                Relay
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="proxy-tab" data-bs-toggle="tab" data-bs-target="#proxy-tab-pane"
+                type="button" role="tab" aria-controls="proxy-tab-pane" aria-selected="false">
+                <svg class="bi me-1" aria-hidden="true">
+                  <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-shield-lock"></use>
+                </svg>
+                Proxy
+              </button>
+            </li>
+          </ul>
 
-  <!-- Proxy Modal -->
-  <div class="modal fade" id="proxyModal" tabindex="-1" aria-labelledby="proxyModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="proxyModalLabel">Add Proxy</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <form id="proxyForm">
-            <input type="hidden" id="proxy-id" />
-            <div class="mb-3">
-              <label for="proxy-port" class="form-label">Port</label>
-              <input type="number" class="form-control" id="proxy-port" required min="1" max="65535" placeholder="">
-              <div class="form-text">
-                Listening port of tailrelay used to access the target service <br />
-                1 - 65535 (80, 443, and 8021 are reserved)
-              </div>
+          <div class="tab-content" id="addModalTabContent">
+            <!-- Relay Tab -->
+            <div class="tab-pane fade show active" id="relay-tab-pane" role="tabpanel" aria-labelledby="relay-tab"
+              tabindex="0">
+              <form id="relayForm">
+                <input type="hidden" id="relay-id" />
+                <div class="mb-3">
+                  <label for="relay-listen-port" class="form-label">Tailrelay port</label>
+                  <input type="number" class="form-control" id="relay-listen-port" min="1" max="65535" placeholder="">
+                  <div class="form-text">
+                    Listening port of tailrelay used to access the target service <br />
+                    1 - 65535 (80, 443, and 8021 are reserved)
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label for="relay-preset-target" class="form-label">Presets (optional)</label>
+                  <select class="form-select" id="relay-preset-target">
+                    <option value="">Custom...</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label for="relay-target-host" class="form-label">Target host</label>
+                  <input type="text" class="form-control" id="relay-target-host" placeholder="">
+                  <div class="form-text">Hostname or IP address of the target service</div>
+                </div>
+                <div class="mb-3">
+                  <label for="relay-target-port" class="form-label">Target port</label>
+                  <input type="number" class="form-control" id="relay-target-port" min="1" max="65535" placeholder="">
+                  <div class="form-text">Listening port of the target service</div>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="relay-autostart" checked>
+                  <label class="form-check-label" for="relay-autostart">
+                    Start automatically on container boot
+                  </label>
+                </div>
+              </form>
             </div>
-            <div class="mb-3">
-              <label for="proxy-preset-target" class="form-label">Presets (optional)</label>
-              <select class="form-select" id="proxy-preset-target">
-                <option value="">Custom...</option>
-              </select>
+
+            <!-- Proxy Tab -->
+            <div class="tab-pane fade" id="proxy-tab-pane" role="tabpanel" aria-labelledby="proxy-tab" tabindex="0">
+              <form id="proxyForm">
+                <input type="hidden" id="proxy-id" />
+                <div class="mb-3">
+                  <label for="proxy-port" class="form-label">Tailrelay port</label>
+                  <input type="number" class="form-control" id="proxy-port" min="1" max="65535" placeholder="">
+                  <div class="form-text">
+                    Listening port of tailrelay used to access the target service <br />
+                    1 - 65535 (80, 443, and 8021 are reserved)
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label for="proxy-preset-target" class="form-label">Presets (optional)</label>
+                  <select class="form-select" id="proxy-preset-target">
+                    <option value="">Custom...</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label for="proxy-target" class="form-label">Target host:port</label>
+                  <input type="text" class="form-control" id="proxy-target" placeholder="e.g., mempool.embassy:8080">
+                  <div class="form-text">Hostname or IP address and port of the target service</div>
+                </div>
+                <div class="mb-3">
+                  <label for="proxy-tls-cert" class="form-label">TLS certificate (optional)</label>
+                  <input type="file" class="form-control" id="proxy-tls-cert" accept=".pem,.crt,.cer">
+                  <div class="form-text">Upload target's TLS certificate for HTTPS connections</div>
+                  <div id="proxy-tls-cert-current" class="d-flex align-items-center gap-2 mt-2"
+                    style="display: none !important;">
+                    <span class="badge text-bg-success">Current: <span id="proxy-tls-cert-filename"></span></span>
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                      id="proxy-tls-cert-remove">Remove</button>
+                  </div>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="proxy-trusted-proxies" checked>
+                  <label class="form-check-label" for="proxy-trusted-proxies">
+                    Trust proxy headers (X-Forwarded-For, etc.)
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="proxy-autostart" checked>
+                  <label class="form-check-label" for="proxy-autostart">
+                    Start automatically on container boot
+                  </label>
+                </div>
+              </form>
             </div>
-            <div class="mb-3">
-              <label for="proxy-target" class="form-label">Target host:port</label>
-              <input type="text" class="form-control" id="proxy-target" required
-                placeholder="e.g., mempool.embassy:8080">
-              <div class="form-text">Hostname or IP address and port of the target service</div>
-            </div>
-            <div class="mb-3">
-              <label for="proxy-tls-cert" class="form-label">TLS certificate (optional)</label>
-              <input type="file" class="form-control" id="proxy-tls-cert" accept=".pem,.crt,.cer">
-              <div class="form-text">Upload target's TLS certificate for HTTPS connections</div>
-              <div id="proxy-tls-cert-current" class="d-flex align-items-center gap-2 mt-2"
-                style="display: none !important;">
-                <span class="badge text-bg-success">Current: <span id="proxy-tls-cert-filename"></span></span>
-                <button type="button" class="btn btn-sm btn-outline-danger" id="proxy-tls-cert-remove">Remove</button>
-              </div>
-            </div>
-            <div class="form-check mb-2">
-              <input class="form-check-input" type="checkbox" id="proxy-trusted-proxies" checked>
-              <label class="form-check-label" for="proxy-trusted-proxies">
-                Trust proxy headers (X-Forwarded-For, etc.)
-              </label>
-            </div>
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="proxy-autostart" checked>
-              <label class="form-check-label" for="proxy-autostart">
-                Start automatically on container boot
-              </label>
-            </div>
-          </form>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-primary" id="save-proxy-btn">Save</button>
+          <button type="button" class="btn btn-primary" id="save-item-btn">Save</button>
         </div>
       </div>
     </div>
