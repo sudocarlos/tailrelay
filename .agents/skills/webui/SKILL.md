@@ -148,6 +148,8 @@ Built with **esbuild** via npm:
 ./update-bootstrap-icons.sh 1.11.3   # Specific version
 ```
 
+> **Note:** As of Bootstrap Icons v1.13.0+, the SVG symbol IDs no longer include the `bi-` prefix. When referencing icons in HTML via `<use>`, you must use `#icon-name` instead of `#bi-icon-name` (e.g., `<use href="...#circle-half">`).
+
 ## Configuration Reference
 
 | Setting | Default | Purpose |
