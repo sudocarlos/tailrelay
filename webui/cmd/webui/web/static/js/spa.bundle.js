@@ -23,7 +23,7 @@
             ${V}
             <p>${e}</p>
             <button class="btn btn-primary btn-sm empty-state-cta" data-type="${o}">
-              <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-plus-lg"></use></svg>
+              <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#plus-lg"></use></svg>
               ${t}
             </button>
           </div>
@@ -35,7 +35,7 @@
                 <div class="card-body d-flex flex-column flex-lg-row align-items-lg-center gap-3">
                   <div class="flex-grow-1">
                     <div class="d-flex align-items-center gap-2 flex-wrap">
-                      <svg class="bi text-primary" data-bs-toggle="tooltip" title="TCP Relay (served by socat)" aria-hidden="true" style="width: 1.25em; height: 1.25em;"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-diagram-3"></use></svg>
+                      <svg class="bi text-primary" data-bs-toggle="tooltip" title="TCP Relay (served by socat)" aria-hidden="true" style="width: 1.25em; height: 1.25em;"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#diagram-3"></use></svg>
                       <span class="fw-semibold">${_(v)}</span>
                       <span class="status-dot ${xe} ms-1" data-bs-toggle="tooltip" title="${we}"></span>
                     </div>
@@ -55,10 +55,10 @@
                       <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#${Be}"></use></svg>
                     </button>
                     <button class="btn btn-outline-primary btn-sm edit-btn" data-type="relay" data-id="${v.id}" data-bs-toggle="tooltip" title="Edit">
-                      <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-pencil"></use></svg>
+                      <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#pencil"></use></svg>
                     </button>
                     <button class="btn btn-outline-danger btn-sm delete-btn" data-type="relay" data-id="${v.id}" data-name="tcp://${l.tailnetFQDN}:${v.listen_port}" data-bs-toggle="tooltip" title="Delete">
-                      <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-trash"></use></svg>
+                      <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#trash"></use></svg>
                     </button>
                   </div>
                 </div>
@@ -70,7 +70,7 @@
               <div class="card-body d-flex flex-column flex-lg-row align-items-lg-center gap-3">
                 <div class="flex-grow-1">
                   <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <svg class="bi text-primary" data-bs-toggle="tooltip" title="HTTPS Proxy (served by Caddy)" aria-hidden="true" style="width: 1.25em; height: 1.25em;"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-shield-lock"></use></svg>
+                    <svg class="bi text-primary" data-bs-toggle="tooltip" title="HTTPS Proxy (served by Caddy)" aria-hidden="true" style="width: 1.25em; height: 1.25em;"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#shield-lock"></use></svg>
                     <span class="fw-semibold">${H(a)}</span>
                     <span class="status-dot ${d} ms-1" data-bs-toggle="tooltip" title="${m}"></span>
                   </div>
@@ -90,10 +90,10 @@
                     <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#${y}"></use></svg>
                   </button>
                   <button class="btn btn-outline-primary btn-sm edit-btn" data-type="proxy" data-id="${a.id}" data-bs-toggle="tooltip" title="Edit">
-                    <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-pencil"></use></svg>
+                    <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#pencil"></use></svg>
                   </button>
                   <button class="btn btn-outline-danger btn-sm delete-btn" data-type="proxy" data-id="${a.id}" data-name="https://${i}" data-bs-toggle="tooltip" title="Delete">
-                    <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-trash"></use></svg>
+                    <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#trash"></use></svg>
                   </button>
                 </div>
               </div>
@@ -106,15 +106,15 @@
         <td><span class="badge text-bg-secondary">${n}</span></td>
         <td class="text-end">
           <button class="btn btn-sm btn-outline-primary download-backup-btn me-1" data-filename="${t.Filename}">
-            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-download"></use></svg>
+            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#download"></use></svg>
             Download
           </button>
           <button class="btn btn-sm btn-outline-warning restore-backup-btn me-1" data-filename="${t.Filename}">
-            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-arrow-counterclockwise"></use></svg>
+            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#arrow-counterclockwise"></use></svg>
             Restore
           </button>
           <button class="btn btn-sm btn-outline-danger delete-backup-btn" data-filename="${t.Filename}">
-            <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-trash"></use></svg>
+            <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#trash"></use></svg>
           </button>
         </td>
       `,e.appendChild(o)})}},j=e=>{if(e===0)return"0 B";let t=1024,o=["B","KB","MB","GB","TB"],a=Math.floor(Math.log(e)/Math.log(t));return parseFloat((e/Math.pow(t,a)).toFixed(1))+" "+o[a]},I=e=>{l.currentView=e,e==="dashboard"?(s.navDashboard.classList.add("active"),s.navBackups&&s.navBackups.classList.remove("active"),s.dashboardView.classList.remove("d-none"),s.backupsView&&s.backupsView.classList.add("d-none"),document.querySelector(".fab-container").classList.remove("d-none")):(s.navDashboard.classList.remove("active"),s.navBackups&&s.navBackups.classList.add("active"),s.dashboardView.classList.add("d-none"),s.backupsView&&s.backupsView.classList.remove("d-none"),document.querySelector(".fab-container").classList.add("d-none"),$())},$=async()=>{try{let e=await u("/api/backup/list");l.backups=e.backups||[],J()}catch(e){c("danger","Failed to load backups: "+e.message)}},z=async()=>{if(confirm("Create a new full system backup?"))try{s.createBackupBtn&&(s.createBackupBtn.disabled=!0),await u("/api/backup/create",{method:"POST",body:JSON.stringify({backup_type:"full"})}),c("success","Backup created successfully"),await $()}catch(e){c("danger",e.message)}finally{s.createBackupBtn&&(s.createBackupBtn.disabled=!1)}},Q=()=>{let e=new bootstrap.Modal(document.getElementById("uploadBackupModal"));s.uploadBackupForm&&s.uploadBackupForm.reset(),e.show()},G=async()=>{let e=s.backupFile;if(!e||!e.files.length){c("warning","Please select a file");return}let t=e.files[0],o=new FormData;o.append("backup",t);try{s.confirmUploadBtn&&(s.confirmUploadBtn.disabled=!0);let a=await fetch("/api/backup/upload",{method:"POST",body:o});if(!a.ok)throw new Error(await a.text());let n=(await a.json()).filename;c("info","Upload successful. Restoring..."),await u("/api/backup/restore",{method:"POST",body:JSON.stringify({filename:n})}),bootstrap.Modal.getInstance(document.getElementById("uploadBackupModal")).hide(),c("success","System restored successfully. Reloading..."),setTimeout(()=>location.reload(),2e3)}catch(a){c("danger","Operation failed: "+a.message),s.confirmUploadBtn&&(s.confirmUploadBtn.disabled=!1)}},W=async e=>{if(confirm(`Restore from backup "${e}"? Current configuration will be overwritten.`))try{await u("/api/backup/restore",{method:"POST",body:JSON.stringify({filename:e})}),c("success","System restored successfully. Reloading..."),setTimeout(()=>location.reload(),2e3)}catch(t){c("danger",t.message)}},K=async e=>{if(confirm(`Delete backup "${e}"?`))try{await u(`/api/backup/delete?filename=${encodeURIComponent(e)}`,{method:"DELETE"}),c("success","Backup deleted"),await $()}catch(t){c("danger",t.message)}},X=e=>{window.location.href=`/api/backup/download?filename=${encodeURIComponent(e)}`},Y=e=>{let t=e.target.closest("button");if(!t)return;let o=t.dataset.filename;t.classList.contains("download-backup-btn")?X(o):t.classList.contains("restore-backup-btn")?W(o):t.classList.contains("delete-backup-btn")&&K(o)},P=()=>{document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(e=>{L.push(new bootstrap.Tooltip(e))})},Z=()=>{for(;L.length;)L.pop().dispose()},b=async()=>{try{let[e,t,o,a]=await Promise.all([u("/api/socat/relays"),u("/api/caddy/proxies"),u("/api/tailscale/status"),u("/api/targets")]);l.relays=e.map(r=>{var n;return{relay:r.Relay||r.relay,running:(n=r.Running)!=null?n:r.running}}),l.proxies=t.map(r=>{var n;return{...r,running:(n=r.running)!=null?n:r.Running}}),l.tailnetFQDN=o.MagicDNSName||o.magicDNSName||"",l.targets=a||[],T(),U(),ce()}catch(e){c("danger",e.message)}},ee=async(e,t)=>{let o=t?`/api/socat/stop?id=${encodeURIComponent(e)}`:`/api/socat/start?id=${encodeURIComponent(e)}`;await u(o,{method:"POST"})},te=async(e,t)=>{await u("/api/caddy/toggle",{method:"POST",body:JSON.stringify({id:e,enabled:!t})})},ae=async(e,t,o)=>{var i;let a=e==="relay"?"/api/socat/update":"/api/caddy/update",r=e==="relay"?(i=l.relays.find(d=>d.relay.id===t))==null?void 0:i.relay:l.proxies.find(d=>d.id===t);if(!r)throw new Error(`${e} not found`);let n={...r,autostart:o};await u(a,{method:"POST",body:JSON.stringify(n)})},se=async e=>{let t=e.target.closest(".action-btn");if(!t)return;t.disabled=!0;let o=t.dataset.type;try{if(o==="relay"){let a=t.dataset.running==="true";await ee(t.dataset.id,a)}else{let a=t.dataset.enabled==="true";await te(t.dataset.id,a)}await b()}catch(a){c("danger",a.message)}finally{t.disabled=!1}},oe=async e=>{let t=e.target;if(!t.classList.contains("autostart-toggle"))return;let{type:o,id:a}=t.dataset,r=t.checked;t.disabled=!0;try{await ae(o,a,r),await b()}catch(n){c("danger",n.message),t.checked=!r}finally{t.disabled=!1}},C=e=>{if(!e||!e.message)return;let o=(e.timestamp?new Date(e.timestamp):new Date).toLocaleTimeString(),a=e.source?` [${e.source}]`:"",r=`${o} [${e.level}]${a} ${e.message}`,n=s.logOutput,i=n.scrollTop+n.clientHeight>=n.scrollHeight-8;n.textContent+=`${r}

@@ -200,7 +200,7 @@
             ${emptyStateSvg}
             <p>${message}</p>
             <button class="btn btn-primary btn-sm empty-state-cta" data-type="${ctaType}">
-              <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-plus-lg"></use></svg>
+              <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#plus-lg"></use></svg>
               ${ctaLabel}
             </button>
           </div>
@@ -272,7 +272,7 @@
                 <div class="card-body d-flex flex-column flex-lg-row align-items-lg-center gap-3">
                   <div class="flex-grow-1">
                     <div class="d-flex align-items-center gap-2 flex-wrap">
-                      <svg class="bi text-primary" data-bs-toggle="tooltip" title="TCP Relay (served by socat)" aria-hidden="true" style="width: 1.25em; height: 1.25em;"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-diagram-3"></use></svg>
+                      <svg class="bi text-primary" data-bs-toggle="tooltip" title="TCP Relay (served by socat)" aria-hidden="true" style="width: 1.25em; height: 1.25em;"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#diagram-3"></use></svg>
                       <span class="fw-semibold">${formatRelayTitle(relay)}</span>
                       <span class="status-dot ${statusClass} ms-1" data-bs-toggle="tooltip" title="${statusLabel}"></span>
                     </div>
@@ -292,10 +292,10 @@
                       <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#${actionIcon}"></use></svg>
                     </button>
                     <button class="btn btn-outline-primary btn-sm edit-btn" data-type="relay" data-id="${relay.id}" data-bs-toggle="tooltip" title="Edit">
-                      <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-pencil"></use></svg>
+                      <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#pencil"></use></svg>
                     </button>
                     <button class="btn btn-outline-danger btn-sm delete-btn" data-type="relay" data-id="${relay.id}" data-name="tcp://${state.tailnetFQDN}:${relay.listen_port}" data-bs-toggle="tooltip" title="Delete">
-                      <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-trash"></use></svg>
+                      <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#trash"></use></svg>
                     </button>
                   </div>
                 </div>
@@ -319,7 +319,7 @@
               <div class="card-body d-flex flex-column flex-lg-row align-items-lg-center gap-3">
                 <div class="flex-grow-1">
                   <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <svg class="bi text-primary" data-bs-toggle="tooltip" title="HTTPS Proxy (served by Caddy)" aria-hidden="true" style="width: 1.25em; height: 1.25em;"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-shield-lock"></use></svg>
+                    <svg class="bi text-primary" data-bs-toggle="tooltip" title="HTTPS Proxy (served by Caddy)" aria-hidden="true" style="width: 1.25em; height: 1.25em;"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#shield-lock"></use></svg>
                     <span class="fw-semibold">${formatProxyLink(proxy)}</span>
                     <span class="status-dot ${statusClass} ms-1" data-bs-toggle="tooltip" title="${statusLabel}"></span>
                   </div>
@@ -339,10 +339,10 @@
                     <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#${actionIcon}"></use></svg>
                   </button>
                   <button class="btn btn-outline-primary btn-sm edit-btn" data-type="proxy" data-id="${proxy.id}" data-bs-toggle="tooltip" title="Edit">
-                    <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-pencil"></use></svg>
+                    <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#pencil"></use></svg>
                   </button>
                   <button class="btn btn-outline-danger btn-sm delete-btn" data-type="proxy" data-id="${proxy.id}" data-name="https://${proxyName}" data-bs-toggle="tooltip" title="Delete">
-                    <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-trash"></use></svg>
+                    <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#trash"></use></svg>
                   </button>
                 </div>
               </div>
@@ -385,15 +385,15 @@
         <td><span class="badge text-bg-secondary">${type}</span></td>
         <td class="text-end">
           <button class="btn btn-sm btn-outline-primary download-backup-btn me-1" data-filename="${backup.Filename}">
-            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-download"></use></svg>
+            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#download"></use></svg>
             Download
           </button>
           <button class="btn btn-sm btn-outline-warning restore-backup-btn me-1" data-filename="${backup.Filename}">
-            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-arrow-counterclockwise"></use></svg>
+            <svg class="bi me-1" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#arrow-counterclockwise"></use></svg>
             Restore
           </button>
           <button class="btn btn-sm btn-outline-danger delete-backup-btn" data-filename="${backup.Filename}">
-            <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-trash"></use></svg>
+            <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#trash"></use></svg>
           </button>
         </td>
       `;
