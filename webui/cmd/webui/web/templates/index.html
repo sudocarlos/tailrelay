@@ -24,7 +24,7 @@
         <div class="d-flex align-items-center gap-2">
           <div class="dropdown">
             <button class="btn btn-sm btn-outline-secondary" type="button" id="palette-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Change Theme Palette">
-              <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-palette"></use></svg>
+              <svg class="bi" aria-hidden="true"><use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#palette-fill"></use></svg>
             </button>
             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="palette-dropdown">
               <li><button class="dropdown-item palette-btn" data-palette="sunset">🌅 Sunset</button></li>
@@ -37,13 +37,13 @@
           </div>
           <button id="theme-toggle" class="btn btn-sm btn-outline-secondary" aria-label="Toggle theme">
             <svg class="bi" aria-hidden="true">
-              <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-circle-half"></use>
+              <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#circle-half"></use>
             </svg>
           </button>
           <button id="refresh" class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip"
             data-bs-placement="bottom" title="Refresh">
             <svg class="bi" aria-hidden="true">
-              <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-arrow-clockwise"></use>
+              <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#arrow-clockwise"></use>
             </svg>
           </button>
           <a href="/logout" class="btn btn-sm btn-outline-danger ms-2">Logout</a>
@@ -65,7 +65,7 @@
           <button id="help-tour-btn" class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip"
             data-bs-placement="bottom" title="Start guided tour">
             <svg class="bi" aria-hidden="true">
-              <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-question-circle"></use>
+              <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#question-circle"></use>
             </svg>
           </button>
           <div class="btn-group" role="group" aria-label="Type filter" id="filter-relay-buttons">
@@ -73,7 +73,7 @@
             <label class="btn btn-outline-primary btn-sm" for="filter-relay" data-bs-toggle="tooltip"
               data-bs-placement="bottom" title="TCP relays served by socat">
               <svg class="bi me-1" aria-hidden="true">
-                <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-diagram-3"></use>
+                <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#diagram-3"></use>
               </svg>
               Relays
             </label>
@@ -81,7 +81,7 @@
             <label class="btn btn-outline-primary btn-sm" for="filter-proxy" data-bs-toggle="tooltip"
               data-bs-placement="bottom" title="HTTPS reverse proxies served by Caddy">
               <svg class="bi me-1" aria-hidden="true">
-                <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-shield-lock"></use>
+                <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#shield-lock"></use>
               </svg>
               Proxies
             </label>
@@ -119,23 +119,23 @@
             <button id="copy-logs" class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip"
               data-bs-placement="bottom" title="Copy logs">
               <svg class="bi" aria-hidden="true">
-                <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-clipboard"></use>
+                <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#clipboard"></use>
               </svg>
             </button>
             <button id="clear-logs" class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip"
               data-bs-placement="bottom" title="Clear logs">
               <svg class="bi" aria-hidden="true">
-                <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-x-lg"></use>
+                <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#x-lg"></use>
               </svg>
             </button>
             <button id="console-toggle" class="btn btn-sm btn-outline-primary collapsed" data-bs-toggle="collapse"
               data-bs-placement="bottom" title="Toggle logs console" data-bs-target="#log-console" aria-expanded="false"
               aria-controls="log-console">
               <svg class="bi me-1" aria-hidden="true">
-                <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-terminal"></use>
+                <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#terminal"></use>
               </svg>
               <svg class="bi console-toggle-chevron" aria-hidden="true" style="width:0.75em;height:0.75em">
-                <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-chevron-down"></use>
+                <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#chevron-down"></use>
               </svg>
             </button>
           </div>
@@ -158,13 +158,13 @@
         <div class="d-flex align-items-center gap-2">
           <button id="upload-backup-btn" class="btn btn-sm btn-outline-secondary">
             <svg class="bi me-1" aria-hidden="true">
-              <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-upload"></use>
+              <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#upload"></use>
             </svg>
             Upload Backup
           </button>
           <button id="create-backup-btn" class="btn btn-sm btn-primary">
             <svg class="bi me-1" aria-hidden="true">
-              <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-plus-lg"></use>
+              <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#plus-lg"></use>
             </svg>
             Create Backup
           </button>
@@ -217,7 +217,7 @@
     <button id="fab-button" class="btn btn-primary fab rounded-circle shadow-lg" type="button"
       aria-label="Add Relay or Proxy">
       <svg class="bi" style="width: 1.5em; height: 1.5em;" aria-hidden="true">
-        <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-plus-lg"></use>
+        <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#plus-lg"></use>
       </svg>
     </button>
   </div>
@@ -237,7 +237,7 @@
               <button class="nav-link active" id="relay-tab" data-bs-toggle="tab" data-bs-target="#relay-tab-pane"
                 type="button" role="tab" aria-controls="relay-tab-pane" aria-selected="true">
                 <svg class="bi me-1" aria-hidden="true">
-                  <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-diagram-3"></use>
+                  <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#diagram-3"></use>
                 </svg>
                 Relay
               </button>
@@ -246,7 +246,7 @@
               <button class="nav-link" id="proxy-tab" data-bs-toggle="tab" data-bs-target="#proxy-tab-pane"
                 type="button" role="tab" aria-controls="proxy-tab-pane" aria-selected="false">
                 <svg class="bi me-1" aria-hidden="true">
-                  <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-shield-lock"></use>
+                  <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#shield-lock"></use>
                 </svg>
                 Proxy
               </button>
@@ -369,7 +369,7 @@
             <div class="alert alert-warning">
               <div class="d-flex gap-2">
                 <svg class="bi flex-shrink-0" style="width: 1.25em; height: 1.25em;" aria-hidden="true">
-                  <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#bi-exclamation-triangle-fill"></use>
+                  <use href="/static/vendor/bootstrap-icons/bootstrap-icons.svg#exclamation-triangle-fill"></use>
                 </svg>
                 <div>
                   <strong>Warning:</strong> Restoring will overwrite your current configuration. Services may restart
