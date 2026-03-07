@@ -58,7 +58,9 @@ dev-docker-build: dev-build ## Build development Docker image using local binary
 clean: ## Remove build artifacts
 	@echo "Cleaning build artifacts..."
 	rm -rf data/tailrelay-webui
-	@echo "✅ Clean complete"
+	rm -rf webui/cmd/webui/web/dist
+	rm -rf webui/frontend/node_modules
+	@echo "Clean complete"
 
 release: ## Build and push multi-platform release to Docker Hub + GHCR
 	@if echo "$(VERSION)" | grep -q dirty; then \

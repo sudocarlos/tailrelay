@@ -33,6 +33,7 @@ A Docker container that exposes local services to your Tailscale network. Combin
   - [Local WebUI Development](#local-webui-development)
   - [Building](#building)
   - [Testing](#testing)
+- [API Reference](#api-reference)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 
@@ -57,7 +58,7 @@ Useful for accessing Start9 services like BTCPayServer, LND, electrs, and Mempoo
 | **Tailscale** | VPN, MagicDNS, device authentication | [Tailscale docs](https://tailscale.com/kb) |
 | **Caddy** | HTTP/2 reverse proxy, automatic HTTPS | [Caddy docs](https://caddyserver.com/docs) |
 | **socat** | TCP relay for non-HTTP services | [socat manual](https://linux.die.net/man/1/socat) |
-| **Web UI** | Browser-based management (Go, HTML/CSS/JS) | See [Web UI](#web-ui) section |
+| **Web UI** | Browser-based management (Go backend, Svelte 5 + Tailwind CSS frontend) | See [Web UI](#web-ui) section |
 
 
 ## Quick Start
@@ -81,7 +82,7 @@ open http://localhost:8021
 
 ## Web UI
 
-The Web UI provides browser-based management on port 8021.
+The Web UI provides browser-based management on port 8021. The frontend is a single-page application built with **Svelte 5** (runes mode), **Tailwind CSS v4**, and **Vite**. All assets (JS, CSS, icons) are bundled locally -- no external CDN requests at runtime.
 
 ### Features
 
@@ -90,6 +91,9 @@ The Web UI provides browser-based management on port 8021.
 - **Caddy Proxy Management** - Add, edit, delete, and toggle HTTP/HTTPS reverse proxies
 - **Socat Relay Management** - Start, stop, and restart TCP relay processes
 - **Backup & Restore** - Create and restore compressed tar.gz backups
+- **Live Log Viewer** - Collapsible log console with SSE streaming and runtime log level control
+- **Dark Mode** - System-aware theme toggle with localStorage persistence
+- **Keyboard Shortcuts** - `n` (new), `r` (refresh), `b` (backups), `l` (logs), `t` (theme)
 
 ### Authentication
 
@@ -147,14 +151,20 @@ For rapid iteration without rebuilding the full Docker image:
 #### 1. Build the WebUI Assets + Binary
 
 ```bash
-make frontend-build
-make dev-build
+make frontend-build   # Build Svelte SPA -> webui/cmd/webui/web/dist/
+make dev-build        # Build Go binary with embedded SPA + build metadata
 ```
 
-This compiles `./data/tailrelay-webui` with build metadata (version, commit, date) and embeds the SPA assets.
+This compiles `./data/tailrelay-webui` with build metadata (version, commit, date) and embeds the SPA assets from `web/dist/`.
+
+**Frontend dev server:**
+```bash
+cd webui/frontend
+npm run dev           # Starts Vite dev server with hot reload
+```
 
 **Dev asset override:**
-Set `WEBUI_DEV_DIR` to a directory that contains `templates/` and `static/` (for example, `webui/cmd/webui/web`) to serve assets from disk instead of the embedded files.
+Set `WEBUI_DEV_DIR` to a directory containing a `dist/` subdirectory (e.g., `webui/cmd/webui/web`) to serve assets from disk instead of the embedded files.
 
 **Manual build:**
 ```bash
@@ -244,6 +254,111 @@ var (
 ```
 
 Access these in `webui/cmd/webui/main.go`.
+
+
+## API Reference
+
+The Web UI backend exposes a JSON API on port 8021. All endpoints under `/api/` require authentication except where noted. Authentication is via Tailscale network identity (100.x.y.z) or session cookie.
+
+### Endpoint Summary
+
+| Method | Path | Auth | Input | Description |
+|--------|------|------|-------|-------------|
+| `POST` | `/api/tailscale/login` | No | -- | Initiate Tailscale login, returns auth URL |
+| `GET` | `/api/tailscale/poll` | No | -- | Poll login completion, sets session cookie |
+| `GET` | `/api/status` | Yes | -- | Aggregate system status |
+| `GET` | `/api/targets` | Yes | -- | List configured targets |
+| `GET` | `/api/tailscale/status` | Yes | -- | Tailscale status summary |
+| `GET` | `/api/tailscale/peers` | Yes | -- | Tailscale peer list |
+| `POST` | `/api/tailscale/logout` | Yes | -- | Deauthorize Tailscale node |
+| `POST` | `/api/tailscale/connect` | Yes | -- | Bring Tailscale up |
+| `POST` | `/api/tailscale/disconnect` | Yes | -- | Bring Tailscale down |
+| `GET` | `/api/caddy/proxies` | Yes | -- | List all proxies with running state |
+| `GET` | `/api/caddy/proxy` | Yes | `?id=` | Get single proxy |
+| `POST` | `/api/caddy/create` | Yes | JSON or multipart | Create proxy |
+| `POST` | `/api/caddy/update` | Yes | JSON or multipart | Update proxy (`id` required) |
+| `POST` | `/api/caddy/delete` | Yes | `?id=` | Delete proxy |
+| `POST` | `/api/caddy/toggle` | Yes | JSON `{id, enabled}` | Enable/disable proxy |
+| `POST` | `/api/caddy/reload` | Yes | -- | Verify Caddy API (no-op) |
+| `GET` | `/api/socat/relays` | Yes | -- | List all relays with running state |
+| `GET` | `/api/socat/relay` | Yes | `?id=` | Get single relay |
+| `POST` | `/api/socat/create` | Yes | JSON | Create relay |
+| `POST` | `/api/socat/update` | Yes | JSON | Update relay (`id` required) |
+| `POST` | `/api/socat/delete` | Yes | `?id=` | Delete relay |
+| `POST` | `/api/socat/toggle` | Yes | JSON `{id, enabled}` | Enable/disable relay |
+| `POST` | `/api/socat/start` | Yes | `?id=` | Start relay |
+| `POST` | `/api/socat/stop` | Yes | `?id=` | Stop relay |
+| `POST` | `/api/socat/restart` | Yes | `?id=` | Restart relay |
+| `POST` | `/api/socat/restart-all` | Yes | -- | Restart all enabled relays |
+| `GET` | `/api/backup/list` | Yes | -- | List backups with metadata |
+| `POST` | `/api/backup/create` | Yes | JSON `{backup_type}` | Create backup (`full` or `config-only`) |
+| `POST` | `/api/backup/restore` | Yes | JSON `{filename}` | Restore from backup |
+| `POST` | `/api/backup/delete` | Yes | `?filename=` | Delete backup |
+| `GET` | `/api/backup/download` | Yes | `?filename=` | Download backup (`.tar.gz`) |
+| `POST` | `/api/backup/upload` | Yes | multipart `backup` | Upload backup (max 32 MB) |
+| `GET` | `/api/logs` | Yes | -- | Historical logs + current level |
+| `GET` | `/api/logs/stream` | Yes | -- | SSE live log stream |
+| `GET` | `/api/logs/level` | Yes | -- | Get current log level |
+| `POST` | `/api/logs/level` | Yes | JSON `{level}` | Set log level (`debug`, `info`, `warn`, `error`) |
+
+### Caddy Proxy Object
+
+```json
+{
+  "id": "abc123",
+  "port": 8080,
+  "target": "http://192.168.1.10:3000",
+  "tls_cert_file": "/data/cert.pem",
+  "trusted_proxies": false,
+  "enabled": true,
+  "autostart": true,
+  "running": true
+}
+```
+
+Create/update with multipart/form-data supports a `tls_cert_upload` file field (`.pem`, `.crt`, `.cer`) and a `remove_tls_cert` boolean field.
+
+### Socat Relay Object
+
+```json
+{
+  "id": "a1b2c3d4e5f6",
+  "listen_port": 9000,
+  "target_host": "192.168.1.10",
+  "target_port": 3000,
+  "enabled": true,
+  "autostart": true
+}
+```
+
+The `GET /api/socat/relays` response wraps each relay in `{"Relay": {...}, "Running": true}`.
+
+### Backup Info Object
+
+```json
+{
+  "filename": "tailrelay-backup-20260307-120000.tar.gz",
+  "size": 102400,
+  "timestamp": "2026-03-07T12:00:00Z",
+  "metadata": {
+    "timestamp": "2026-03-07T12:00:00Z",
+    "version": "v0.6.0",
+    "hostname": "my-node",
+    "backup_type": "full"
+  }
+}
+```
+
+### Error Responses
+
+All endpoints return errors as:
+```json
+{
+  "status": "error",
+  "message": "Description of what went wrong"
+}
+```
+
 
 ## Troubleshooting
 

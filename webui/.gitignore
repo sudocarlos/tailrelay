@@ -1,0 +1,4 @@
+# Un-ignore lib/ which is ignored by the root Python .gitignore
+!**/lib/
+# Un-ignore dist/ for Vite build output
+!**/dist/
