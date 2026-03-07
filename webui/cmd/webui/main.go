@@ -14,7 +14,7 @@ import (
 	"github.com/sudocarlos/tailrelay/internal/web"
 )
 
-//go:embed all:web/dist web/templates/* web/static/*
+//go:embed all:web/dist
 var embeddedFiles embed.FS
 
 var (
@@ -130,12 +130,12 @@ func resolveWebFS() (fs.FS, fs.FS, fs.FS, string, error) {
 
 	staticFS, err = fs.Sub(embeddedFiles, "web/static")
 	if err != nil {
-		return nil, nil, nil, "", err
+		staticFS = nil // optional backward compat
 	}
 
 	templateFS, err = fs.Sub(embeddedFiles, "web/templates")
 	if err != nil {
-		return nil, nil, nil, "", err
+		templateFS = nil // optional backward compat
 	}
 
 	return distFS, staticFS, templateFS, "", nil
