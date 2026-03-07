@@ -30,6 +30,7 @@ type Server struct {
 	backupH    *handlers.BackupHandler
 	targetsH   *handlers.TargetsHandler
 	logsH      *handlers.Handler
+	distFS     fs.FS
 	staticFS   fs.FS
 	templateFS fs.FS
 	ctx        context.Context
@@ -37,7 +38,7 @@ type Server struct {
 }
 
 // NewServer creates a new HTTP server
-func NewServer(cfg *config.Config, authToken string, staticFS, templateFS fs.FS) (*Server, error) {
+func NewServer(cfg *config.Config, authToken string, distFS, staticFS, templateFS fs.FS) (*Server, error) {
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -48,11 +49,17 @@ func NewServer(cfg *config.Config, authToken string, staticFS, templateFS fs.FS)
 		cfg.Auth.EnableTokenAuth,
 	)
 
-	// Parse templates
-	tmpl, err := loadTemplates(templateFS)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("failed to load templates: %w", err)
+	// Parse templates (gracefully handle missing templates for new SPA mode)
+	var tmpl *template.Template
+	if templateFS != nil {
+		var err error
+		tmpl, err = loadTemplates(templateFS)
+		if err != nil {
+			log.Printf("Warning: failed to load templates (SPA mode): %v", err)
+		}
+	}
+	if tmpl == nil {
+		tmpl = template.New("")
 	}
 
 	// Create handlers
@@ -75,6 +82,7 @@ func NewServer(cfg *config.Config, authToken string, staticFS, templateFS fs.FS)
 		backupH:    backupH,
 		targetsH:   targetsH,
 		logsH:      logsH,
+		distFS:     distFS,
 		staticFS:   staticFS,
 		templateFS: templateFS,
 		ctx:        ctx,
@@ -171,9 +179,17 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.Handle("/api/tailscale/login", http.HandlerFunc(s.tailscaleH.Login))
 	mux.Handle("/api/tailscale/poll", http.HandlerFunc(s.tailscaleH.PollStatus))
 
-	// Static files with proper MIME types
-	fileServer := http.FileServer(http.FS(s.staticFS))
-	mux.Handle("/static/", http.StripPrefix("/static/", s.staticFileHandler(fileServer)))
+	// Vite dist assets (hashed filenames, long-cache)
+	if s.distFS != nil {
+		distFileServer := http.FileServer(http.FS(s.distFS))
+		mux.Handle("/assets/", s.cacheableFileHandler(distFileServer))
+	}
+
+	// Legacy static files (backward compat for old templates still in use)
+	if s.staticFS != nil {
+		fileServer := http.FileServer(http.FS(s.staticFS))
+		mux.Handle("/static/", http.StripPrefix("/static/", s.staticFileHandler(fileServer)))
+	}
 
 	// Protected routes (authentication required)
 	mux.Handle("/", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPAFallback)))
@@ -230,6 +246,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 }
 
 // handleSPAFallback serves the SPA shell for non-API GET requests.
+// It reads index.html from the Vite dist FS and serves it directly.
 func (s *Server) handleSPAFallback(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -241,10 +258,7 @@ func (s *Server) handleSPAFallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.templates.ExecuteTemplate(w, "index.html", nil); err != nil {
-		log.Printf("Error rendering SPA template: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-	}
+	s.serveDistIndex(w, r)
 }
 
 // handleSPARedirect sends legacy pages to the SPA.
@@ -257,15 +271,14 @@ func (s *Server) handleSPARedirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-// handleLogin handles the login page
+// handleLogin serves the SPA shell at /login (the SPA handles auth state).
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Show login instructions and tailscale login link
-	s.templates.ExecuteTemplate(w, "login.html", nil)
+	s.serveDistIndex(w, r)
 }
 
 // handleLogout handles the logout action
@@ -340,4 +353,44 @@ func formatSize(bytes int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// serveDistIndex reads index.html from the Vite dist FS and writes it
+// as the response. This is used for SPA fallback and the login page.
+func (s *Server) serveDistIndex(w http.ResponseWriter, r *http.Request) {
+	if s.distFS == nil {
+		http.Error(w, "SPA assets not available", http.StatusInternalServerError)
+		return
+	}
+
+	content, err := fs.ReadFile(s.distFS, "index.html")
+	if err != nil {
+		log.Printf("Error reading dist/index.html: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Write(content)
+}
+
+// cacheableFileHandler sets aggressive cache headers for Vite's hashed assets.
+func (s *Server) cacheableFileHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Vite assets have content hashes in filenames — cache for 1 year
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+
+		// Set correct MIME types
+		path := r.URL.Path
+		if strings.HasSuffix(path, ".js") {
+			w.Header().Set("Content-Type", "application/javascript")
+		} else if strings.HasSuffix(path, ".css") {
+			w.Header().Set("Content-Type", "text/css")
+		} else if strings.HasSuffix(path, ".svg") {
+			w.Header().Set("Content-Type", "image/svg+xml")
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
