@@ -107,10 +107,6 @@ func (pm *ProxyManager) AddProxy(proxy config.CaddyProxy) (*config.CaddyProxy, e
 		}
 
 		pm.updateServerMap(proxy, serverName)
-		// Best-effort: enable per_host metrics on the new server.
-		if err := pm.client.EnableServerMetrics(serverName); err != nil {
-			logger.Warn("caddy", "Failed to enable metrics on server %s: %v", serverName, err)
-		}
 	} else {
 		logger.Debug("caddy", "Proxy %s created but not enabled, skipping Caddy route creation", proxy.ID)
 	}
@@ -208,10 +204,6 @@ func (pm *ProxyManager) UpdateProxy(proxy config.CaddyProxy) error {
 		}
 
 		pm.updateServerMap(proxy, serverName)
-		// Best-effort: enable per_host metrics on the server.
-		if err := pm.client.EnableServerMetrics(serverName); err != nil {
-			logger.Warn("caddy", "Failed to enable metrics on server %s: %v", serverName, err)
-		}
 	} else {
 		// If disabled, remove from Caddy but keep metadata
 		serverName, err := pm.getServerNameForProxy(proxy)
@@ -656,13 +648,28 @@ func (pm *ProxyManager) ensureHTTPServersPath() error {
 				"http": map[string]interface{}{},
 			},
 		}
-		return pm.client.PatchConfig("/", initPayload)
+		if err := pm.client.PatchConfig("/", initPayload); err != nil {
+			return err
+		}
+		// servers path doesn't exist yet; metrics will be set when the first
+		// server is written, so nothing more to do here.
+		return nil
 	}
 
-	if _, ok := httpApp["servers"]; !ok {
-		// servers key doesn't exist yet but http does, nothing to patch since
-		// adding a server will automatically create the servers map.
+	servers, hasServers := httpApp["servers"].(map[string]interface{})
+	if !hasServers {
+		// servers key doesn't exist yet; it will be created when the first
+		// server is PUT, so nothing more to do here.
 		return nil
+	}
+
+	// Ensure the global per_host metrics key exists directly under servers.
+	if _, hasMetrics := servers["metrics"]; !hasMetrics {
+		if err := pm.client.PutConfig("/apps/http/servers/metrics", map[string]interface{}{
+			"per_host": true,
+		}); err != nil {
+			return fmt.Errorf("set servers metrics: %w", err)
+		}
 	}
 
 	return nil

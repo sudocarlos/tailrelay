@@ -3,7 +3,6 @@ package caddy
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -118,6 +117,11 @@ func (c *APIClient) doRequestWithHeaders(method, path string, body interface{}) 
 			(resp.StatusCode == http.StatusBadRequest && strings.Contains(string(respBody), "invalid traversal path"))) {
 			// Expected during checks when paths don't exist yet
 			logger.Debug("caddy", "Path not found (expected during checks): %d for %s %s: %s", resp.StatusCode, method, url, string(respBody))
+		} else if resp.StatusCode == http.StatusNotFound {
+			// 404 on a mutating request (PATCH/PUT/POST/DELETE) typically means the
+			// target path doesn't exist yet. Callers handle this via fallback logic,
+			// so log at Debug to avoid noisy false-positive error entries.
+			logger.Debug("caddy", "Path not found (404) for %s %s: %s", method, url, string(respBody))
 		} else {
 			logger.Error("caddy", "Caddy API error %d for %s %s: %s", resp.StatusCode, method, url, string(respBody))
 		}
@@ -339,19 +343,4 @@ func (c *APIClient) GetMetricsRaw() ([]byte, error) {
 		return nil, fmt.Errorf("get metrics: %w", err)
 	}
 	return data, nil
-}
-
-// EnableServerMetrics patches per_host metrics onto the named HTTP server.
-func (c *APIClient) EnableServerMetrics(serverName string) error {
-	path := fmt.Sprintf("/apps/http/servers/%s/metrics", serverName)
-	cfg := map[string]bool{"per_host": true}
-	if err := c.PatchConfig(path, cfg); err != nil {
-		// If the path doesn't exist yet (404/400) try PUT to create it.
-		var httpErr *HTTPError
-		if errors.As(err, &httpErr) && (httpErr.StatusCode == http.StatusNotFound || httpErr.StatusCode == http.StatusBadRequest) {
-			return c.PutConfig(path, cfg)
-		}
-		return fmt.Errorf("enable server metrics: %w", err)
-	}
-	return nil
 }

@@ -497,10 +497,23 @@ func parseBool(value string) bool {
 	return value == "true" || value == "1" || value == "on" || value == "yes"
 }
 
-// EnsureMetrics enables per_host metrics on all known Caddy servers.
-// Called once at startup; failures are non-fatal.
-func (h *CaddyHandler) EnsureMetrics() error {
-	return h.manager.EnsureMetricsOnAllServers()
+// CheckTLSCertsAtStartup probes TLS certificates for all enabled MagicDNS
+// proxies and logs a warning for each cert that is absent, expired, or
+// misconfigured. This gives operators an early signal in the container logs
+// without requiring the UI to be open.
+func (h *CaddyHandler) CheckTLSCertsAtStartup() {
+	proxies, err := h.manager.ListProxies()
+	if err != nil {
+		log.Printf("Warning: could not list proxies for TLS startup check: %v", err)
+		return
+	}
+
+	certErrors := caddy.CheckProxyCerts(proxies)
+	for id, errMsg := range certErrors {
+		if errMsg != "" {
+			log.Printf("Warning: TLS cert issue for proxy %s: %s", id, errMsg)
+		}
+	}
 }
 
 // Metrics returns parsed Caddy Prometheus metrics as JSON.
