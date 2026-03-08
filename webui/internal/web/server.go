@@ -206,12 +206,15 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.Handle("/api/targets", s.authMW.RequireAuth(http.HandlerFunc(s.targetsH.APIList)))
 
 	// Tailscale routes
-	mux.Handle("/tailscale", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Status)))
+	mux.Handle("/tailscale", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPARedirect)))
+	mux.Handle("/api/tailscale/login", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Login)))
 	mux.Handle("/api/tailscale/logout", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Logout)))
 	mux.Handle("/api/tailscale/connect", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Connect)))
 	mux.Handle("/api/tailscale/disconnect", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Disconnect)))
+	mux.Handle("/api/tailscale/hostname", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.ChangeHostname)))
 	mux.Handle("/api/tailscale/status", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.APIStatus)))
 	mux.Handle("/api/tailscale/peers", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.APIPeers)))
+	mux.Handle("/api/tailscale/poll", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.PollStatus)))
 
 	// Caddy routes
 	mux.Handle("/caddy", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPARedirect)))

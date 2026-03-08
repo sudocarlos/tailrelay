@@ -5,6 +5,7 @@ import { fetchJSON } from '../api.js';
 export const relays = writable([]);
 export const proxies = writable([]);
 export const tailnetFQDN = writable('');
+export const tailscaleStatus = writable(null);
 export const targets = writable([]);
 
 // ── Filter toggles ────────────────────────────────────────────────
@@ -67,6 +68,7 @@ export async function refreshData() {
   );
 
   tailnetFQDN.set(status.MagicDNSName || status.magicDNSName || '');
+  tailscaleStatus.set(status);
   targets.set(targetData || []);
   lastUpdated.set(new Date().toLocaleTimeString());
 }
