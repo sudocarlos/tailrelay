@@ -1,5 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
+  import { get } from 'svelte/store';
   import { authenticated, needsSetup, currentView, tailscaleConnected, refreshData } from './lib/stores/app.js';
   import { theme } from './lib/stores/theme.js';
   import { showToast } from './lib/stores/toast.js';
@@ -25,7 +26,7 @@
   // This fires reactively on every status refresh (every 15 s) so the UI
   // self-corrects if Tailscale drops out without a page reload.
   tailscaleConnected.subscribe((connected) => {
-    if (!connected && isAuthenticated) {
+    if (!connected && get(authenticated)) {
       currentView.set('tailscale');
     }
   });
