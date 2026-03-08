@@ -277,15 +277,26 @@ func (h *CaddyHandler) APIList(w http.ResponseWriter, r *http.Request) {
 	proxyStatuses, err := h.manager.GetProxiesStatus()
 	if err != nil {
 		log.Printf("Error getting proxy statuses: %v", err)
-		// Fallback: assume not running if check fails, or rely on enabled flag if caddy is running?
 		// Safer to assume not running to avoid false positives.
 		proxyStatuses = make(map[string]bool)
 	}
 
-	response := make([]struct {
+	// Probe TLS certificates concurrently for enabled MagicDNS proxies.
+	// Only bother when Caddy itself is reachable; if Caddy is down the
+	// cert probe would just report a connection error for every proxy,
+	// which would be misleading.
+	var certErrors map[string]string
+	if caddyRunning {
+		certErrors = caddy.CheckProxyCerts(proxies)
+	}
+
+	type proxyResponse struct {
 		config.CaddyProxy
-		Running bool `json:"running"`
-	}, 0, len(proxies))
+		Running  bool   `json:"running"`
+		TLSError string `json:"tls_error,omitempty"`
+	}
+
+	response := make([]proxyResponse, 0, len(proxies))
 
 	for _, proxy := range proxies {
 		isRunning := false
@@ -296,12 +307,15 @@ func (h *CaddyHandler) APIList(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		response = append(response, struct {
-			config.CaddyProxy
-			Running bool `json:"running"`
-		}{
+		tlsErr := ""
+		if certErrors != nil {
+			tlsErr = certErrors[proxy.ID]
+		}
+
+		response = append(response, proxyResponse{
 			CaddyProxy: proxy,
 			Running:    isRunning,
+			TLSError:   tlsErr,
 		})
 	}
 
