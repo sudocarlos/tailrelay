@@ -18,7 +18,7 @@ import (
 var embeddedFiles embed.FS
 
 var (
-	Version   = "v0.7.0-rc1"
+	Version   = "v0.7.0"
 	BuildTime = "dev"
 )
 
