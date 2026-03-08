@@ -95,7 +95,6 @@ func (m *Manager) GetProxiesStatus() (map[string]bool, error) {
 	return m.proxyManager.GetProxiesStatus()
 }
 
-
 // InitializeServer ensures the HTTP server is configured in Caddy
 func (m *Manager) InitializeServer(listenAddrs []string) error {
 	if err := m.proxyManager.InitializeServer(listenAddrs); err != nil {
@@ -146,6 +145,22 @@ func (m *Manager) InitializeAutostart() error {
 
 	log.Printf("Proxy autostart complete: %d started, %d skipped", started, skipped)
 	return nil
+}
+
+// UpdateProxyHostnames replaces the hostname in all proxies that currently
+// use oldFQDN with newFQDN and pushes the updated routes to Caddy. This
+// should be called after a Tailscale hostname change.
+func (m *Manager) UpdateProxyHostnames(oldFQDN, newFQDN string) error {
+	return m.proxyManager.UpdateProxyHostnames(oldFQDN, newFQDN)
+}
+
+// GetMetrics fetches Prometheus metrics from Caddy and returns parsed data.
+func (m *Manager) GetMetrics() (*MetricsData, error) {
+	raw, err := m.proxyManager.client.GetMetricsRaw()
+	if err != nil {
+		return nil, fmt.Errorf("fetch metrics: %w", err)
+	}
+	return ParseMetrics(raw), nil
 }
 
 // Note: Reload, Start, Stop methods are no longer needed

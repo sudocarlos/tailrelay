@@ -2,6 +2,22 @@
 # check=skip=SecretsUsedInArgOrEnv
 ARG TAILSCALE_VERSION=v1.92.5
 ARG GO_VERSION=1.21
+ARG NODE_VERSION=22
+
+# Frontend build stage — Vite + Svelte + Tailwind
+FROM node:${NODE_VERSION}-alpine AS frontend-builder
+
+WORKDIR /build/webui/frontend
+
+# Copy package files first for layer caching
+COPY webui/frontend/package.json webui/frontend/package-lock.json* ./
+
+RUN npm ci --ignore-scripts
+
+# Copy frontend source and build
+COPY webui/frontend/ ./
+
+RUN npm run build
 
 # Build stage for Web UI
 FROM golang:${GO_VERSION}-alpine AS webui-builder
@@ -19,6 +35,9 @@ RUN go mod download
 
 # Copy source code
 COPY webui/ ./
+
+# Copy Vite dist output from frontend stage
+COPY --from=frontend-builder /build/webui/cmd/webui/web/dist/ ./cmd/webui/web/dist/
 
 # Build metadata arguments
 ARG VERSION=dev

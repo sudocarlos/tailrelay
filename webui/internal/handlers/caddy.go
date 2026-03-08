@@ -27,15 +27,18 @@ type CaddyHandler struct {
 	tsClient  *tailscale.Client
 }
 
-// NewCaddyHandler creates a new Caddy handler
+// NewCaddyHandler creates a new Caddy handler with its own Manager instance.
 func NewCaddyHandler(cfg *config.Config, templates *template.Template) *CaddyHandler {
-	// Use Caddy API instead of file-based config
-	// Pass empty string for server name to enable auto-discovery
 	manager := caddy.NewManager(
 		caddy.DefaultAdminAPI,
 		cfg.Paths.CaddyServerMap,
 	)
+	return NewCaddyHandlerWithManager(cfg, templates, manager)
+}
 
+// NewCaddyHandlerWithManager creates a Caddy handler using the provided Manager.
+// Use this when the manager must be shared with other handlers (e.g. TailscaleHandler).
+func NewCaddyHandlerWithManager(cfg *config.Config, templates *template.Template, manager *caddy.Manager) *CaddyHandler {
 	return &CaddyHandler{
 		cfg:       cfg,
 		templates: templates,
@@ -277,15 +280,26 @@ func (h *CaddyHandler) APIList(w http.ResponseWriter, r *http.Request) {
 	proxyStatuses, err := h.manager.GetProxiesStatus()
 	if err != nil {
 		log.Printf("Error getting proxy statuses: %v", err)
-		// Fallback: assume not running if check fails, or rely on enabled flag if caddy is running?
 		// Safer to assume not running to avoid false positives.
 		proxyStatuses = make(map[string]bool)
 	}
 
-	response := make([]struct {
+	// Probe TLS certificates concurrently for enabled MagicDNS proxies.
+	// Only bother when Caddy itself is reachable; if Caddy is down the
+	// cert probe would just report a connection error for every proxy,
+	// which would be misleading.
+	var certErrors map[string]string
+	if caddyRunning {
+		certErrors = caddy.CheckProxyCerts(proxies)
+	}
+
+	type proxyResponse struct {
 		config.CaddyProxy
-		Running bool `json:"running"`
-	}, 0, len(proxies))
+		Running  bool   `json:"running"`
+		TLSError string `json:"tls_error,omitempty"`
+	}
+
+	response := make([]proxyResponse, 0, len(proxies))
 
 	for _, proxy := range proxies {
 		isRunning := false
@@ -296,12 +310,15 @@ func (h *CaddyHandler) APIList(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		response = append(response, struct {
-			config.CaddyProxy
-			Running bool `json:"running"`
-		}{
+		tlsErr := ""
+		if certErrors != nil {
+			tlsErr = certErrors[proxy.ID]
+		}
+
+		response = append(response, proxyResponse{
 			CaddyProxy: proxy,
 			Running:    isRunning,
+			TLSError:   tlsErr,
 		})
 	}
 
@@ -481,4 +498,41 @@ func ensureUniqueFile(path string) string {
 func parseBool(value string) bool {
 	value = strings.ToLower(strings.TrimSpace(value))
 	return value == "true" || value == "1" || value == "on" || value == "yes"
+}
+
+// CheckTLSCertsAtStartup probes TLS certificates for all enabled MagicDNS
+// proxies and logs a warning for each cert that is absent, expired, or
+// misconfigured. This gives operators an early signal in the container logs
+// without requiring the UI to be open.
+func (h *CaddyHandler) CheckTLSCertsAtStartup() {
+	proxies, err := h.manager.ListProxies()
+	if err != nil {
+		log.Printf("Warning: could not list proxies for TLS startup check: %v", err)
+		return
+	}
+
+	certErrors := caddy.CheckProxyCerts(proxies)
+	for id, errMsg := range certErrors {
+		if errMsg != "" {
+			log.Printf("Warning: TLS cert issue for proxy %s: %s", id, errMsg)
+		}
+	}
+}
+
+// Metrics returns parsed Caddy Prometheus metrics as JSON.
+func (h *CaddyHandler) Metrics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	data, err := h.manager.GetMetrics()
+	if err != nil {
+		log.Printf("Error fetching Caddy metrics: %v", err)
+		http.Error(w, "Failed to fetch metrics", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(data)
 }

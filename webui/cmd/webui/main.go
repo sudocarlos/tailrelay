@@ -14,7 +14,7 @@ import (
 	"github.com/sudocarlos/tailrelay/internal/web"
 )
 
-//go:embed web/templates/* web/static/*
+//go:embed all:web/dist
 var embeddedFiles embed.FS
 
 var (
@@ -85,7 +85,7 @@ func main() {
 	}
 
 	// Get filesystems (prefer disk assets for development)
-	staticFS, templateFS, devDir, err := resolveWebFS()
+	distFS, staticFS, templateFS, devDir, err := resolveWebFS()
 	if err != nil {
 		logger.Error("main", "Failed to load web assets: %v", err)
 		os.Exit(1)
@@ -97,19 +97,15 @@ func main() {
 	}
 
 	// Create and start web server
-	server, err := web.NewServer(cfg, authToken, staticFS, templateFS)
+	server, err := web.NewServer(cfg, authToken, distFS, staticFS, templateFS)
 	if err != nil {
 		logger.Error("main", "Failed to create server: %v", err)
 		os.Exit(1)
 	}
 
 	logger.Info("main", "Web UI available at http://0.0.0.0:%d", cfg.Server.Port)
-	if cfg.Auth.EnableTailscaleAuth {
-		logger.Info("main", "Tailscale network authentication: ENABLED")
-	}
-	if cfg.Auth.EnableTokenAuth {
-		logger.Info("main", "Token authentication: ENABLED")
-	}
+	logger.Info("main", "Admin authentication: ENABLED")
+	logger.Info("main", "API Token authentication: ENABLED")
 
 	if err := server.Start(); err != nil {
 		logger.Error("main", "Server error: %v", err)
@@ -117,26 +113,31 @@ func main() {
 	}
 }
 
-func resolveWebFS() (fs.FS, fs.FS, string, error) {
-	staticFS, templateFS, devDir, err := tryDevWebFS()
+func resolveWebFS() (fs.FS, fs.FS, fs.FS, string, error) {
+	distFS, staticFS, templateFS, devDir, err := tryDevWebFS()
 	if err == nil {
-		return staticFS, templateFS, devDir, nil
+		return distFS, staticFS, templateFS, devDir, nil
+	}
+
+	distFS, err = fs.Sub(embeddedFiles, "web/dist")
+	if err != nil {
+		return nil, nil, nil, "", err
 	}
 
 	staticFS, err = fs.Sub(embeddedFiles, "web/static")
 	if err != nil {
-		return nil, nil, "", err
+		staticFS = nil // optional backward compat
 	}
 
 	templateFS, err = fs.Sub(embeddedFiles, "web/templates")
 	if err != nil {
-		return nil, nil, "", err
+		templateFS = nil // optional backward compat
 	}
 
-	return staticFS, templateFS, "", nil
+	return distFS, staticFS, templateFS, "", nil
 }
 
-func tryDevWebFS() (fs.FS, fs.FS, string, error) {
+func tryDevWebFS() (fs.FS, fs.FS, fs.FS, string, error) {
 	devDir := os.Getenv("WEBUI_DEV_DIR")
 	var candidates []string
 	if devDir != "" {
@@ -154,20 +155,30 @@ func tryDevWebFS() (fs.FS, fs.FS, string, error) {
 			continue
 		}
 
+		distPath := filepath.Join(candidate, "dist")
 		staticPath := filepath.Join(candidate, "static")
 		templatePath := filepath.Join(candidate, "templates")
 
-		staticInfo, statErr := os.Stat(staticPath)
-		if statErr != nil || !staticInfo.IsDir() {
+		// dist is required for the new SPA
+		distInfo, distErr := os.Stat(distPath)
+		if distErr != nil || !distInfo.IsDir() {
+			// Fall back: if no dist dir, skip this candidate
 			continue
+		}
+
+		// static and templates are optional (backward compat)
+		var sFS, tFS fs.FS
+		staticInfo, statErr := os.Stat(staticPath)
+		if statErr == nil && staticInfo.IsDir() {
+			sFS = os.DirFS(staticPath)
 		}
 		templateInfo, statErr := os.Stat(templatePath)
-		if statErr != nil || !templateInfo.IsDir() {
-			continue
+		if statErr == nil && templateInfo.IsDir() {
+			tFS = os.DirFS(templatePath)
 		}
 
-		return os.DirFS(staticPath), os.DirFS(templatePath), candidate, nil
+		return os.DirFS(distPath), sFS, tFS, candidate, nil
 	}
 
-	return nil, nil, "", fmt.Errorf("no valid dev web assets found")
+	return nil, nil, nil, "", fmt.Errorf("no valid dev web assets found")
 }

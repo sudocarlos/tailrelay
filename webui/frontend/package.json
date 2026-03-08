@@ -2,10 +2,23 @@
   "name": "tailrelay-webui-frontend",
   "private": true,
   "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "build": "esbuild src/theme.js --bundle --minify --target=es2019 --outfile=../cmd/webui/web/static/js/theme.bundle.js && esbuild src/index.js --bundle --minify --target=es2019 --outfile=../cmd/webui/web/static/js/spa.bundle.js && esbuild src/style.css --minify --outfile=../cmd/webui/web/static/css/spa.css"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "devDependencies": {
-    "esbuild": "^0.27.2"
+    "@lucide/svelte": "^0.577.0",
+    "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "@tailwindcss/vite": "^4.2.1",
+    "chart.js": "^4.4.9",
+    "svelte": "^5.53.7",
+    "tailwindcss": "^4.2.1",
+    "vite": "^7.3.1"
+  },
+  "dependencies": {
+    "jsdom": "^28.1.0",
+    "playwright": "^1.58.2"
   }
 }

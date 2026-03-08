@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/sudocarlos/tailrelay/internal/auth"
+	"github.com/sudocarlos/tailrelay/internal/caddy"
 	"github.com/sudocarlos/tailrelay/internal/config"
 	"github.com/sudocarlos/tailrelay/internal/handlers"
 )
@@ -23,6 +24,7 @@ type Server struct {
 	cfg        *config.Config
 	authMW     *auth.Middleware
 	templates  *template.Template
+	authH      *handlers.AuthHandler
 	dashboardH *handlers.DashboardHandler
 	tailscaleH *handlers.TailscaleHandler
 	caddyH     *handlers.CaddyHandler
@@ -30,6 +32,7 @@ type Server struct {
 	backupH    *handlers.BackupHandler
 	targetsH   *handlers.TargetsHandler
 	logsH      *handlers.Handler
+	distFS     fs.FS
 	staticFS   fs.FS
 	templateFS fs.FS
 	ctx        context.Context
@@ -37,28 +40,36 @@ type Server struct {
 }
 
 // NewServer creates a new HTTP server
-func NewServer(cfg *config.Config, authToken string, staticFS, templateFS fs.FS) (*Server, error) {
+func NewServer(cfg *config.Config, authToken string, distFS, staticFS, templateFS fs.FS) (*Server, error) {
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Create authentication middleware
-	authMW := auth.NewMiddleware(
-		authToken,
-		cfg.Auth.EnableTailscaleAuth,
-		cfg.Auth.EnableTokenAuth,
-	)
+	authMW := auth.NewMiddleware(authToken)
 
-	// Parse templates
-	tmpl, err := loadTemplates(templateFS)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("failed to load templates: %w", err)
+	// Parse templates (gracefully handle missing templates for new SPA mode)
+	var tmpl *template.Template
+	if templateFS != nil {
+		var err error
+		tmpl, err = loadTemplates(templateFS)
+		if err != nil {
+			log.Printf("Warning: failed to load templates (SPA mode): %v", err)
+		}
+	}
+	if tmpl == nil {
+		tmpl = template.New("")
 	}
 
 	// Create handlers
+	authH := handlers.NewAuthHandler(authMW, cfg.Auth.AdminHashFile)
 	dashboardH := handlers.NewDashboardHandler(cfg, tmpl)
-	tailscaleH := handlers.NewTailscaleHandler(cfg, tmpl, authMW)
-	caddyH := handlers.NewCaddyHandler(cfg, tmpl)
+
+	// Create a shared Caddy manager so that TailscaleHandler can update proxy
+	// hostnames when the Tailscale device hostname changes.
+	caddyMgr := caddy.NewManager(caddy.DefaultAdminAPI, cfg.Paths.CaddyServerMap)
+
+	tailscaleH := handlers.NewTailscaleHandlerWithCaddy(cfg, tmpl, authMW, caddyMgr)
+	caddyH := handlers.NewCaddyHandlerWithManager(cfg, tmpl, caddyMgr)
 	socatH := handlers.NewSocatHandler(cfg, tmpl)
 	backupH := handlers.NewBackupHandler(cfg, tmpl)
 	targetsH := handlers.NewTargetsHandler(cfg)
@@ -67,6 +78,7 @@ func NewServer(cfg *config.Config, authToken string, staticFS, templateFS fs.FS)
 	return &Server{
 		cfg:        cfg,
 		authMW:     authMW,
+		authH:      authH,
 		templates:  tmpl,
 		dashboardH: dashboardH,
 		tailscaleH: tailscaleH,
@@ -75,6 +87,7 @@ func NewServer(cfg *config.Config, authToken string, staticFS, templateFS fs.FS)
 		backupH:    backupH,
 		targetsH:   targetsH,
 		logsH:      logsH,
+		distFS:     distFS,
 		staticFS:   staticFS,
 		templateFS: templateFS,
 		ctx:        ctx,
@@ -105,6 +118,12 @@ func (s *Server) Start() error {
 	if err := s.caddyH.InitializeAutostart(); err != nil {
 		log.Printf("Warning: failed to start autostart proxies: %v", err)
 	}
+
+	// Probe TLS certificates for MagicDNS proxies and warn early if any are
+	// missing or invalid — gives an immediate signal in container logs before
+	// the dashboard is opened.
+	log.Printf("Checking TLS certificates for MagicDNS proxies...")
+	s.caddyH.CheckTLSCertsAtStartup()
 
 	mux := s.setupRoutes()
 
@@ -166,27 +185,43 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	// Public routes (no authentication required)
+	mux.Handle("/api/auth/status", http.HandlerFunc(s.authH.Status))
+	mux.Handle("/api/auth/setup", http.HandlerFunc(s.authH.Setup))
+	mux.Handle("/api/auth/login", http.HandlerFunc(s.authH.Login))
+
 	mux.HandleFunc("/login", s.handleLogin)
 	mux.HandleFunc("/logout", s.handleLogout)
-	mux.Handle("/api/tailscale/login", http.HandlerFunc(s.tailscaleH.Login))
-	mux.Handle("/api/tailscale/poll", http.HandlerFunc(s.tailscaleH.PollStatus))
 
-	// Static files with proper MIME types
-	fileServer := http.FileServer(http.FS(s.staticFS))
-	mux.Handle("/static/", http.StripPrefix("/static/", s.staticFileHandler(fileServer)))
+	// Vite dist assets (hashed filenames, long-cache)
+	if s.distFS != nil {
+		distFileServer := http.FileServer(http.FS(s.distFS))
+		mux.Handle("/assets/", s.cacheableFileHandler(distFileServer))
+	}
+
+	// Legacy static files (backward compat for old templates still in use)
+	if s.staticFS != nil {
+		fileServer := http.FileServer(http.FS(s.staticFS))
+		mux.Handle("/static/", http.StripPrefix("/static/", s.staticFileHandler(fileServer)))
+	}
 
 	// Protected routes (authentication required)
 	mux.Handle("/", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPAFallback)))
+	mux.Handle("/api/auth/logout", s.authMW.RequireAuth(http.HandlerFunc(s.authH.Logout)))
+	mux.Handle("/api/auth/change-password", s.authMW.RequireAuth(http.HandlerFunc(s.authH.ChangePassword)))
 	mux.Handle("/api/status", s.authMW.RequireAuth(http.HandlerFunc(s.dashboardH.APIStatus)))
 	mux.Handle("/api/targets", s.authMW.RequireAuth(http.HandlerFunc(s.targetsH.APIList)))
 
 	// Tailscale routes
-	mux.Handle("/tailscale", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Status)))
+	mux.Handle("/tailscale", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPARedirect)))
+	mux.Handle("/api/tailscale/login", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Login)))
+	mux.Handle("/api/tailscale/login-with-key", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.LoginWithKey)))
 	mux.Handle("/api/tailscale/logout", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Logout)))
 	mux.Handle("/api/tailscale/connect", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Connect)))
 	mux.Handle("/api/tailscale/disconnect", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Disconnect)))
+	mux.Handle("/api/tailscale/hostname", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.ChangeHostname)))
 	mux.Handle("/api/tailscale/status", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.APIStatus)))
 	mux.Handle("/api/tailscale/peers", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.APIPeers)))
+	mux.Handle("/api/tailscale/poll", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.PollStatus)))
 
 	// Caddy routes
 	mux.Handle("/caddy", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPARedirect)))
@@ -197,6 +232,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.Handle("/api/caddy/reload", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.Reload)))
 	mux.Handle("/api/caddy/proxies", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.APIList)))
 	mux.Handle("/api/caddy/proxy", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.APIGet)))
+	mux.Handle("/api/caddy/metrics", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.Metrics)))
 
 	// Socat routes
 	mux.Handle("/socat", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPARedirect)))
@@ -230,6 +266,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 }
 
 // handleSPAFallback serves the SPA shell for non-API GET requests.
+// It reads index.html from the Vite dist FS and serves it directly.
 func (s *Server) handleSPAFallback(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -241,10 +278,7 @@ func (s *Server) handleSPAFallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.templates.ExecuteTemplate(w, "index.html", nil); err != nil {
-		log.Printf("Error rendering SPA template: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-	}
+	s.serveDistIndex(w, r)
 }
 
 // handleSPARedirect sends legacy pages to the SPA.
@@ -257,15 +291,14 @@ func (s *Server) handleSPARedirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-// handleLogin handles the login page
+// handleLogin serves the SPA shell at /login (the SPA handles auth state).
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Show login instructions and tailscale login link
-	s.templates.ExecuteTemplate(w, "login.html", nil)
+	s.serveDistIndex(w, r)
 }
 
 // handleLogout handles the logout action
@@ -340,4 +373,44 @@ func formatSize(bytes int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// serveDistIndex reads index.html from the Vite dist FS and writes it
+// as the response. This is used for SPA fallback and the login page.
+func (s *Server) serveDistIndex(w http.ResponseWriter, r *http.Request) {
+	if s.distFS == nil {
+		http.Error(w, "SPA assets not available", http.StatusInternalServerError)
+		return
+	}
+
+	content, err := fs.ReadFile(s.distFS, "index.html")
+	if err != nil {
+		log.Printf("Error reading dist/index.html: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Write(content)
+}
+
+// cacheableFileHandler sets aggressive cache headers for Vite's hashed assets.
+func (s *Server) cacheableFileHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Vite assets have content hashes in filenames — cache for 1 year
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+
+		// Set correct MIME types
+		path := r.URL.Path
+		if strings.HasSuffix(path, ".js") {
+			w.Header().Set("Content-Type", "application/javascript")
+		} else if strings.HasSuffix(path, ".css") {
+			w.Header().Set("Content-Type", "text/css")
+		} else if strings.HasSuffix(path, ".svg") {
+			w.Header().Set("Content-Type", "image/svg+xml")
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }

@@ -5,19 +5,22 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/sudocarlos/tailrelay/internal/auth"
+	"github.com/sudocarlos/tailrelay/internal/caddy"
 	"github.com/sudocarlos/tailrelay/internal/config"
 	"github.com/sudocarlos/tailrelay/internal/tailscale"
 )
 
 // TailscaleHandler handles Tailscale-related requests
 type TailscaleHandler struct {
-	cfg       *config.Config
-	templates *template.Template
-	tsClient  *tailscale.Client
-	authMW    *auth.Middleware
+	cfg          *config.Config
+	templates    *template.Template
+	tsClient     *tailscale.Client
+	authMW       *auth.Middleware
+	caddyManager *caddy.Manager
 }
 
 // NewTailscaleHandler creates a new Tailscale handler
@@ -30,172 +33,258 @@ func NewTailscaleHandler(cfg *config.Config, templates *template.Template, authM
 	}
 }
 
-// Status renders the Tailscale status page
-func (h *TailscaleHandler) Status(w http.ResponseWriter, r *http.Request) {
-	summary, err := h.tsClient.GetStatusSummary()
-	if err != nil {
-		log.Printf("Error getting Tailscale status: %v", err)
-		summary = &tailscale.StatusSummary{
-			Connected:    false,
-			BackendState: "Error",
-		}
-	}
-
-	peers, err := h.tsClient.GetPeers()
-	if err != nil {
-		log.Printf("Error getting Tailscale peers: %v", err)
-		peers = []tailscale.PeerInfo{}
-	}
-
-	data := map[string]interface{}{
-		"Title":          "Tailscale Status",
-		"Summary":        summary,
-		"Peers":          peers,
-		"StateFormatted": tailscale.FormatBackendState(summary.BackendState),
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "tailscale.html", data); err != nil {
-		log.Printf("Error rendering tailscale template: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+// NewTailscaleHandlerWithCaddy creates a Tailscale handler that can update
+// Caddy proxy hostnames when the Tailscale hostname changes.
+func NewTailscaleHandlerWithCaddy(cfg *config.Config, templates *template.Template, authMW *auth.Middleware, caddyManager *caddy.Manager) *TailscaleHandler {
+	return &TailscaleHandler{
+		cfg:          cfg,
+		templates:    templates,
+		tsClient:     tailscale.NewClient(),
+		authMW:       authMW,
+		caddyManager: caddyManager,
 	}
 }
 
-// Login handles Tailscale login initiation
+// writeJSON writes a JSON response with Content-Type set.
+func writeJSON(w http.ResponseWriter, v interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(v)
+}
+
+// writeJSONError writes a JSON error response with the given HTTP status code.
+func writeJSONError(w http.ResponseWriter, message string, status int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "error",
+		"message": message,
+	})
+}
+
+// LoginWithKey handles non-interactive Tailscale authentication using a pre-generated
+// auth key (e.g. "tskey-auth-k..."). The key is passed directly to `tailscale up
+// --authkey=<key>`, authenticating and connecting in a single step without requiring
+// the user to visit an auth URL.
+func (h *TailscaleHandler) LoginWithKey(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSONError(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var body struct {
+		AuthKey string `json:"auth_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSONError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	body.AuthKey = strings.TrimSpace(body.AuthKey)
+	if body.AuthKey == "" {
+		writeJSONError(w, "auth_key cannot be empty", http.StatusBadRequest)
+		return
+	}
+	if !strings.HasPrefix(body.AuthKey, "tskey-") {
+		writeJSONError(w, "invalid auth key: must start with 'tskey-'", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.tsClient.LoginWithAuthKey(body.AuthKey); err != nil {
+		log.Printf("Error authenticating Tailscale with auth key: %v", err)
+		writeJSONError(w, "Failed to authenticate with auth key: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, map[string]string{
+		"status":  "success",
+		"message": "Authenticated and connected successfully",
+	})
+}
+
+// Login handles Tailscale login initiation.
+// Returns the Tailscale auth URL so the user can authenticate in a browser.
 func (h *TailscaleHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeJSONError(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	authURL, err := h.tsClient.LoginWithQR()
+	authURL, err := h.tsClient.Login()
 	if err != nil {
-		log.Printf("Error initiating login: %v", err)
-		http.Error(w, "Failed to initiate login", http.StatusInternalServerError)
+		log.Printf("Error initiating Tailscale login: %v", err)
+		writeJSONError(w, "Failed to get login URL from Tailscale. The daemon may not be running or may already be connected.", http.StatusInternalServerError)
 		return
 	}
 
-	response := map[string]string{
+	writeJSON(w, map[string]string{
 		"status":   "success",
 		"auth_url": authURL,
-		"message":  "Please visit the URL to authenticate",
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+		"message":  "Visit the URL to authenticate with Tailscale",
+	})
 }
 
 // Logout handles Tailscale logout
 func (h *TailscaleHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeJSONError(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	if err := h.tsClient.Logout(); err != nil {
-		log.Printf("Error logging out: %v", err)
-		http.Error(w, "Failed to logout", http.StatusInternalServerError)
+		log.Printf("Error logging out of Tailscale: %v", err)
+		writeJSONError(w, "Failed to logout", http.StatusInternalServerError)
 		return
 	}
 
-	response := map[string]string{
+	writeJSON(w, map[string]string{
 		"status":  "success",
 		"message": "Logged out successfully",
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	})
 }
 
 // Connect handles Tailscale connection
 func (h *TailscaleHandler) Connect(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeJSONError(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	if err := h.tsClient.Up(); err != nil {
-		log.Printf("Error connecting: %v", err)
-		http.Error(w, "Failed to connect", http.StatusInternalServerError)
+		log.Printf("Error connecting Tailscale: %v", err)
+		writeJSONError(w, "Failed to connect", http.StatusInternalServerError)
 		return
 	}
 
-	response := map[string]string{
+	writeJSON(w, map[string]string{
 		"status":  "success",
 		"message": "Connected successfully",
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	})
 }
 
 // Disconnect handles Tailscale disconnection
 func (h *TailscaleHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeJSONError(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	if err := h.tsClient.Down(); err != nil {
-		log.Printf("Error disconnecting: %v", err)
-		http.Error(w, "Failed to disconnect", http.StatusInternalServerError)
+		log.Printf("Error disconnecting Tailscale: %v", err)
+		writeJSONError(w, "Failed to disconnect", http.StatusInternalServerError)
 		return
 	}
 
-	response := map[string]string{
+	writeJSON(w, map[string]string{
 		"status":  "success",
 		"message": "Disconnected successfully",
+	})
+}
+
+// ChangeHostname changes the Tailscale hostname via 'tailscale up --hostname=<name>'
+// and, if a Caddy manager is wired in, updates all proxy hostnames that matched
+// the previous Tailscale FQDN to use the new one.
+func (h *TailscaleHandler) ChangeHostname(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSONError(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	var body struct {
+		Hostname string `json:"hostname"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSONError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	body.Hostname = strings.TrimSpace(body.Hostname)
+	if body.Hostname == "" {
+		writeJSONError(w, "hostname cannot be empty", http.StatusBadRequest)
+		return
+	}
+
+	// Capture current FQDN before changing the hostname so we can migrate
+	// existing Caddy proxy entries that reference the old name.
+	var oldFQDN string
+	if h.caddyManager != nil {
+		if status, err := h.tsClient.GetStatusSummary(); err == nil {
+			oldFQDN = status.MagicDNSName
+		}
+	}
+
+	if err := h.tsClient.UpWithHostname(body.Hostname); err != nil {
+		log.Printf("Error changing Tailscale hostname: %v", err)
+		writeJSONError(w, "Failed to change hostname: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Update Caddy proxy hostnames if we have the manager and a valid old FQDN.
+	if h.caddyManager != nil && oldFQDN != "" {
+		// Derive new FQDN: replace the short hostname portion of the old FQDN.
+		// e.g. "oldname.tailnet.ts.net" → "newname.tailnet.ts.net"
+		newFQDN := oldFQDN
+		if dotIdx := strings.Index(oldFQDN, "."); dotIdx != -1 {
+			newFQDN = body.Hostname + oldFQDN[dotIdx:]
+		}
+		if err := h.caddyManager.UpdateProxyHostnames(oldFQDN, newFQDN); err != nil {
+			// Non-fatal: the hostname change succeeded; log and continue.
+			log.Printf("Warning: failed to update Caddy proxy hostnames after hostname change: %v", err)
+		}
+	}
+
+	writeJSON(w, map[string]string{
+		"status":  "success",
+		"message": "Hostname changed to " + body.Hostname,
+	})
 }
 
 // APIStatus returns Tailscale status as JSON
 func (h *TailscaleHandler) APIStatus(w http.ResponseWriter, r *http.Request) {
 	summary, err := h.tsClient.GetStatusSummary()
 	if err != nil {
-		log.Printf("Error getting status: %v", err)
-		http.Error(w, "Failed to get status", http.StatusInternalServerError)
+		log.Printf("Error getting Tailscale status: %v", err)
+		// Return a degraded status rather than an error so the UI can still render
+		writeJSON(w, &tailscale.StatusSummary{
+			Connected:    false,
+			BackendState: "Unknown",
+			LastCheck:    time.Now(),
+		})
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(summary)
+	writeJSON(w, summary)
 }
 
 // APIPeers returns peer list as JSON
 func (h *TailscaleHandler) APIPeers(w http.ResponseWriter, r *http.Request) {
 	peers, err := h.tsClient.GetPeers()
 	if err != nil {
-		log.Printf("Error getting peers: %v", err)
-		http.Error(w, "Failed to get peers", http.StatusInternalServerError)
+		log.Printf("Error getting Tailscale peers: %v", err)
+		writeJSONError(w, "Failed to get peers", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(peers)
+	writeJSON(w, peers)
 }
 
-// PollStatus polls for login completion
+// PollStatus polls for login completion and optionally sets a session cookie
+// once the daemon reports it is connected.
 func (h *TailscaleHandler) PollStatus(w http.ResponseWriter, r *http.Request) {
-	// Check if connected
 	connected, err := h.tsClient.IsConnected()
 	if err != nil {
-		log.Printf("Error checking connection: %v", err)
-		http.Error(w, "Failed to check status", http.StatusInternalServerError)
+		log.Printf("Error checking Tailscale connection: %v", err)
+		writeJSONError(w, "Failed to check status", http.StatusInternalServerError)
 		return
 	}
 
-	// If connected and token auth is enabled, set session cookie to allow access from localhost
+	// If connected and token auth is enabled, set session cookie to allow
+	// access from localhost without a separate password.
 	if connected && h.authMW != nil {
-		h.authMW.SetSessionCookie(w, r)
+		_ = h.authMW.SetSessionCookie(w, r)
 	}
 
-	response := map[string]interface{}{
+	writeJSON(w, map[string]interface{}{
 		"connected": connected,
 		"timestamp": time.Now().Unix(),
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	})
 }

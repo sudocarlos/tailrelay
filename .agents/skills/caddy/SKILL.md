@@ -1,6 +1,7 @@
 ---
 name: caddy-proxy-management
 description: Caddy reverse proxy management via the Admin API — CRUD operations, route configuration, TLS, and troubleshooting. Use when working with HTTP/HTTPS proxy configuration, the Caddy Admin API, reverse proxy handlers, or proxy-related Go code in internal/caddy/.
+reviewed_at: 17791f3
 ---
 
 # Caddy Proxy Management
@@ -94,7 +95,7 @@ caddy start --config /etc/caddy/Caddyfile
 - `proxies.json` migration has been **removed**
 - If a legacy `proxies.json` is detected, a one-time warning is logged
 - Proxies must be recreated via the Web UI or API
-- See `webui/MIGRATION_SUMMARY.md` for historical context
+- See this SKILL.md for current integration patterns
 
 ## Testing
 
@@ -143,6 +144,5 @@ curl "http://localhost:2019/reverse_proxy/upstreams" | jq
 
 ## Further Reading
 
-- [webui/CADDY_API_GUIDE.md](../../webui/CADDY_API_GUIDE.md) — comprehensive API integration guide
 - [Caddy Admin API docs](https://caddyserver.com/docs/api)
 - [Caddy JSON structure](https://caddyserver.com/docs/json/)

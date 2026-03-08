@@ -117,6 +117,11 @@ func (c *APIClient) doRequestWithHeaders(method, path string, body interface{}) 
 			(resp.StatusCode == http.StatusBadRequest && strings.Contains(string(respBody), "invalid traversal path"))) {
 			// Expected during checks when paths don't exist yet
 			logger.Debug("caddy", "Path not found (expected during checks): %d for %s %s: %s", resp.StatusCode, method, url, string(respBody))
+		} else if resp.StatusCode == http.StatusNotFound {
+			// 404 on a mutating request (PATCH/PUT/POST/DELETE) typically means the
+			// target path doesn't exist yet. Callers handle this via fallback logic,
+			// so log at Debug to avoid noisy false-positive error entries.
+			logger.Debug("caddy", "Path not found (404) for %s %s: %s", method, url, string(respBody))
 		} else {
 			logger.Error("caddy", "Caddy API error %d for %s %s: %s", resp.StatusCode, method, url, string(respBody))
 		}
@@ -329,4 +334,13 @@ type UpstreamStatus struct {
 	Address     string `json:"address"`
 	NumRequests int    `json:"num_requests"`
 	Fails       int    `json:"fails"`
+}
+
+// GetMetricsRaw fetches the raw Prometheus text from Caddy's /metrics endpoint.
+func (c *APIClient) GetMetricsRaw() ([]byte, error) {
+	data, err := c.doRequest("GET", "/metrics", nil)
+	if err != nil {
+		return nil, fmt.Errorf("get metrics: %w", err)
+	}
+	return data, nil
 }
