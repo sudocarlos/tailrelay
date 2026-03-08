@@ -23,6 +23,7 @@ type Server struct {
 	cfg        *config.Config
 	authMW     *auth.Middleware
 	templates  *template.Template
+	authH      *handlers.AuthHandler
 	dashboardH *handlers.DashboardHandler
 	tailscaleH *handlers.TailscaleHandler
 	caddyH     *handlers.CaddyHandler
@@ -43,11 +44,7 @@ func NewServer(cfg *config.Config, authToken string, distFS, staticFS, templateF
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Create authentication middleware
-	authMW := auth.NewMiddleware(
-		authToken,
-		cfg.Auth.EnableTailscaleAuth,
-		cfg.Auth.EnableTokenAuth,
-	)
+	authMW := auth.NewMiddleware(authToken)
 
 	// Parse templates (gracefully handle missing templates for new SPA mode)
 	var tmpl *template.Template
@@ -63,6 +60,7 @@ func NewServer(cfg *config.Config, authToken string, distFS, staticFS, templateF
 	}
 
 	// Create handlers
+	authH := handlers.NewAuthHandler(authMW, cfg.Auth.AdminHashFile)
 	dashboardH := handlers.NewDashboardHandler(cfg, tmpl)
 	tailscaleH := handlers.NewTailscaleHandler(cfg, tmpl, authMW)
 	caddyH := handlers.NewCaddyHandler(cfg, tmpl)
@@ -74,6 +72,7 @@ func NewServer(cfg *config.Config, authToken string, distFS, staticFS, templateF
 	return &Server{
 		cfg:        cfg,
 		authMW:     authMW,
+		authH:      authH,
 		templates:  tmpl,
 		dashboardH: dashboardH,
 		tailscaleH: tailscaleH,
@@ -174,10 +173,12 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	// Public routes (no authentication required)
+	mux.Handle("/api/auth/status", http.HandlerFunc(s.authH.Status))
+	mux.Handle("/api/auth/setup", http.HandlerFunc(s.authH.Setup))
+	mux.Handle("/api/auth/login", http.HandlerFunc(s.authH.Login))
+
 	mux.HandleFunc("/login", s.handleLogin)
 	mux.HandleFunc("/logout", s.handleLogout)
-	mux.Handle("/api/tailscale/login", http.HandlerFunc(s.tailscaleH.Login))
-	mux.Handle("/api/tailscale/poll", http.HandlerFunc(s.tailscaleH.PollStatus))
 
 	// Vite dist assets (hashed filenames, long-cache)
 	if s.distFS != nil {
@@ -193,6 +194,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 
 	// Protected routes (authentication required)
 	mux.Handle("/", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPAFallback)))
+	mux.Handle("/api/auth/logout", s.authMW.RequireAuth(http.HandlerFunc(s.authH.Logout)))
 	mux.Handle("/api/status", s.authMW.RequireAuth(http.HandlerFunc(s.dashboardH.APIStatus)))
 	mux.Handle("/api/targets", s.authMW.RequireAuth(http.HandlerFunc(s.targetsH.APIList)))
 

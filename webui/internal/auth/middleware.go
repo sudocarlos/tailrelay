@@ -1,10 +1,12 @@
 package auth
 
 import (
-	"log"
-	"net"
+	"crypto/rand"
+	"encoding/hex"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 )
 
 const (
@@ -14,105 +16,118 @@ const (
 
 // Middleware provides authentication functionality
 type Middleware struct {
-	token               string
-	enableTailscaleAuth bool
-	enableTokenAuth     bool
+	staticToken string // API token for automation
+
+	mu      sync.RWMutex
+	session string // Currently active session token
+	expiry  time.Time
 }
 
 // NewMiddleware creates a new authentication middleware
-func NewMiddleware(token string, enableTailscaleAuth, enableTokenAuth bool) *Middleware {
+func NewMiddleware(staticToken string) *Middleware {
 	return &Middleware{
-		token:               token,
-		enableTailscaleAuth: enableTailscaleAuth,
-		enableTokenAuth:     enableTokenAuth,
+		staticToken: staticToken,
 	}
 }
 
 // RequireAuth is middleware that requires authentication
 func (m *Middleware) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check 1: Valid session cookie
-		if m.enableTokenAuth && m.hasValidSession(r) {
+		// Check 1: Authorization Header (Static API Token)
+		authHeader := r.Header.Get("Authorization")
+		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+			reqToken := strings.TrimPrefix(authHeader, "Bearer ")
+			if reqToken == m.staticToken && m.staticToken != "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		// Check 2: Valid session cookie
+		if m.HasValidSession(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		// Check 2: Request from Tailscale IP
-		if m.enableTailscaleAuth && m.isTailscaleIP(r) {
-			next.ServeHTTP(w, r)
+		// Not authenticated
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"error": "unauthorized"}`))
 			return
 		}
 
-		// Not authenticated - redirect to login
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 	})
 }
 
-// hasValidSession checks if the request has a valid session cookie
-func (m *Middleware) hasValidSession(r *http.Request) bool {
+// HasValidSession checks if the request has a valid session cookie
+func (m *Middleware) HasValidSession(r *http.Request) bool {
 	cookie, err := r.Cookie(sessionCookieName)
-	if err != nil {
+	if err != nil || cookie.Value == "" {
 		return false
 	}
 
-	// Simple token validation
-	return cookie.Value == m.token
-}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
-// isTailscaleIP checks if the request comes from a Tailscale IP
-func (m *Middleware) isTailscaleIP(r *http.Request) bool {
-	// Get remote IP address
-	remoteAddr := r.RemoteAddr
-	host, _, err := net.SplitHostPort(remoteAddr)
-	if err != nil {
-		// If no port, use the whole address
-		host = remoteAddr
-	}
-
-	ip := net.ParseIP(host)
-	if ip == nil {
-		log.Printf("Failed to parse IP: %s", host)
+	if m.session == "" || cookie.Value != m.session {
 		return false
 	}
 
-	// Check for Tailscale IPv4 range (100.64.0.0/10)
-	_, tailscaleV4, _ := net.ParseCIDR("100.64.0.0/10")
-	if tailscaleV4.Contains(ip) {
-		log.Printf("Authenticated via Tailscale IPv4: %s", ip.String())
-		return true
+	if time.Now().After(m.expiry) {
+		return false
 	}
 
-	// Check for Tailscale IPv6 range (fd7a:115c:a1e0::/48)
-	_, tailscaleV6, _ := net.ParseCIDR("fd7a:115c:a1e0::/48")
-	if tailscaleV6.Contains(ip) {
-		log.Printf("Authenticated via Tailscale IPv6: %s", ip.String())
-		return true
-	}
-
-	return false
+	return true
 }
 
-// SetSessionCookie sets the authentication session cookie
-func (m *Middleware) SetSessionCookie(w http.ResponseWriter, r *http.Request) {
+// CreateSession generates a new session and returns the token
+func (m *Middleware) CreateSession() (string, error) {
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	token := hex.EncodeToString(bytes)
+
+	m.mu.Lock()
+	m.session = token
+	m.expiry = time.Now().Add(time.Duration(sessionDuration) * time.Second)
+	m.mu.Unlock()
+
+	return token, nil
+}
+
+// SetSessionCookie generates a new session and sets the authentication cookie
+func (m *Middleware) SetSessionCookie(w http.ResponseWriter, r *http.Request) error {
+	token, err := m.CreateSession()
+	if err != nil {
+		return err
+	}
+
 	cookie := &http.Cookie{
 		Name:     sessionCookieName,
-		Value:    m.token,
+		Value:    token,
 		Path:     "/",
 		MaxAge:   sessionDuration,
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 	}
 
-	// Set Secure flag if using HTTPS
 	if r.TLS != nil || strings.HasPrefix(r.Header.Get("X-Forwarded-Proto"), "https") {
 		cookie.Secure = true
 	}
 
 	http.SetCookie(w, cookie)
+	return nil
 }
 
 // ClearSessionCookie clears the authentication session cookie
 func (m *Middleware) ClearSessionCookie(w http.ResponseWriter) {
+	m.mu.Lock()
+	m.session = ""
+	m.mu.Unlock()
+
 	cookie := &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    "",
@@ -121,9 +136,4 @@ func (m *Middleware) ClearSessionCookie(w http.ResponseWriter) {
 		HttpOnly: true,
 	}
 	http.SetCookie(w, cookie)
-}
-
-// ValidateToken checks if the provided token matches the configured token
-func (m *Middleware) ValidateToken(token string) bool {
-	return m.enableTokenAuth && token == m.token
 }

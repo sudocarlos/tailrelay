@@ -21,9 +21,8 @@ type ServerConfig struct {
 
 // AuthConfig contains authentication settings
 type AuthConfig struct {
-	TokenFile           string `yaml:"token_file"`
-	EnableTailscaleAuth bool   `yaml:"enable_tailscale_auth"`
-	EnableTokenAuth     bool   `yaml:"enable_token_auth"`
+	TokenFile     string `yaml:"token_file"`
+	AdminHashFile string `yaml:"admin_hash_file"`
 }
 
 // PathsConfig contains file paths for various configurations

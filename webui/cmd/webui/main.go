@@ -104,12 +104,8 @@ func main() {
 	}
 
 	logger.Info("main", "Web UI available at http://0.0.0.0:%d", cfg.Server.Port)
-	if cfg.Auth.EnableTailscaleAuth {
-		logger.Info("main", "Tailscale network authentication: ENABLED")
-	}
-	if cfg.Auth.EnableTokenAuth {
-		logger.Info("main", "Token authentication: ENABLED")
-	}
+	logger.Info("main", "Admin authentication: ENABLED")
+	logger.Info("main", "API Token authentication: ENABLED")
 
 	if err := server.Start(); err != nil {
 		logger.Error("main", "Server error: %v", err)

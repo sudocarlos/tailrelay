@@ -1,8 +1,8 @@
 <script>
   import { theme } from '../stores/theme.js';
-  import { currentView, refreshData, lastUpdated } from '../stores/app.js';
+  import { currentView, refreshData, lastUpdated, logout } from '../stores/app.js';
   import { showToast } from '../stores/toast.js';
-  import { Sun, Moon, RefreshCw, LogOut, Menu, X } from '@lucide/svelte';
+  import { Sun, Moon, RefreshCw, LogOut, Menu, X, Key } from '@lucide/svelte';
 
   let currentTheme = $state('light');
   let menuOpen = $state(false);
@@ -82,13 +82,13 @@
           {/if}
         </button>
 
-        <a
-          href="/logout"
+        <button
           class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-500 dark:text-gray-400"
           title="Logout"
+          onclick={logout}
         >
           <LogOut size={16} />
-        </a>
+        </button>
 
         <!-- Mobile menu toggle -->
         <button

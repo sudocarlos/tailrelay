@@ -1,21 +1,27 @@
 <script>
-  import { Lock } from '@lucide/svelte';
+  import { ShieldAlert } from '@lucide/svelte';
   import { theme } from '../stores/theme.js';
-  import { authenticated, needsSetup, refreshData } from '../stores/app.js';
+  import { authenticated, needsSetup } from '../stores/app.js';
   import { fetchJSON } from '../api.js';
 
   let currentTheme = $state('dark');
   let password = $state('');
+  let confirmPassword = $state('');
   let loading = $state(false);
   let error = $state('');
 
   theme.subscribe((v) => (currentTheme = v));
 
-  async function handleLogin(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
 
-    if (!password) {
-      error = 'Please enter your password.';
+    if (password.length < 6) {
+      error = 'Password must be at least 6 characters.';
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      error = 'Passwords do not match.';
       return;
     }
 
@@ -23,15 +29,15 @@
     loading = true;
 
     try {
-      await fetchJSON('/api/auth/login', {
+      await fetchJSON('/api/auth/setup', {
         method: 'POST',
         body: JSON.stringify({ password })
       });
+      needsSetup.set(false);
       authenticated.set(true);
-      await refreshData();
       window.location.replace('/');
     } catch (err) {
-      error = 'Invalid password.';
+      error = err.message || 'Setup failed. Please try again.';
     } finally {
       loading = false;
     }
@@ -39,19 +45,19 @@
 </script>
 
 <div class="flex-1 flex flex-col items-center justify-center p-4">
-  <div class="w-full max-w-sm">
+  <div class="w-full max-w-md">
     <div class="text-center mb-8">
-      <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-500/10 text-blue-500 mb-4">
-        <Lock size={32} />
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-500 mb-4">
+        <ShieldAlert size={32} />
       </div>
-      <h1 class="text-2xl font-bold mb-2">Tailrelay</h1>
+      <h1 class="text-2xl font-bold mb-2">Initial Setup</h1>
       <p class="text-gray-500 dark:text-gray-400">
-        Enter your admin password to continue.
+        Welcome to Tailrelay. Please set an administrator password to secure the dashboard.
       </p>
     </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 overflow-hidden">
-      <form onsubmit={handleLogin} class="space-y-4">
+      <form onsubmit={handleSubmit} class="space-y-4">
         {#if error}
           <div class="p-3 text-sm rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
             {error}
@@ -59,14 +65,27 @@
         {/if}
 
         <div>
-          <label for="password" class="block text-sm font-medium mb-1.5">Password</label>
+          <label for="password" class="block text-sm font-medium mb-1.5">New Password</label>
           <input
             id="password"
             type="password"
             bind:value={password}
             class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-shadow"
             required
-            autocomplete="current-password"
+            autocomplete="new-password"
+            disabled={loading}
+          />
+        </div>
+
+        <div>
+          <label for="confirm_password" class="block text-sm font-medium mb-1.5">Confirm Password</label>
+          <input
+            id="confirm_password"
+            type="password"
+            bind:value={confirmPassword}
+            class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-shadow"
+            required
+            autocomplete="new-password"
             disabled={loading}
           />
         </div>
@@ -79,9 +98,9 @@
           >
             {#if loading}
               <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-              Logging in...
+              Saving...
             {:else}
-              Log In
+              Save Password & Continue
             {/if}
           </button>
         </div>

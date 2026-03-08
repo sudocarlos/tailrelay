@@ -39,6 +39,11 @@ func Load(filename string) (*Config, error) {
 
 	cfg.ConfigFile = filename
 
+	// Apply defaults for fields not in older config files
+	if cfg.Auth.AdminHashFile == "" {
+		cfg.Auth.AdminHashFile = "/var/lib/tailscale/.admin_hash"
+	}
+
 	return &cfg, nil
 }
 
@@ -86,9 +91,8 @@ func DefaultConfig() *Config {
 			Host: "0.0.0.0",
 		},
 		Auth: AuthConfig{
-			TokenFile:           "/var/lib/tailscale/.webui_token",
-			EnableTailscaleAuth: true,
-			EnableTokenAuth:     true,
+			TokenFile:     "/var/lib/tailscale/.webui_token",
+			AdminHashFile: "/var/lib/tailscale/.admin_hash",
 		},
 		Paths: PathsConfig{
 			CaddyConfig:      "/etc/caddy/Caddyfile",

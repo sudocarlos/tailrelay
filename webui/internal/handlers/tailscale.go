@@ -188,7 +188,7 @@ func (h *TailscaleHandler) PollStatus(w http.ResponseWriter, r *http.Request) {
 
 	// If connected and token auth is enabled, set session cookie to allow access from localhost
 	if connected && h.authMW != nil {
-		h.authMW.SetSessionCookie(w, r)
+		_ = h.authMW.SetSessionCookie(w, r)
 	}
 
 	response := map[string]interface{}{

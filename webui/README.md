@@ -11,20 +11,6 @@ A lightweight web interface for managing Tailscale, Caddy reverse proxies, and s
 - **Backup & Restore**: Full configuration and certificate backup
 - **Authentication**: Tailscale login link + token-based access for scripts
 
-## Recent Updates (v0.3.0)
-
-### Caddy API Integration
-
-The Web UI now uses **Caddy's Admin API** directly instead of file-based Caddyfile management. This provides:
-
-- ✅ **Zero-downtime configuration changes** - No reload/restart needed
-- ✅ **5-10x faster operations** - Direct API calls vs file regeneration
-- ✅ **Atomic updates** - Changes apply instantly and safely
-- ✅ **Better error handling** - Immediate feedback from Caddy
-- ✅ **No file system dependencies** - Pure HTTP-based management
-
-See `CADDY_API_GUIDE.md` for detailed documentation and `MIGRATION_SUMMARY.md` for migration information.
-
 ## Building
 
 ```bash
@@ -102,9 +88,6 @@ webui/
 │   └── web/            # HTTP server and routing
 ├── config/             # Example configuration files
 ├── examples/           # Usage examples
-└── docs/
-    ├── CADDY_API_GUIDE.md      # Comprehensive API documentation
-    └── MIGRATION_SUMMARY.md    # Migration guide
 ```
 
 ### Dependencies
