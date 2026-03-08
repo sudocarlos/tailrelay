@@ -9,16 +9,18 @@ import (
 	"time"
 
 	"github.com/sudocarlos/tailrelay/internal/auth"
+	"github.com/sudocarlos/tailrelay/internal/caddy"
 	"github.com/sudocarlos/tailrelay/internal/config"
 	"github.com/sudocarlos/tailrelay/internal/tailscale"
 )
 
 // TailscaleHandler handles Tailscale-related requests
 type TailscaleHandler struct {
-	cfg       *config.Config
-	templates *template.Template
-	tsClient  *tailscale.Client
-	authMW    *auth.Middleware
+	cfg          *config.Config
+	templates    *template.Template
+	tsClient     *tailscale.Client
+	authMW       *auth.Middleware
+	caddyManager *caddy.Manager
 }
 
 // NewTailscaleHandler creates a new Tailscale handler
@@ -28,6 +30,18 @@ func NewTailscaleHandler(cfg *config.Config, templates *template.Template, authM
 		templates: templates,
 		tsClient:  tailscale.NewClient(),
 		authMW:    authMW,
+	}
+}
+
+// NewTailscaleHandlerWithCaddy creates a Tailscale handler that can update
+// Caddy proxy hostnames when the Tailscale hostname changes.
+func NewTailscaleHandlerWithCaddy(cfg *config.Config, templates *template.Template, authMW *auth.Middleware, caddyManager *caddy.Manager) *TailscaleHandler {
+	return &TailscaleHandler{
+		cfg:          cfg,
+		templates:    templates,
+		tsClient:     tailscale.NewClient(),
+		authMW:       authMW,
+		caddyManager: caddyManager,
 	}
 }
 
@@ -166,7 +180,9 @@ func (h *TailscaleHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ChangeHostname changes the Tailscale hostname via 'tailscale up --hostname=<name>'.
+// ChangeHostname changes the Tailscale hostname via 'tailscale up --hostname=<name>'
+// and, if a Caddy manager is wired in, updates all proxy hostnames that matched
+// the previous Tailscale FQDN to use the new one.
 func (h *TailscaleHandler) ChangeHostname(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSONError(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -187,10 +203,33 @@ func (h *TailscaleHandler) ChangeHostname(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Capture current FQDN before changing the hostname so we can migrate
+	// existing Caddy proxy entries that reference the old name.
+	var oldFQDN string
+	if h.caddyManager != nil {
+		if status, err := h.tsClient.GetStatusSummary(); err == nil {
+			oldFQDN = status.MagicDNSName
+		}
+	}
+
 	if err := h.tsClient.UpWithHostname(body.Hostname); err != nil {
 		log.Printf("Error changing Tailscale hostname: %v", err)
 		writeJSONError(w, "Failed to change hostname: "+err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Update Caddy proxy hostnames if we have the manager and a valid old FQDN.
+	if h.caddyManager != nil && oldFQDN != "" {
+		// Derive new FQDN: replace the short hostname portion of the old FQDN.
+		// e.g. "oldname.tailnet.ts.net" → "newname.tailnet.ts.net"
+		newFQDN := oldFQDN
+		if dotIdx := strings.Index(oldFQDN, "."); dotIdx != -1 {
+			newFQDN = body.Hostname + oldFQDN[dotIdx:]
+		}
+		if err := h.caddyManager.UpdateProxyHostnames(oldFQDN, newFQDN); err != nil {
+			// Non-fatal: the hostname change succeeded; log and continue.
+			log.Printf("Warning: failed to update Caddy proxy hostnames after hostname change: %v", err)
+		}
 	}
 
 	writeJSON(w, map[string]string{

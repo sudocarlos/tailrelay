@@ -27,15 +27,18 @@ type CaddyHandler struct {
 	tsClient  *tailscale.Client
 }
 
-// NewCaddyHandler creates a new Caddy handler
+// NewCaddyHandler creates a new Caddy handler with its own Manager instance.
 func NewCaddyHandler(cfg *config.Config, templates *template.Template) *CaddyHandler {
-	// Use Caddy API instead of file-based config
-	// Pass empty string for server name to enable auto-discovery
 	manager := caddy.NewManager(
 		caddy.DefaultAdminAPI,
 		cfg.Paths.CaddyServerMap,
 	)
+	return NewCaddyHandlerWithManager(cfg, templates, manager)
+}
 
+// NewCaddyHandlerWithManager creates a Caddy handler using the provided Manager.
+// Use this when the manager must be shared with other handlers (e.g. TailscaleHandler).
+func NewCaddyHandlerWithManager(cfg *config.Config, templates *template.Template, manager *caddy.Manager) *CaddyHandler {
 	return &CaddyHandler{
 		cfg:       cfg,
 		templates: templates,

@@ -147,6 +147,13 @@ func (m *Manager) InitializeAutostart() error {
 	return nil
 }
 
+// UpdateProxyHostnames replaces the hostname in all proxies that currently
+// use oldFQDN with newFQDN and pushes the updated routes to Caddy. This
+// should be called after a Tailscale hostname change.
+func (m *Manager) UpdateProxyHostnames(oldFQDN, newFQDN string) error {
+	return m.proxyManager.UpdateProxyHostnames(oldFQDN, newFQDN)
+}
+
 // GetMetrics fetches Prometheus metrics from Caddy and returns parsed data.
 func (m *Manager) GetMetrics() (*MetricsData, error) {
 	raw, err := m.proxyManager.client.GetMetricsRaw()

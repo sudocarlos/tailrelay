@@ -11,10 +11,12 @@
   let refreshing = $state(false);
   let showChangePassword = $state(false);
   let tsConnected = $state(true);
+  let currentViewValue = $state('dashboard');
 
   theme.subscribe((v) => (currentTheme = v));
   lastUpdated.subscribe((v) => (updated = v));
   tailscaleConnected.subscribe((v) => (tsConnected = v));
+  currentView.subscribe((v) => (currentViewValue = v));
 
   function switchView(view) {
     // Block navigation to non-Tailscale views when Tailscale is disconnected.
@@ -37,7 +39,7 @@
 
   // CSS helpers for nav buttons depending on connection state.
   function navBtnClass(view) {
-    const active = $currentView === view;
+    const active = currentViewValue === view;
     const locked = !tsConnected && view !== 'tailscale';
     if (locked) {
       return 'px-3 py-1.5 text-sm rounded-md opacity-40 cursor-not-allowed text-gray-400 dark:text-gray-600';
@@ -50,7 +52,7 @@
   }
 
   function mobileNavBtnClass(view) {
-    const active = $currentView === view;
+    const active = currentViewValue === view;
     const locked = !tsConnected && view !== 'tailscale';
     if (locked) {
       return 'px-3 py-2 text-sm rounded-md text-left opacity-40 cursor-not-allowed text-gray-400 dark:text-gray-600';

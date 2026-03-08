@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/sudocarlos/tailrelay/internal/auth"
+	"github.com/sudocarlos/tailrelay/internal/caddy"
 	"github.com/sudocarlos/tailrelay/internal/config"
 	"github.com/sudocarlos/tailrelay/internal/handlers"
 )
@@ -62,8 +63,13 @@ func NewServer(cfg *config.Config, authToken string, distFS, staticFS, templateF
 	// Create handlers
 	authH := handlers.NewAuthHandler(authMW, cfg.Auth.AdminHashFile)
 	dashboardH := handlers.NewDashboardHandler(cfg, tmpl)
-	tailscaleH := handlers.NewTailscaleHandler(cfg, tmpl, authMW)
-	caddyH := handlers.NewCaddyHandler(cfg, tmpl)
+
+	// Create a shared Caddy manager so that TailscaleHandler can update proxy
+	// hostnames when the Tailscale device hostname changes.
+	caddyMgr := caddy.NewManager(caddy.DefaultAdminAPI, cfg.Paths.CaddyServerMap)
+
+	tailscaleH := handlers.NewTailscaleHandlerWithCaddy(cfg, tmpl, authMW, caddyMgr)
+	caddyH := handlers.NewCaddyHandlerWithManager(cfg, tmpl, caddyMgr)
 	socatH := handlers.NewSocatHandler(cfg, tmpl)
 	backupH := handlers.NewBackupHandler(cfg, tmpl)
 	targetsH := handlers.NewTargetsHandler(cfg)
