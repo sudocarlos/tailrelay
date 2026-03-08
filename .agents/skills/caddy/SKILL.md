@@ -1,6 +1,7 @@
 ---
 name: caddy-proxy-management
 description: Caddy reverse proxy management via the Admin API — CRUD operations, route configuration, TLS, and troubleshooting. Use when working with HTTP/HTTPS proxy configuration, the Caddy Admin API, reverse proxy handlers, or proxy-related Go code in internal/caddy/.
+reviewed_at: 17791f3
 ---
 
 # Caddy Proxy Management

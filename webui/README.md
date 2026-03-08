@@ -113,3 +113,11 @@ go build -o tailrelay-webui ./cmd/webui
 The Web UI is built as part of the tailrelay Docker image and starts automatically with the container.
 
 See the main project README for Docker usage instructions.
+
+## Review Status
+
+<!-- reviewed_at: 17791f3 | paths: webui/ -->
+Last full review completed at commit `17791f3`. To check what has changed since:
+```bash
+git log --oneline 17791f3..HEAD -- webui/
+```
