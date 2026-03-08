@@ -125,13 +125,13 @@ type HTTPTransport struct {
 
 // TLSConfig represents TLS configuration for transport
 type TLSConfig struct {
-	RootCAPool            []string `json:"root_ca_pool,omitempty"`
-	RootCAPEMFiles        []string `json:"root_ca_pem_files,omitempty"`
-	ClientCertificateFile string   `json:"client_certificate_file,omitempty"`
-	ClientCertificateKey  string   `json:"client_certificate_key_file,omitempty"`
-	InsecureSkipVerify    bool     `json:"insecure_skip_verify,omitempty"`
-	ServerName            string   `json:"server_name,omitempty"`
-	HandshakeTimeout      string   `json:"handshake_timeout,omitempty"`
+	RootCAPool            []string     `json:"root_ca_pool,omitempty"`
+	RootCAPEMFiles        []string     `json:"root_ca_pem_files,omitempty"`
+	ClientCertificateFile string       `json:"client_certificate_file,omitempty"`
+	ClientCertificateKey  string       `json:"client_certificate_key_file,omitempty"`
+	InsecureSkipVerify    bool         `json:"insecure_skip_verify,omitempty"`
+	ServerName            string       `json:"server_name,omitempty"`
+	HandshakeTimeout      string       `json:"handshake_timeout,omitempty"`
 	CA                    *TLSCAConfig `json:"ca,omitempty"`
 }
 

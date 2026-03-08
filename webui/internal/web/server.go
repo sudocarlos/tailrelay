@@ -113,11 +113,11 @@ func (s *Server) Start() error {
 		log.Printf("Warning: failed to start autostart proxies: %v", err)
 	}
 
-	// Enable per_host metrics on all existing Caddy servers.
-	log.Printf("Enabling Caddy per_host metrics...")
-	if err := s.caddyH.EnsureMetrics(); err != nil {
-		log.Printf("Warning: failed to enable Caddy metrics: %v", err)
-	}
+	// Probe TLS certificates for MagicDNS proxies and warn early if any are
+	// missing or invalid — gives an immediate signal in container logs before
+	// the dashboard is opened.
+	log.Printf("Checking TLS certificates for MagicDNS proxies...")
+	s.caddyH.CheckTLSCertsAtStartup()
 
 	mux := s.setupRoutes()
 

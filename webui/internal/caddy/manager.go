@@ -156,22 +156,6 @@ func (m *Manager) GetMetrics() (*MetricsData, error) {
 	return ParseMetrics(raw), nil
 }
 
-// EnsureMetricsOnAllServers enables per_host metrics on every known Caddy server.
-func (m *Manager) EnsureMetricsOnAllServers() error {
-	m.proxyManager.mapMu.Lock()
-	serverNames := m.proxyManager.serverMap.AllServerNames()
-	m.proxyManager.mapMu.Unlock()
-
-	var lastErr error
-	for _, name := range serverNames {
-		if err := m.proxyManager.client.EnableServerMetrics(name); err != nil {
-			log.Printf("Warning: failed to enable metrics on server %s: %v", name, err)
-			lastErr = err
-		}
-	}
-	return lastErr
-}
-
 // Note: Reload, Start, Stop methods are no longer needed
 // The Caddy API handles configuration changes atomically and instantly
 // No manual reload or restart is required

@@ -140,6 +140,21 @@
 
   onMount(() => {
     window.addEventListener('keydown', handleKeydown);
+
+    // Warn once on mount about any TLS certificate issues found in the current
+    // proxy list. This surfaces problems that would otherwise only be visible
+    // via the inline card warning or the container logs.
+    const unsubProxies = proxies.subscribe((proxyList) => {
+      proxyList.forEach((proxy) => {
+        const tlsErr = proxy.tls_error || proxy.TLSError || '';
+        if (tlsErr) {
+          const hostname = proxy.hostname || proxy.Hostname || proxy.id;
+          showToast('warning', `TLS cert issue on ${hostname}: ${tlsErr}`);
+        }
+      });
+      // Unsubscribe after the first emission so we only toast on initial load.
+      unsubProxies();
+    });
   });
 
   onDestroy(() => {
