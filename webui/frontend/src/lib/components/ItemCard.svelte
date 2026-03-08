@@ -1,5 +1,5 @@
 <script>
-  import { Network, ShieldCheck, Play, Pause, Pencil, Trash2, Power } from '@lucide/svelte';
+  import { Network, ShieldCheck, Play, Pause, Pencil, Trash2, AlertTriangle } from '@lucide/svelte';
 
   let { item, fqdn, onToggle, onAutostart, onEdit, onDelete } = $props();
 
@@ -90,6 +90,7 @@
   {@const running = proxy.running ?? proxy.Running}
   {@const autostart = proxy.autostart ?? false}
   {@const proxyUrl = formatProxyUrl(proxy)}
+  {@const tlsError = proxy.tls_error || proxy.TLSError || ''}
 
   <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-3">
     <div class="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -107,10 +108,21 @@
             class="w-2 h-2 rounded-full flex-shrink-0 {running ? 'bg-green-500 status-dot-running' : 'bg-gray-400 dark:bg-gray-600'}"
             title={running ? 'Running' : 'Stopped'}
           ></span>
+          {#if tlsError}
+            <span title={tlsError} class="flex-shrink-0 text-amber-500 dark:text-amber-400 cursor-help">
+              <AlertTriangle size={14} />
+            </span>
+          {/if}
         </div>
         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
           &rarr; {proxy.target}
         </p>
+        {#if tlsError}
+          <p class="text-xs text-amber-600 dark:text-amber-400 mt-1 ml-6 flex items-start gap-1">
+            <AlertTriangle size={11} class="mt-0.5 flex-shrink-0" />
+            <span>TLS cert issue: {tlsError}</span>
+          </p>
+        {/if}
       </div>
 
       <!-- Actions -->
