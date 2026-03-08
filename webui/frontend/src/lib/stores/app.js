@@ -1,4 +1,4 @@
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import { fetchJSON } from '../api.js';
 
 // ── Core data stores ──────────────────────────────────────────────
@@ -30,6 +30,14 @@ export const filteredItems = derived(
 // ── Logs ──────────────────────────────────────────────────────────
 export const logs = writable([]);
 export const logLevel = writable('INFO');
+
+// ── Derived: is Tailscale connected? ─────────────────────────────
+// True only when BackendState is "Running"; false for NeedsLogin,
+// NoState, Stopped, Starting, or unknown.
+export const tailscaleConnected = derived(
+  tailscaleStatus,
+  ($s) => $s?.BackendState === 'Running',
+);
 
 // ── Navigation ────────────────────────────────────────────────────
 export const currentView = writable('dashboard');

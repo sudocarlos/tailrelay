@@ -1,8 +1,8 @@
 <script>
   import { theme } from '../stores/theme.js';
-  import { currentView, refreshData, lastUpdated, logout } from '../stores/app.js';
+  import { currentView, refreshData, lastUpdated, logout, tailscaleConnected } from '../stores/app.js';
   import { showToast } from '../stores/toast.js';
-  import { Sun, Moon, RefreshCw, LogOut, Menu, X, KeyRound } from '@lucide/svelte';
+  import { Sun, Moon, RefreshCw, LogOut, Menu, X, KeyRound, AlertTriangle } from '@lucide/svelte';
   import ChangePasswordModal from './ChangePasswordModal.svelte';
 
   let currentTheme = $state('light');
@@ -10,11 +10,15 @@
   let updated = $state('');
   let refreshing = $state(false);
   let showChangePassword = $state(false);
+  let tsConnected = $state(true);
 
   theme.subscribe((v) => (currentTheme = v));
   lastUpdated.subscribe((v) => (updated = v));
+  tailscaleConnected.subscribe((v) => (tsConnected = v));
 
   function switchView(view) {
+    // Block navigation to non-Tailscale views when Tailscale is disconnected.
+    if (!tsConnected && view !== 'tailscale') return;
     currentView.set(view);
     menuOpen = false;
   }
@@ -30,6 +34,31 @@
       refreshing = false;
     }
   }
+
+  // CSS helpers for nav buttons depending on connection state.
+  function navBtnClass(view) {
+    const active = $currentView === view;
+    const locked = !tsConnected && view !== 'tailscale';
+    if (locked) {
+      return 'px-3 py-1.5 text-sm rounded-md opacity-40 cursor-not-allowed text-gray-400 dark:text-gray-600';
+    }
+    return `px-3 py-1.5 text-sm rounded-md transition-colors ${
+      active
+        ? 'bg-gray-100 dark:bg-gray-800 font-medium'
+        : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 text-gray-600 dark:text-gray-400'
+    }`;
+  }
+
+  function mobileNavBtnClass(view) {
+    const active = $currentView === view;
+    const locked = !tsConnected && view !== 'tailscale';
+    if (locked) {
+      return 'px-3 py-2 text-sm rounded-md text-left opacity-40 cursor-not-allowed text-gray-400 dark:text-gray-600';
+    }
+    return `px-3 py-2 text-sm rounded-md text-left transition-colors ${
+      active ? 'bg-gray-100 dark:bg-gray-800 font-medium' : 'text-gray-600 dark:text-gray-400'
+    }`;
+  }
 </script>
 
 <nav class="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 sticky top-0 z-40">
@@ -42,28 +71,21 @@
 
       <!-- Desktop nav -->
       <div class="hidden sm:flex items-center gap-1">
-        <button
-          class="px-3 py-1.5 text-sm rounded-md transition-colors {$currentView === 'dashboard' ? 'bg-gray-100 dark:bg-gray-800 font-medium' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 text-gray-600 dark:text-gray-400'}"
-          onclick={() => switchView('dashboard')}
-        >
+        <button class={navBtnClass('dashboard')} onclick={() => switchView('dashboard')}>
           Dashboard
         </button>
-        <button
-          class="px-3 py-1.5 text-sm rounded-md transition-colors {$currentView === 'tailscale' ? 'bg-gray-100 dark:bg-gray-800 font-medium' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 text-gray-600 dark:text-gray-400'}"
-          onclick={() => switchView('tailscale')}
-        >
-          Tailscale
+        <button class={navBtnClass('tailscale')} onclick={() => switchView('tailscale')}>
+          <span class="inline-flex items-center gap-1.5">
+            Tailscale
+            {#if !tsConnected}
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" title="Tailscale not connected"></span>
+            {/if}
+          </span>
         </button>
-        <button
-          class="px-3 py-1.5 text-sm rounded-md transition-colors {$currentView === 'metrics' ? 'bg-gray-100 dark:bg-gray-800 font-medium' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 text-gray-600 dark:text-gray-400'}"
-          onclick={() => switchView('metrics')}
-        >
+        <button class={navBtnClass('metrics')} onclick={() => switchView('metrics')}>
           Metrics
         </button>
-        <button
-          class="px-3 py-1.5 text-sm rounded-md transition-colors {$currentView === 'backups' ? 'bg-gray-100 dark:bg-gray-800 font-medium' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 text-gray-600 dark:text-gray-400'}"
-          onclick={() => switchView('backups')}
-        >
+        <button class={navBtnClass('backups')} onclick={() => switchView('backups')}>
           Backups
         </button>
       </div>
@@ -129,33 +151,36 @@
     <!-- Mobile nav -->
     {#if menuOpen}
       <div class="sm:hidden pb-3 pt-1 flex flex-col gap-1 border-t border-gray-200 dark:border-gray-800">
-        <button
-          class="px-3 py-2 text-sm rounded-md text-left transition-colors {$currentView === 'dashboard' ? 'bg-gray-100 dark:bg-gray-800 font-medium' : 'text-gray-600 dark:text-gray-400'}"
-          onclick={() => switchView('dashboard')}
-        >
+        <button class={mobileNavBtnClass('dashboard')} onclick={() => switchView('dashboard')}>
           Dashboard
         </button>
-        <button
-          class="px-3 py-2 text-sm rounded-md text-left transition-colors {$currentView === 'tailscale' ? 'bg-gray-100 dark:bg-gray-800 font-medium' : 'text-gray-600 dark:text-gray-400'}"
-          onclick={() => switchView('tailscale')}
-        >
-          Tailscale
+        <button class={mobileNavBtnClass('tailscale')} onclick={() => switchView('tailscale')}>
+          <span class="inline-flex items-center gap-1.5">
+            Tailscale
+            {#if !tsConnected}
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0"></span>
+            {/if}
+          </span>
         </button>
-        <button
-          class="px-3 py-2 text-sm rounded-md text-left transition-colors {$currentView === 'metrics' ? 'bg-gray-100 dark:bg-gray-800 font-medium' : 'text-gray-600 dark:text-gray-400'}"
-          onclick={() => switchView('metrics')}
-        >
+        <button class={mobileNavBtnClass('metrics')} onclick={() => switchView('metrics')}>
           Metrics
         </button>
-        <button
-          class="px-3 py-2 text-sm rounded-md text-left transition-colors {$currentView === 'backups' ? 'bg-gray-100 dark:bg-gray-800 font-medium' : 'text-gray-600 dark:text-gray-400'}"
-          onclick={() => switchView('backups')}
-        >
+        <button class={mobileNavBtnClass('backups')} onclick={() => switchView('backups')}>
           Backups
         </button>
       </div>
     {/if}
   </div>
+
+  <!-- Tailscale disconnected warning banner -->
+  {#if !tsConnected}
+    <div class="border-t border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 sm:px-6 py-2">
+      <p class="max-w-6xl mx-auto flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
+        <AlertTriangle size={13} class="flex-shrink-0" />
+        Tailscale is not connected. Dashboard, Metrics, and Backups are unavailable until Tailscale is authenticated.
+      </p>
+    </div>
+  {/if}
 </nav>
 
 {#if showChangePassword}
