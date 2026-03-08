@@ -1,13 +1,65 @@
 package tailscale
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"net/netip"
 	"os/exec"
 	"strings"
 	"time"
 )
+
+// localAPISocketPath is the default path for the tailscaled Unix socket.
+const localAPISocketPath = "/var/run/tailscale/tailscaled.sock"
+
+// localAPIStatus is a minimal representation of the LocalAPI /status response.
+// We only decode the fields we care about.
+type localAPIStatus struct {
+	BackendState string `json:"BackendState"`
+	AuthURL      string `json:"AuthURL"`
+}
+
+// newLocalAPIClient returns an http.Client that speaks to the tailscaled
+// Unix socket. Inside the container everything runs as root, so no extra
+// authentication is needed.
+func newLocalAPIClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", localAPISocketPath)
+			},
+		},
+		Timeout: 10 * time.Second,
+	}
+}
+
+// localAPIGet performs a GET against the tailscaled LocalAPI.
+func localAPIGet(path string) ([]byte, int, error) {
+	client := newLocalAPIClient()
+	resp, err := client.Get("http://local-tailscaled.sock" + path)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	return body, resp.StatusCode, err
+}
+
+// localAPIPost performs a POST against the tailscaled LocalAPI.
+func localAPIPost(path string) ([]byte, int, error) {
+	client := newLocalAPIClient()
+	resp, err := client.Post("http://local-tailscaled.sock"+path, "application/json", nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	return body, resp.StatusCode, err
+}
 
 // Status represents the output of 'tailscale status --json'
 type Status struct {
@@ -61,8 +113,18 @@ func NewClient() *Client {
 	}
 }
 
-// GetStatus returns the current Tailscale status
+// GetStatus returns the current Tailscale status via the LocalAPI.
+// Falls back to the CLI ('tailscale status --json') if the socket is unavailable.
 func (c *Client) GetStatus() (*Status, error) {
+	body, code, err := localAPIGet("/localapi/v0/status")
+	if err == nil && code == http.StatusOK {
+		var status Status
+		if jsonErr := json.Unmarshal(body, &status); jsonErr == nil {
+			return &status, nil
+		}
+	}
+
+	// Fallback: CLI
 	cmd := exec.Command(c.binaryPath, "status", "--json")
 	output, err := cmd.Output()
 	if err != nil {
@@ -77,14 +139,20 @@ func (c *Client) GetStatus() (*Status, error) {
 	return &status, nil
 }
 
-// IsConnected checks if Tailscale is connected
+// IsConnected checks if Tailscale is connected via the LocalAPI.
 func (c *Client) IsConnected() (bool, error) {
-	status, err := c.GetStatus()
+	body, code, err := localAPIGet("/localapi/v0/status")
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to reach tailscaled: %w", err)
 	}
-
-	return status.BackendState == "Running", nil
+	if code != http.StatusOK {
+		return false, fmt.Errorf("tailscaled status returned %d", code)
+	}
+	var s localAPIStatus
+	if err := json.Unmarshal(body, &s); err != nil {
+		return false, fmt.Errorf("failed to parse status: %w", err)
+	}
+	return s.BackendState == "Running", nil
 }
 
 // GetIP returns the Tailscale IP addresses
@@ -112,47 +180,58 @@ func (c *Client) GetIP() (ipv4, ipv6 string, err error) {
 	return ipv4, ipv6, nil
 }
 
-// Login initiates a Tailscale login and returns the auth URL
+// Login triggers the Tailscale interactive login flow via the LocalAPI and
+// returns the auth URL the user must visit to authenticate this device.
+//
+// It calls POST /localapi/v0/login-interactive to start the flow, then polls
+// GET /localapi/v0/status until AuthURL is populated (up to 10 seconds).
 func (c *Client) Login() (string, error) {
-	// Use tailscale up to trigger login
-	cmd := exec.Command(c.binaryPath, "up", "--auth-key=", "--timeout=1s")
-	output, _ := cmd.CombinedOutput()
+	// Trigger the login flow. This requires the process to be running as root
+	// (or the configured operator), which is always the case inside the container.
+	body, code, err := localAPIPost("/localapi/v0/login-interactive")
+	if err != nil {
+		return "", fmt.Errorf("failed to start login flow: %w", err)
+	}
+	if code != http.StatusOK && code != http.StatusNoContent {
+		return "", fmt.Errorf("login-interactive returned %d: %s", code, strings.TrimSpace(string(body)))
+	}
 
-	// Parse output for auth URL
-	lines := strings.Split(string(output), "\n")
-	for _, line := range lines {
-		if strings.Contains(line, "http") && strings.Contains(line, "login") {
-			// Extract URL from line
-			parts := strings.Fields(line)
-			for _, part := range parts {
-				if strings.HasPrefix(part, "http") {
-					return strings.TrimSpace(part), nil
-				}
-			}
+	// Poll status for AuthURL — the daemon generates it asynchronously.
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		time.Sleep(500 * time.Millisecond)
+
+		statusBody, _, err := localAPIGet("/localapi/v0/status")
+		if err != nil {
+			continue
+		}
+		var s localAPIStatus
+		if err := json.Unmarshal(statusBody, &s); err != nil {
+			continue
+		}
+		if s.AuthURL != "" {
+			return s.AuthURL, nil
 		}
 	}
 
-	return "", fmt.Errorf("no auth URL found in output")
+	return "", fmt.Errorf("timed out waiting for Tailscale auth URL")
 }
 
-// LoginWithQR initiates login and returns auth URL with QR code flag
-func (c *Client) LoginWithQR() (string, error) {
-	cmd := exec.Command(c.binaryPath, "up", "--qr", "--timeout=5s")
-	output, _ := cmd.CombinedOutput()
-
-	lines := strings.Split(string(output), "\n")
+// parseAuthURL extracts a Tailscale auth URL from command output.
+// Used as a fallback for CLI-based commands that print URLs to stdout/stderr.
+func parseAuthURL(output string) (string, error) {
+	lines := strings.Split(output, "\n")
 	for _, line := range lines {
-		if strings.Contains(line, "http") {
-			parts := strings.Fields(line)
-			for _, part := range parts {
-				if strings.HasPrefix(part, "http") {
-					return strings.TrimSpace(part), nil
-				}
+		line = strings.TrimSpace(line)
+		if idx := strings.Index(line, "https://"); idx >= 0 {
+			url := line[idx:]
+			if end := strings.IndexAny(url, " \t\r\n"); end >= 0 {
+				url = url[:end]
 			}
+			return url, nil
 		}
 	}
-
-	return "", fmt.Errorf("no auth URL found")
+	return "", fmt.Errorf("no auth URL found in tailscale output")
 }
 
 // Logout logs out from Tailscale
@@ -178,6 +257,22 @@ func (c *Client) Up() error {
 	cmd := exec.Command(c.binaryPath, "up")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to connect: %w", err)
+	}
+	return nil
+}
+
+// UpWithHostname connects to Tailscale with a specific hostname.
+// This runs 'tailscale up --hostname=<hostname>' which updates the device
+// name in the tailnet. Note: this will re-run the Tailscale connection
+// process and may require re-authentication if the node is not yet connected.
+func (c *Client) UpWithHostname(hostname string) error {
+	if hostname == "" {
+		return fmt.Errorf("hostname cannot be empty")
+	}
+	cmd := exec.Command(c.binaryPath, "up", "--hostname="+hostname, "--reset")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to set hostname: %w (output: %s)", err, strings.TrimSpace(string(output)))
 	}
 	return nil
 }
