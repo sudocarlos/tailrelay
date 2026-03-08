@@ -191,4 +191,4 @@ go test ./internal/web/...
 - Handlers in `internal/handlers/`, business logic in `internal/*`
 - Explicit error handling; avoid panics for runtime conditions
 - Config types in `internal/config`
-- Dependencies: Go 1.21+, `gopkg.in/yaml.v3` (everything else is stdlib)
+- Dependencies: Go 1.24+, `gopkg.in/yaml.v3` (everything else is stdlib)

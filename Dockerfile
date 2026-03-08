@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # check=skip=SecretsUsedInArgOrEnv
 ARG TAILSCALE_VERSION=v1.92.5
-ARG GO_VERSION=1.21
+ARG GO_VERSION=1.24
 ARG NODE_VERSION=22
 
 # Frontend build stage — Vite + Svelte + Tailwind

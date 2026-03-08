@@ -19,12 +19,12 @@ docker buildx build -t sudocarlos/tailrelay:latest --load .
 ```
 
 `Dockerfile` stages:
-1. **webui-builder** (`golang:1.21-alpine`) — builds Go binary with ldflags
+1. **webui-builder** (`golang:1.24-alpine`) — builds Go binary with ldflags
 2. **main** (`tailscale/tailscale:v1.92.5`) — installs Caddy, socat, copies binary
 
 Key build args:
 - `TAILSCALE_VERSION` (default: `v1.92.5`)
-- `GO_VERSION` (default: `1.21`)
+- `GO_VERSION` (default: `1.24`)
 - `VERSION`, `COMMIT`, `DATE`, `BRANCH`, `BUILDER` — build metadata
 
 ### Development
@@ -157,5 +157,5 @@ Handles `SIGTERM`/`SIGINT` for graceful shutdown.
 |-----------|---------|
 | Container | `v0.4.1` (see `start.sh`) |
 | Tailscale base | `v1.92.5` (Dockerfile ARG) |
-| Go | `1.21` (Dockerfile ARG) |
+| Go | `1.24` (Dockerfile ARG) |
 | Node.js (CI) | `20` |
