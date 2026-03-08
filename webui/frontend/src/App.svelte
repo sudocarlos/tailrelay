@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { authenticated, needsSetup, currentView, refreshData } from './lib/stores/app.js';
+  import { authenticated, needsSetup, currentView, tailscaleConnected, refreshData } from './lib/stores/app.js';
   import { theme } from './lib/stores/theme.js';
   import { showToast } from './lib/stores/toast.js';
   import { fetchJSON } from './lib/api.js';
@@ -21,6 +21,15 @@
   authenticated.subscribe((v) => (isAuthenticated = v));
   needsSetup.subscribe((v) => (isNeedsSetup = v));
 
+  // When Tailscale loses connection, lock navigation to the Tailscale tab.
+  // This fires reactively on every status refresh (every 15 s) so the UI
+  // self-corrects if Tailscale drops out without a page reload.
+  tailscaleConnected.subscribe((connected) => {
+    if (!connected && isAuthenticated) {
+      currentView.set('tailscale');
+    }
+  });
+
   onMount(async () => {
     theme.init();
 
@@ -31,6 +40,11 @@
 
       if (status.authenticated) {
         await refreshData();
+        // After first data load, enforce the navigation lock if Tailscale
+        // is not yet connected (subscription above may not have fired yet).
+        tailscaleConnected.subscribe((connected) => {
+          if (!connected) currentView.set('tailscale');
+        })();
       }
     } catch (err) {
       if (err.message?.includes('401') || err.message?.includes('403')) {
