@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Use class-based dark mode so toggling .dark on <html> activates dark: variants */
+@variant dark (&:where(.dark, .dark *));
+
 /* Theme transitions */
 html {
   transition: background-color 0.2s ease, color 0.2s ease;

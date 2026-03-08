@@ -107,6 +107,10 @@ func (pm *ProxyManager) AddProxy(proxy config.CaddyProxy) (*config.CaddyProxy, e
 		}
 
 		pm.updateServerMap(proxy, serverName)
+		// Best-effort: enable per_host metrics on the new server.
+		if err := pm.client.EnableServerMetrics(serverName); err != nil {
+			logger.Warn("caddy", "Failed to enable metrics on server %s: %v", serverName, err)
+		}
 	} else {
 		logger.Debug("caddy", "Proxy %s created but not enabled, skipping Caddy route creation", proxy.ID)
 	}
@@ -204,6 +208,10 @@ func (pm *ProxyManager) UpdateProxy(proxy config.CaddyProxy) error {
 		}
 
 		pm.updateServerMap(proxy, serverName)
+		// Best-effort: enable per_host metrics on the server.
+		if err := pm.client.EnableServerMetrics(serverName); err != nil {
+			logger.Warn("caddy", "Failed to enable metrics on server %s: %v", serverName, err)
+		}
 	} else {
 		// If disabled, remove from Caddy but keep metadata
 		serverName, err := pm.getServerNameForProxy(proxy)

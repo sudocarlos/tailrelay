@@ -95,7 +95,6 @@ func (m *Manager) GetProxiesStatus() (map[string]bool, error) {
 	return m.proxyManager.GetProxiesStatus()
 }
 
-
 // InitializeServer ensures the HTTP server is configured in Caddy
 func (m *Manager) InitializeServer(listenAddrs []string) error {
 	if err := m.proxyManager.InitializeServer(listenAddrs); err != nil {
@@ -146,6 +145,31 @@ func (m *Manager) InitializeAutostart() error {
 
 	log.Printf("Proxy autostart complete: %d started, %d skipped", started, skipped)
 	return nil
+}
+
+// GetMetrics fetches Prometheus metrics from Caddy and returns parsed data.
+func (m *Manager) GetMetrics() (*MetricsData, error) {
+	raw, err := m.proxyManager.client.GetMetricsRaw()
+	if err != nil {
+		return nil, fmt.Errorf("fetch metrics: %w", err)
+	}
+	return ParseMetrics(raw), nil
+}
+
+// EnsureMetricsOnAllServers enables per_host metrics on every known Caddy server.
+func (m *Manager) EnsureMetricsOnAllServers() error {
+	m.proxyManager.mapMu.Lock()
+	serverNames := m.proxyManager.serverMap.AllServerNames()
+	m.proxyManager.mapMu.Unlock()
+
+	var lastErr error
+	for _, name := range serverNames {
+		if err := m.proxyManager.client.EnableServerMetrics(name); err != nil {
+			log.Printf("Warning: failed to enable metrics on server %s: %v", name, err)
+			lastErr = err
+		}
+	}
+	return lastErr
 }
 
 // Note: Reload, Start, Stop methods are no longer needed

@@ -2,12 +2,14 @@
   import { theme } from '../stores/theme.js';
   import { currentView, refreshData, lastUpdated, logout } from '../stores/app.js';
   import { showToast } from '../stores/toast.js';
-  import { Sun, Moon, RefreshCw, LogOut, Menu, X, Key } from '@lucide/svelte';
+  import { Sun, Moon, RefreshCw, LogOut, Menu, X, KeyRound } from '@lucide/svelte';
+  import ChangePasswordModal from './ChangePasswordModal.svelte';
 
   let currentTheme = $state('light');
   let menuOpen = $state(false);
   let updated = $state('');
   let refreshing = $state(false);
+  let showChangePassword = $state(false);
 
   theme.subscribe((v) => (currentTheme = v));
   lastUpdated.subscribe((v) => (updated = v));
@@ -47,6 +49,12 @@
           Dashboard
         </button>
         <button
+          class="px-3 py-1.5 text-sm rounded-md transition-colors {$currentView === 'metrics' ? 'bg-gray-100 dark:bg-gray-800 font-medium' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 text-gray-600 dark:text-gray-400'}"
+          onclick={() => switchView('metrics')}
+        >
+          Metrics
+        </button>
+        <button
           class="px-3 py-1.5 text-sm rounded-md transition-colors {$currentView === 'backups' ? 'bg-gray-100 dark:bg-gray-800 font-medium' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 text-gray-600 dark:text-gray-400'}"
           onclick={() => switchView('backups')}
         >
@@ -84,6 +92,14 @@
 
         <button
           class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-500 dark:text-gray-400"
+          onclick={() => (showChangePassword = true)}
+          title="Change password"
+        >
+          <KeyRound size={16} />
+        </button>
+
+        <button
+          class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-500 dark:text-gray-400"
           title="Logout"
           onclick={logout}
         >
@@ -114,6 +130,12 @@
           Dashboard
         </button>
         <button
+          class="px-3 py-2 text-sm rounded-md text-left transition-colors {$currentView === 'metrics' ? 'bg-gray-100 dark:bg-gray-800 font-medium' : 'text-gray-600 dark:text-gray-400'}"
+          onclick={() => switchView('metrics')}
+        >
+          Metrics
+        </button>
+        <button
           class="px-3 py-2 text-sm rounded-md text-left transition-colors {$currentView === 'backups' ? 'bg-gray-100 dark:bg-gray-800 font-medium' : 'text-gray-600 dark:text-gray-400'}"
           onclick={() => switchView('backups')}
         >
@@ -123,3 +145,7 @@
     {/if}
   </div>
 </nav>
+
+{#if showChangePassword}
+  <ChangePasswordModal onClose={() => (showChangePassword = false)} />
+{/if}

@@ -7,6 +7,7 @@
   import Navbar from './lib/components/Navbar.svelte';
   import Dashboard from './lib/components/Dashboard.svelte';
   import Backups from './lib/components/Backups.svelte';
+  import Metrics from './lib/components/Metrics.svelte';
   import Login from './lib/components/Login.svelte';
   import Setup from './lib/components/Setup.svelte';
   import ToastContainer from './lib/components/ToastContainer.svelte';
@@ -89,6 +90,8 @@
     <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6">
       {#if $currentView === 'dashboard'}
         <Dashboard />
+      {:else if $currentView === 'metrics'}
+        <Metrics />
       {:else if $currentView === 'backups'}
         <Backups />
       {/if}
