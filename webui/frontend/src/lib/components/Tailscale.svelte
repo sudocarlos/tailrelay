@@ -16,6 +16,12 @@
   let connectLoading = $state(false);
   let pollInterval = null;
 
+  // Auth key tab state
+  let authTab = $state('url'); // 'url' | 'key'
+  let authKey = $state('');
+  let authKeyLoading = $state(false);
+  let authKeyError = $state('');
+
   // ── Subscribe to the shared status store ─────────────────────────
   tailscaleStatus.subscribe((v) => {
     status = v;
@@ -98,6 +104,35 @@
       showToast('danger', err.message || 'Failed to get login URL');
     } finally {
       loginLoading = false;
+    }
+  }
+
+  async function handleLoginWithKey() {
+    authKeyError = '';
+    const key = authKey.trim();
+    if (!key) {
+      authKeyError = 'Auth key cannot be empty';
+      return;
+    }
+    if (!key.startsWith('tskey-')) {
+      authKeyError = "Invalid key: must start with 'tskey-'";
+      return;
+    }
+    authKeyLoading = true;
+    try {
+      await fetchJSON('/api/tailscale/login-with-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auth_key: key }),
+      });
+      authKey = '';
+      showToast('success', 'Authenticated and connected via auth key!');
+      await refreshData();
+      await fetchPeers();
+    } catch (err) {
+      authKeyError = err.message || 'Failed to authenticate with auth key';
+    } finally {
+      authKeyLoading = false;
     }
   }
 
@@ -302,40 +337,109 @@
         <LogIn size={18} class="text-amber-600 dark:text-amber-400" />
         <h2 class="font-medium text-amber-900 dark:text-amber-200">Authentication Required</h2>
       </div>
-      <p class="text-sm text-amber-800 dark:text-amber-300">
-        Tailscale is not authenticated. Click below to get a login URL, then open it in your browser to authorize this device.
-      </p>
 
-      {#if loginURL}
-        <div class="rounded-md border border-amber-300 dark:border-amber-600 bg-white dark:bg-gray-900 px-3 py-2 flex items-center gap-2 overflow-hidden">
-          <span class="font-mono text-xs text-gray-700 dark:text-gray-300 truncate flex-1">{loginURL}</span>
+      <!-- Tab switcher -->
+      <div class="flex gap-1 rounded-md bg-amber-100 dark:bg-amber-900/40 p-0.5 w-fit">
+        <button
+          class="px-3 py-1 text-xs font-medium rounded transition-colors {authTab === 'url'
+            ? 'bg-white dark:bg-gray-800 text-amber-800 dark:text-amber-200 shadow-sm'
+            : 'text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200'}"
+          onclick={() => { authTab = 'url'; authKeyError = ''; }}
+        >
+          Login URL
+        </button>
+        <button
+          class="px-3 py-1 text-xs font-medium rounded transition-colors {authTab === 'key'
+            ? 'bg-white dark:bg-gray-800 text-amber-800 dark:text-amber-200 shadow-sm'
+            : 'text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200'}"
+          onclick={() => { authTab = 'key'; stopLoginPoll(); loginURL = ''; }}
+        >
+          Auth Key
+        </button>
+      </div>
+
+      {#if authTab === 'url'}
+        <!-- Interactive login URL flow -->
+        <p class="text-sm text-amber-800 dark:text-amber-300">
+          Click below to get a login URL, then open it in your browser to authorize this device.
+        </p>
+
+        {#if loginURL}
+          <div class="rounded-md border border-amber-300 dark:border-amber-600 bg-white dark:bg-gray-900 px-3 py-2 flex items-center gap-2 overflow-hidden">
+            <span class="font-mono text-xs text-gray-700 dark:text-gray-300 truncate flex-1">{loginURL}</span>
+            <a
+              href={loginURL}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex-shrink-0 inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
+            >
+              Open <ExternalLink size={12} />
+            </a>
+          </div>
+          <p class="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1">
+            <RefreshCw size={12} class="animate-spin" />
+            Waiting for authentication to complete…
+          </p>
+        {:else}
+          <button
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+            onclick={handleGetLoginURL}
+            disabled={loginLoading}
+          >
+            {#if loginLoading}
+              <RefreshCw size={14} class="animate-spin" />
+              Getting URL…
+            {:else}
+              <LogIn size={14} />
+              Get Login URL
+            {/if}
+          </button>
+        {/if}
+      {:else}
+        <!-- Auth key flow -->
+        <p class="text-sm text-amber-800 dark:text-amber-300">
+          Paste a pre-generated auth key from
           <a
-            href={loginURL}
+            href="https://login.tailscale.com/admin/machines/new-linux"
             target="_blank"
             rel="noopener noreferrer"
-            class="flex-shrink-0 inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
-          >
-            Open <ExternalLink size={12} />
-          </a>
-        </div>
-        <p class="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1">
-          <RefreshCw size={12} class="animate-spin" />
-          Waiting for authentication to complete…
+            class="underline hover:text-amber-900 dark:hover:text-amber-100 inline-flex items-center gap-0.5"
+          >Tailscale Admin <ExternalLink size={11} /></a>
+          to authenticate without a browser.
         </p>
-      {:else}
-        <button
-          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
-          onclick={handleGetLoginURL}
-          disabled={loginLoading}
-        >
-          {#if loginLoading}
-            <RefreshCw size={14} class="animate-spin" />
-            Getting URL…
-          {:else}
-            <LogIn size={14} />
-            Get Login URL
+
+        <div class="space-y-2">
+          <div class="flex gap-2">
+            <input
+              type="password"
+              class="flex-1 rounded-md border {authKeyError ? 'border-red-400 dark:border-red-500' : 'border-amber-300 dark:border-amber-600'} bg-white dark:bg-gray-900 px-3 py-1.5 text-sm font-mono text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder-gray-400"
+              placeholder="tskey-auth-k…"
+              bind:value={authKey}
+              onkeydown={(e) => e.key === 'Enter' && handleLoginWithKey()}
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+              onclick={handleLoginWithKey}
+              disabled={authKeyLoading || !authKey.trim()}
+            >
+              {#if authKeyLoading}
+                <RefreshCw size={14} class="animate-spin" />
+                Connecting…
+              {:else}
+                <LogIn size={14} />
+                Connect
+              {/if}
+            </button>
+          </div>
+          {#if authKeyError}
+            <p class="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+              <AlertTriangle size={12} />
+              {authKeyError}
+            </p>
           {/if}
-        </button>
+        </div>
       {/if}
     </div>
   {/if}

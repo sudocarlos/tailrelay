@@ -47,6 +47,46 @@ func writeJSONError(w http.ResponseWriter, message string, status int) {
 	})
 }
 
+// LoginWithKey handles non-interactive Tailscale authentication using a pre-generated
+// auth key (e.g. "tskey-auth-k..."). The key is passed directly to `tailscale up
+// --authkey=<key>`, authenticating and connecting in a single step without requiring
+// the user to visit an auth URL.
+func (h *TailscaleHandler) LoginWithKey(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSONError(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var body struct {
+		AuthKey string `json:"auth_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSONError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	body.AuthKey = strings.TrimSpace(body.AuthKey)
+	if body.AuthKey == "" {
+		writeJSONError(w, "auth_key cannot be empty", http.StatusBadRequest)
+		return
+	}
+	if !strings.HasPrefix(body.AuthKey, "tskey-") {
+		writeJSONError(w, "invalid auth key: must start with 'tskey-'", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.tsClient.LoginWithAuthKey(body.AuthKey); err != nil {
+		log.Printf("Error authenticating Tailscale with auth key: %v", err)
+		writeJSONError(w, "Failed to authenticate with auth key: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, map[string]string{
+		"status":  "success",
+		"message": "Authenticated and connected successfully",
+	})
+}
+
 // Login handles Tailscale login initiation.
 // Returns the Tailscale auth URL so the user can authenticate in a browser.
 func (h *TailscaleHandler) Login(w http.ResponseWriter, r *http.Request) {
