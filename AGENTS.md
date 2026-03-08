@@ -113,8 +113,8 @@ curl -sSL http://localhost:8021            # Web UI
 | `AGENTS.md` | `17791f3` | `AGENTS.md`, `Makefile`, `start.sh` |
 | `.agents/skills/caddy/SKILL.md` | `17791f3` | `webui/internal/caddy/`, `webui/internal/handlers/caddy.go` |
 | `.agents/skills/socat/SKILL.md` | `17791f3` | `webui/internal/socat/`, `webui/internal/handlers/socat.go` |
-| `.agents/skills/webui/SKILL.md` | `17791f3` | `webui/`, `Makefile` |
-| `.agents/skills/docker-ci/SKILL.md` | `17791f3` | `Dockerfile`, `Dockerfile.dev`, `.github/workflows/`, `compose-test.yml` |
+| `.agents/skills/webui/SKILL.md` | `2c28a60` | `webui/`, `Makefile` |
+| `.agents/skills/docker-ci/SKILL.md` | `2c28a60` | `Dockerfile`, `Dockerfile.dev`, `.github/workflows/`, `compose-test.yml` |
 | `.agents/skills/tailscale/SKILL.md` | `17791f3` | `webui/internal/tailscale/`, `start.sh` |
 | `webui/README.md` | `17791f3` | `webui/` |
 | `README.md` | `17791f3` | `README.md`, `webui/internal/web/server.go` |
