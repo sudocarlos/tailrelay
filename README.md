@@ -342,7 +342,7 @@ The `GET /api/socat/relays` response wraps each relay in `{"Relay": {...}, "Runn
   "timestamp": "2026-03-07T12:00:00Z",
   "metadata": {
     "timestamp": "2026-03-07T12:00:00Z",
-    "version": "v0.7.0-rc1",
+    "version": "v0.7.0",
     "hostname": "my-node",
     "backup_type": "full"
   }
