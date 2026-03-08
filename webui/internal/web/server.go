@@ -208,6 +208,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	// Tailscale routes
 	mux.Handle("/tailscale", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPARedirect)))
 	mux.Handle("/api/tailscale/login", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Login)))
+	mux.Handle("/api/tailscale/login-with-key", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.LoginWithKey)))
 	mux.Handle("/api/tailscale/logout", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Logout)))
 	mux.Handle("/api/tailscale/connect", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Connect)))
 	mux.Handle("/api/tailscale/disconnect", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.Disconnect)))

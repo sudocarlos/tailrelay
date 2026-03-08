@@ -289,6 +289,23 @@ func (c *Client) GetVersion() (string, error) {
 	return version, nil
 }
 
+// LoginWithAuthKey authenticates this device into a tailnet using a pre-generated
+// auth key (e.g. "tskey-auth-k..."). This is a non-interactive alternative to
+// Login(): instead of returning a URL for the user to visit, the key is passed
+// directly to `tailscale up --authkey=<key>`, which authenticates and connects
+// in a single step.
+func (c *Client) LoginWithAuthKey(key string) error {
+	if key == "" {
+		return fmt.Errorf("auth key cannot be empty")
+	}
+	cmd := exec.Command(c.binaryPath, "up", "--authkey="+key)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to authenticate with auth key: %w (output: %s)", err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
 // Netcheck runs a network check
 func (c *Client) Netcheck() (string, error) {
 	cmd := exec.Command(c.binaryPath, "netcheck")
