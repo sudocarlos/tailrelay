@@ -466,3 +466,11 @@ Open source project. See repository for license details.
 - [Caddy](https://caddyserver.com) - Reverse proxy
 - [Start9](https://start9.com) - Inspiration for this project
 - Original project by [@hollie](https://github.com/hollie/tailscale-caddy-proxy)
+
+## Review Status
+
+<!-- reviewed_at: 17791f3 | paths: README.md webui/internal/web/server.go -->
+Last full review completed at commit `17791f3`. To check what has changed since:
+```bash
+git log --oneline 17791f3..HEAD -- README.md webui/internal/web/server.go
+```

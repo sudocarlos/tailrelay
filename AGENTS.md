@@ -102,6 +102,23 @@ curl -sSL http://localhost:8021            # Web UI
 └── .github/workflows/       # CI pipeline
 ```
 
+## Documentation Review Status
+
+> When updating a doc, check what changed since its `reviewed_at` commit:
+> `git log --oneline <reviewed_at>..HEAD -- <paths>`
+> Update `reviewed_at` to the current HEAD commit after completing a full review.
+
+| Document | `reviewed_at` | Paths Covered |
+|----------|---------------|---------------|
+| `AGENTS.md` | `17791f3` | `AGENTS.md`, `Makefile`, `start.sh` |
+| `.agents/skills/caddy/SKILL.md` | `17791f3` | `webui/internal/caddy/`, `webui/internal/handlers/caddy.go` |
+| `.agents/skills/socat/SKILL.md` | `17791f3` | `webui/internal/socat/`, `webui/internal/handlers/socat.go` |
+| `.agents/skills/webui/SKILL.md` | `17791f3` | `webui/`, `Makefile` |
+| `.agents/skills/docker-ci/SKILL.md` | `17791f3` | `Dockerfile`, `Dockerfile.dev`, `.github/workflows/`, `compose-test.yml` |
+| `.agents/skills/tailscale/SKILL.md` | `17791f3` | `webui/internal/tailscale/`, `start.sh` |
+| `webui/README.md` | `17791f3` | `webui/` |
+| `README.md` | `17791f3` | `README.md`, `webui/internal/web/server.go` |
+
 ## Making Changes
 
 1. Update version in `start.sh` (and release notes as needed)
