@@ -15,9 +15,9 @@ services:
         container_name: tailrelay-test
         volumes:
             - ./tailscale/:/var/lib/tailscale
-            # - ./data/tailrelay-webui:/usr/bin/tailrelay-webui
-            # - ./data/targets.json:/targets.json
+            - ./data/targets.json:/targets.json
             # - ./tailscale/Caddyfile:/etc/caddy/Caddyfile
+            # - ./data/tailrelay-webui:/usr/bin/tailrelay-webui
         environment:
             - TS_HOSTNAME=tailrelay-dev
             - MAX_LOG_BODY_SIZE=0

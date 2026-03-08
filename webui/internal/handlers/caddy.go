@@ -482,3 +482,27 @@ func parseBool(value string) bool {
 	value = strings.ToLower(strings.TrimSpace(value))
 	return value == "true" || value == "1" || value == "on" || value == "yes"
 }
+
+// EnsureMetrics enables per_host metrics on all known Caddy servers.
+// Called once at startup; failures are non-fatal.
+func (h *CaddyHandler) EnsureMetrics() error {
+	return h.manager.EnsureMetricsOnAllServers()
+}
+
+// Metrics returns parsed Caddy Prometheus metrics as JSON.
+func (h *CaddyHandler) Metrics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	data, err := h.manager.GetMetrics()
+	if err != nil {
+		log.Printf("Error fetching Caddy metrics: %v", err)
+		http.Error(w, "Failed to fetch metrics", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(data)
+}

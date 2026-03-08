@@ -117,3 +117,49 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"success": true})
 }
+
+func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	if h.needsSetup() {
+		http.Error(w, "System needs setup first", http.StatusForbidden)
+		return
+	}
+
+	var req struct {
+		CurrentPassword string `json:"currentPassword"`
+		NewPassword     string `json:"newPassword"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if req.CurrentPassword == "" || req.NewPassword == "" {
+		http.Error(w, "Current and new passwords are required", http.StatusBadRequest)
+		return
+	}
+
+	hash, err := os.ReadFile(h.adminHashFile)
+	if err != nil {
+		http.Error(w, "Failed to read auth config", http.StatusInternalServerError)
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword(hash, []byte(req.CurrentPassword)); err != nil {
+		http.Error(w, "Current password is incorrect", http.StatusUnauthorized)
+		return
+	}
+
+	newHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		http.Error(w, "Failed to hash new password", http.StatusInternalServerError)
+		return
+	}
+
+	if err := os.WriteFile(h.adminHashFile, newHash, 0600); err != nil {
+		http.Error(w, "Failed to save new password", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"success": true})
+}

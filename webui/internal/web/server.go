@@ -113,6 +113,12 @@ func (s *Server) Start() error {
 		log.Printf("Warning: failed to start autostart proxies: %v", err)
 	}
 
+	// Enable per_host metrics on all existing Caddy servers.
+	log.Printf("Enabling Caddy per_host metrics...")
+	if err := s.caddyH.EnsureMetrics(); err != nil {
+		log.Printf("Warning: failed to enable Caddy metrics: %v", err)
+	}
+
 	mux := s.setupRoutes()
 
 	addr := fmt.Sprintf("%s:%d", s.cfg.Server.Host, s.cfg.Server.Port)
@@ -195,6 +201,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	// Protected routes (authentication required)
 	mux.Handle("/", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPAFallback)))
 	mux.Handle("/api/auth/logout", s.authMW.RequireAuth(http.HandlerFunc(s.authH.Logout)))
+	mux.Handle("/api/auth/change-password", s.authMW.RequireAuth(http.HandlerFunc(s.authH.ChangePassword)))
 	mux.Handle("/api/status", s.authMW.RequireAuth(http.HandlerFunc(s.dashboardH.APIStatus)))
 	mux.Handle("/api/targets", s.authMW.RequireAuth(http.HandlerFunc(s.targetsH.APIList)))
 
@@ -215,6 +222,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.Handle("/api/caddy/reload", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.Reload)))
 	mux.Handle("/api/caddy/proxies", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.APIList)))
 	mux.Handle("/api/caddy/proxy", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.APIGet)))
+	mux.Handle("/api/caddy/metrics", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.Metrics)))
 
 	// Socat routes
 	mux.Handle("/socat", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPARedirect)))

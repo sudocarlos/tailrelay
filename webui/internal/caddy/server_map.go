@@ -75,3 +75,16 @@ func SaveServerMap(filePath string, m *ServerMap) error {
 
 	return nil
 }
+
+// AllServerNames returns the unique set of Caddy server names currently in the map.
+func (m *ServerMap) AllServerNames() []string {
+	seen := map[string]struct{}{}
+	for _, name := range m.ByProxyID {
+		seen[name] = struct{}{}
+	}
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	return names
+}
