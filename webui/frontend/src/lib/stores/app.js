@@ -35,6 +35,7 @@ export const currentView = writable('dashboard');
 
 // ── Auth state (set from server) ──────────────────────────────────
 export const authenticated = writable(true);
+export const needsSetup = writable(false);
 
 // ── Last updated timestamp ────────────────────────────────────────
 export const lastUpdated = writable('');
@@ -68,4 +69,13 @@ export async function refreshData() {
   tailnetFQDN.set(status.MagicDNSName || status.magicDNSName || '');
   targets.set(targetData || []);
   lastUpdated.set(new Date().toLocaleTimeString());
+}
+
+export async function logout() {
+  try {
+    await fetchJSON('/api/auth/logout', { method: 'POST' });
+  } finally {
+    authenticated.set(false);
+    window.location.href = '/login';
+  }
 }

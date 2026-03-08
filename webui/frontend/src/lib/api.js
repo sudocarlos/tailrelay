@@ -13,8 +13,14 @@ export async function fetchJSON(url, options = {}) {
   });
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Request failed: ${response.status}`);
+    let message = '';
+    try {
+      const data = await response.json();
+      message = data.error || data.message || `Request failed`;
+    } catch {
+      message = await response.text();
+    }
+    throw new Error(`[${response.status}] ${message || 'Request failed'}`);
   }
 
   return response.json();
@@ -32,8 +38,14 @@ export async function postFormData(url, formData) {
   });
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Request failed: ${response.status}`);
+    let message = '';
+    try {
+      const data = await response.json();
+      message = data.error || data.message || `Request failed`;
+    } catch {
+      message = await response.text();
+    }
+    throw new Error(`[${response.status}] ${message || 'Request failed'}`);
   }
 
   return response.json();

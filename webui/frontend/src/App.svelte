@@ -1,40 +1,53 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { authenticated, currentView, refreshData } from './lib/stores/app.js';
+  import { authenticated, needsSetup, currentView, refreshData } from './lib/stores/app.js';
   import { theme } from './lib/stores/theme.js';
   import { showToast } from './lib/stores/toast.js';
+  import { fetchJSON } from './lib/api.js';
   import Navbar from './lib/components/Navbar.svelte';
   import Dashboard from './lib/components/Dashboard.svelte';
   import Backups from './lib/components/Backups.svelte';
   import Login from './lib/components/Login.svelte';
+  import Setup from './lib/components/Setup.svelte';
   import ToastContainer from './lib/components/ToastContainer.svelte';
 
-  let isAuthenticated = $state(true);
+  let isAuthenticated = $state(false);
+  let isNeedsSetup = $state(false);
   let loading = $state(true);
   let interval;
 
   authenticated.subscribe((v) => (isAuthenticated = v));
+  needsSetup.subscribe((v) => (isNeedsSetup = v));
 
   onMount(async () => {
     theme.init();
 
     try {
-      await refreshData();
-      loading = false;
+      const status = await fetchJSON('/api/auth/status');
+      needsSetup.set(status.needsSetup);
+      authenticated.set(status.authenticated);
+
+      if (status.authenticated) {
+        await refreshData();
+      }
     } catch (err) {
-      // If we get a redirect to login or 401/403, show login
       if (err.message?.includes('401') || err.message?.includes('403')) {
         authenticated.set(false);
       }
+    } finally {
       loading = false;
     }
 
     // Auto-refresh every 15 seconds
     interval = setInterval(async () => {
-      try {
-        await refreshData();
-      } catch {
-        // Silently handle refresh errors
+      if (isAuthenticated && !isNeedsSetup) {
+        try {
+          await refreshData();
+        } catch (err) {
+          if (err.message?.includes('401')) {
+            authenticated.set(false);
+          }
+        }
       }
     }, 15000);
 
@@ -48,6 +61,7 @@
   });
 
   function handleKeyboard(e) {
+    if (!isAuthenticated) return;
     const tag = e.target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     if (document.querySelector('[data-modal-open]')) return;
@@ -66,6 +80,8 @@
     <div class="flex-1 flex items-center justify-center">
       <div class="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent"></div>
     </div>
+  {:else if isNeedsSetup}
+    <Setup />
   {:else if !isAuthenticated}
     <Login />
   {:else}
