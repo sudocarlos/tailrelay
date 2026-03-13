@@ -104,3 +104,82 @@ func TestListServers_RealError(t *testing.T) {
 		t.Fatal("listServers() expected an error for 500 response, got nil")
 	}
 }
+
+// TestAllocateServerName_WithExistingServers verifies that allocateServerName
+// skips names already in use by Caddy and returns the next available one.
+func TestAllocateServerName_WithExistingServers(t *testing.T) {
+	// Mock Caddy that reports srv0 and srv1 as already existing.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"apps": {
+				"http": {
+					"servers": {
+						"srv0": {"listen": [":8080"]},
+						"srv1": {"listen": [":8081"]}
+					}
+				}
+			}
+		}`))
+	}))
+	defer srv.Close()
+
+	pm := newTestProxyManager(t, srv.URL)
+	name, err := pm.allocateServerName()
+	if err != nil {
+		t.Fatalf("allocateServerName() unexpected error: %v", err)
+	}
+	if name != "srv2" {
+		t.Fatalf("expected srv2 (srv0 and srv1 taken), got %s", name)
+	}
+}
+
+// TestListServers_PopulatedResponse verifies that listServers correctly parses
+// a response containing real server entries.
+func TestListServers_PopulatedResponse(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"apps": {
+				"http": {
+					"servers": {
+						"srv0": {"listen": [":9000"]},
+						"srv1": {"listen": [":9001"]}
+					}
+				}
+			}
+		}`))
+	}))
+	defer srv.Close()
+
+	pm := newTestProxyManager(t, srv.URL)
+	servers, err := pm.listServers()
+	if err != nil {
+		t.Fatalf("listServers() unexpected error: %v", err)
+	}
+	if len(servers) != 2 {
+		t.Fatalf("expected 2 servers, got %d", len(servers))
+	}
+	if _, ok := servers["srv0"]; !ok {
+		t.Error("expected srv0 in server map")
+	}
+	if _, ok := servers["srv1"]; !ok {
+		t.Error("expected srv1 in server map")
+	}
+}
+
+// TestListServers_MalformedJSON verifies that listServers returns an error
+// (rather than panicking) when the Caddy API responds with invalid JSON.
+func TestListServers_MalformedJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{this is not valid json`))
+	}))
+	defer srv.Close()
+
+	pm := newTestProxyManager(t, srv.URL)
+	_, err := pm.listServers()
+	if err == nil {
+		t.Fatal("listServers() expected an error for malformed JSON, got nil")
+	}
+}
