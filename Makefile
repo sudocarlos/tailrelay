@@ -1,4 +1,4 @@
-.PHONY: frontend-build dev-build dev-docker-build release clean help
+.PHONY: frontend-build dev-build dev-docker-build release clean help test integration-test
 
 # Build metadata
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -25,6 +25,12 @@ help: ## Show this help message
 	@echo ''
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+test: ## Run Go unit tests
+	cd webui && go test ./...
+
+integration-test: ## Run integration tests (requires Docker; copy .env.example to .env first)
+	pytest tests/integration/ -v
 
 frontend-build: ## Build SPA assets (requires Node.js/npm)
 	@echo "Building frontend assets..."

@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -68,15 +68,20 @@ jobs:
       - name: Build Frontend
         working-directory: webui/frontend
         run: npm run build
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        
-      - name: Make script executable
-        run: chmod +x docker-compose-test.sh start.sh
-        
-      - name: Build and Test
-        run: ./docker-compose-test.sh
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run integration tests
+        run: pytest tests/integration/ -v
         env:
           TAILRELAY_HOST: tailrelay-test
           TAILNET_DOMAIN: example.com
