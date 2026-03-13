@@ -21,21 +21,23 @@ RUN npm ci --ignore-scripts
 # Copy frontend source and build
 COPY webui/frontend/ ./
 
+ARG VERSION=dev
+RUN npm version --no-git-tag-version --allow-same-version ${VERSION} 2>/dev/null || true
 RUN npm run build
 
-# Build stage for Web UI and Caddy
+# Caddy build stage — cloned and compiled from source at the pinned version tag
+FROM golang:${GO_VERSION}-alpine AS caddy-builder
+
+ARG CADDY_VERSION
+RUN apk add --no-cache git && \
+    git clone --depth 1 --branch v${CADDY_VERSION} https://github.com/caddyserver/caddy.git /caddy-src && \
+    cd /caddy-src/cmd/caddy && \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /caddy .
+
+# Build stage for Web UI
 FROM golang:${GO_VERSION}-alpine AS webui-builder
 
 WORKDIR /build
-
-# Install build dependencies
-RUN apk add --no-cache git
-
-# Clone and build Caddy from source at the pinned version tag
-ARG CADDY_VERSION
-RUN git clone --depth 1 --branch v${CADDY_VERSION} https://github.com/caddyserver/caddy.git /caddy-src && \
-    cd /caddy-src/cmd/caddy && \
-    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /caddy .
 
 # Copy go mod files
 COPY webui/go.mod webui/go.sum ./
@@ -121,7 +123,7 @@ COPY --from=tailscale-builder /go/bin/containerboot   /usr/local/bin/containerbo
 RUN mkdir /tailscale && ln -s /usr/local/bin/containerboot /tailscale/run.sh
 
 # Copy Caddy binary built from source
-COPY --from=webui-builder /caddy /usr/bin/caddy
+COPY --from=caddy-builder /caddy /usr/bin/caddy
 
 # Copy Web UI binary
 COPY --from=binary-source /tailrelay-webui /usr/bin/tailrelay-webui

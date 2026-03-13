@@ -522,7 +522,7 @@
             {#each peers as peer}
               <tr>
                 <td class="py-2 pr-4 font-mono text-gray-900 dark:text-gray-100 truncate max-w-[140px]">
-                  {peer.DNSName || peer.Hostname || '—'}
+                  {peer.DNSName ? peer.DNSName.split('.')[0] : (peer.Hostname || '—')}
                 </td>
                 <td class="py-2 pr-4 font-mono text-gray-600 dark:text-gray-300">
                   {peer.IPv4 || '—'}
