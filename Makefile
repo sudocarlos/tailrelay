@@ -35,6 +35,7 @@ integration-test: ## Run integration tests (requires Docker; copy .env.example t
 frontend-build: ## Build SPA assets (requires Node.js/npm)
 	@echo "Building frontend assets..."
 	cd webui/frontend && npm install
+	cd webui/frontend && npm version --no-git-tag-version --allow-same-version $(VERSION) 2>/dev/null || true
 	cd webui/frontend && npm run build
 
 dev-build: frontend-build ## Build webui binary locally for development
