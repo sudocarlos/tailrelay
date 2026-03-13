@@ -522,7 +522,7 @@
             {#each peers as peer}
               <tr>
                 <td class="py-2 pr-4 font-mono text-gray-900 dark:text-gray-100 truncate max-w-[140px]">
-                  {peer.Hostname || peer.DNSName || '—'}
+                  {peer.DNSName ? peer.DNSName.split('.')[0] : (peer.Hostname || '—')}
                 </td>
                 <td class="py-2 pr-4 font-mono text-gray-600 dark:text-gray-300">
                   {peer.IPv4 || '—'}
@@ -537,7 +537,7 @@
                   </span>
                 </td>
                 <td class="py-2 text-gray-400 dark:text-gray-500 hidden sm:table-cell">
-                  {formatLastSeen(peer.LastSeen)}
+                  {peer.Online ? 'just now' : formatLastSeen(peer.LastSeen)}
                 </td>
               </tr>
             {/each}

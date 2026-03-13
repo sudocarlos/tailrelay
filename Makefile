@@ -1,4 +1,4 @@
-.PHONY: frontend-build dev-build dev-docker-build release clean help
+.PHONY: frontend-build dev-build dev-docker-build release clean help test integration-test
 
 # Build metadata
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -26,9 +26,16 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
+test: ## Run Go unit tests
+	cd webui && go test ./...
+
+integration-test: ## Run integration tests (requires Docker; copy .env.example to .env first)
+	pytest tests/integration/ -v
+
 frontend-build: ## Build SPA assets (requires Node.js/npm)
 	@echo "Building frontend assets..."
 	cd webui/frontend && npm install
+	cd webui/frontend && npm version --no-git-tag-version --allow-same-version $(VERSION) 2>/dev/null || true
 	cd webui/frontend && npm run build
 
 dev-build: frontend-build ## Build webui binary locally for development
@@ -52,7 +59,7 @@ dev-build: frontend-build ## Build webui binary locally for development
 
 dev-docker-build: dev-build ## Build development Docker image using local binary
 	@echo "Building development Docker image..."
-	docker buildx build --load -f Dockerfile.dev -t sudocarlos/tailrelay:dev .
+	docker buildx build --load --build-arg WEBUI_SOURCE=binary-dev -t sudocarlos/tailrelay:dev .
 	@echo "✅ Development image built and loaded: sudocarlos/tailrelay:dev"
 
 clean: ## Remove build artifacts

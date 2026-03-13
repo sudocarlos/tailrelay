@@ -14,8 +14,8 @@ services:
         image: sudocarlos/tailrelay:dev
         container_name: tailrelay-test
         volumes:
-            - ./tailscale/:/var/lib/tailscale
-            # - ./data/targets.json:/targets.json
+            - ./tailscale:/var/lib/tailscale
+            - ./data/targets.json:/targets.json
             # - ./tailscale/Caddyfile:/etc/caddy/Caddyfile
             # - ./data/tailrelay-webui:/usr/bin/tailrelay-webui
         environment:

@@ -41,6 +41,9 @@
   let showDeleteModal = $state(false);
   let deleteTarget = $state(null);
 
+  // Track which item is currently being toggled (by "type:id")
+  let togglingId = $state(null);
+
   filteredItems.subscribe((v) => (items = v));
   lastUpdated.subscribe((v) => (updated = v));
   tailnetFQDN.subscribe((v) => (fqdn = v));
@@ -64,6 +67,8 @@
   }
 
   async function handleToggleAction(type, id, currentState) {
+    const key = `${type}:${id}`;
+    togglingId = key;
     try {
       if (type === 'relay') {
         const url = currentState
@@ -76,9 +81,24 @@
           body: JSON.stringify({ id, enabled: !currentState }),
         });
       }
-      await refreshData();
+      // Poll until status reflects the expected state (up to ~3 s)
+      const expected = !currentState;
+      for (let i = 0; i < 6; i++) {
+        await refreshData();
+        const list = type === 'relay' ? get(relays) : get(proxies);
+        const entry = type === 'relay'
+          ? list.find((r) => r.relay.id === id)
+          : list.find((p) => p.id === id);
+        const actualRunning = type === 'relay'
+          ? entry?.running
+          : (entry?.enabled ?? false);
+        if (actualRunning === expected) break;
+        await new Promise((r) => setTimeout(r, 500));
+      }
     } catch (err) {
       showToast('danger', err.message);
+    } finally {
+      togglingId = null;
     }
   }
 
@@ -245,6 +265,9 @@
       <ItemCard
         {item}
         {fqdn}
+        toggling={item.type === 'relay'
+          ? togglingId === `relay:${item.relay.id}`
+          : togglingId === `proxy:${item.proxy.id}`}
         onToggle={handleToggleAction}
         onAutostart={handleAutostartToggle}
         onEdit={(type, data) => openEdit(type, data)}

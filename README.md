@@ -226,18 +226,62 @@ make help
 
 ### Testing
 
-```bash
-# Python test suite
-python docker-compose-test.py
+The test suite is split across three layers:
 
-# Bash test suite
-./docker-compose-test.sh
+#### 1. Go unit tests (no Docker required)
+
+Covers `internal/auth`, `internal/caddy`, `internal/handlers`, `internal/backup`,
+and `internal/web`.
+
+```bash
+# From the repo root — uses the `make test` target
+make test
+
+# Or directly
+cd webui && go test ./...
+
+# Verbose output
+cd webui && go test -v ./...
 ```
 
-**Setup:**
-1. Copy `.env.example` to `.env`
-2. Edit variables (`TAILRELAY_HOST`, `TAILNET_DOMAIN`)
-3. Run tests
+#### 2. Integration tests (requires Docker)
+
+Builds the full container image and smoke-tests container startup, process presence,
+port availability, Tailscale health/metrics endpoints, Web UI API, and socat relay
+forwarding. The suite lives in `tests/integration/` and is driven by environment
+variables.
+
+```bash
+# Setup (one-time)
+cp .env.example .env
+# Edit TAILRELAY_HOST and TAILNET_DOMAIN in .env
+
+pip install pytest   # one-time
+
+# Run via Make
+make integration-test
+
+# Or directly
+pytest tests/integration/ -v
+```
+
+**Environment variables** (all have defaults; override in `.env` or shell):
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `TAILRELAY_HOST` | `tailrelay-test` | Container hostname / Docker service name |
+| `TAILNET_DOMAIN` | `example.com` | Tailnet domain (used for HTTPS cert checks) |
+| `COMPOSE_FILE` | `compose-test.yml` | Compose file to spin up the stack |
+| `BUILD_IMAGE` | `1` | Set to `0` to skip `docker compose build` |
+| `IMAGE_TAG` | `sudocarlos/tailrelay:dev` | Image to build/run |
+| `STARTUP_WAIT` | `8` | Seconds to wait after container start |
+
+#### 3. CI pipeline
+
+GitHub Actions runs all three layers automatically on push/PR to `main`:
+- **frontend** job: `npm install` + `npm run build`
+- **backend** job: `go vet ./...` + `go test ./...` + `go build ./...`
+- **integration** job: full Docker build + `pytest tests/integration/ -v`
 
 ### Build Metadata
 
