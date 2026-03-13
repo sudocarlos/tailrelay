@@ -45,7 +45,7 @@ fi
 
 # Start Caddy first (before Web UI so migration/discovery can connect)
 echo -n "Starting Caddy... "
-CADDY_STATUS=$(caddy start --config /etc/caddy/Caddyfile >/dev/null)
+CADDY_STATUS=$(caddy start >/dev/null)
 # echo success or fail + stderr
 if [ $? -ne 0 ]; then
    echo "failed!"

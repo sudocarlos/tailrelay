@@ -115,10 +115,27 @@
 
   function copyLogs() {
     const text = logEntries.map((e) => e.raw).join('\n');
-    navigator.clipboard.writeText(text).then(
-      () => showToast('success', 'Logs copied to clipboard'),
-      () => showToast('danger', 'Failed to copy logs'),
-    );
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => showToast('success', 'Logs copied to clipboard'),
+        () => showToast('danger', 'Failed to copy logs'),
+      );
+    } else {
+      // Fallback for non-secure contexts (plain HTTP)
+      try {
+        const el = document.createElement('textarea');
+        el.value = text;
+        el.style.position = 'fixed';
+        el.style.opacity = '0';
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        showToast('success', 'Logs copied to clipboard');
+      } catch {
+        showToast('danger', 'Failed to copy logs');
+      }
+    }
   }
 
   function clearLogs() {

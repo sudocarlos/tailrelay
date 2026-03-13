@@ -17,6 +17,7 @@ import (
 	"github.com/sudocarlos/tailrelay/internal/caddy"
 	"github.com/sudocarlos/tailrelay/internal/config"
 	"github.com/sudocarlos/tailrelay/internal/handlers"
+	"github.com/sudocarlos/tailrelay/internal/tailscale"
 )
 
 // Server represents the HTTP server
@@ -37,6 +38,7 @@ type Server struct {
 	templateFS fs.FS
 	ctx        context.Context
 	cancel     context.CancelFunc
+	tsCache    *tailscale.StatusCache
 }
 
 // NewServer creates a new HTTP server
@@ -68,8 +70,14 @@ func NewServer(cfg *config.Config, authToken string, distFS, staticFS, templateF
 	// hostnames when the Tailscale device hostname changes.
 	caddyMgr := caddy.NewManager(caddy.DefaultAdminAPI, cfg.Paths.CaddyServerMap)
 
+	// StatusCache keeps a background-refreshed record of whether Tailscale is
+	// Running. It is passed into CaddyHandler so TLS cert probes are suppressed
+	// until Tailscale has fully authenticated and joined the tailnet — preventing
+	// Caddy's on-demand ACME from firing against *.ts.net names too early.
+	tsCache := tailscale.NewStatusCache(tailscale.NewClient())
+
 	tailscaleH := handlers.NewTailscaleHandlerWithCaddy(cfg, tmpl, authMW, caddyMgr)
-	caddyH := handlers.NewCaddyHandlerWithManager(cfg, tmpl, caddyMgr)
+	caddyH := handlers.NewCaddyHandlerWithManager(cfg, tmpl, caddyMgr, tsCache.IsReady)
 	socatH := handlers.NewSocatHandler(cfg, tmpl)
 	backupH := handlers.NewBackupHandler(cfg, tmpl)
 	targetsH := handlers.NewTargetsHandler(cfg)
@@ -92,11 +100,17 @@ func NewServer(cfg *config.Config, authToken string, distFS, staticFS, templateF
 		templateFS: templateFS,
 		ctx:        ctx,
 		cancel:     cancel,
+		tsCache:    tsCache,
 	}, nil
 }
 
 // Start starts the HTTP server
 func (s *Server) Start() error {
+	// Start the Tailscale status cache. This polls tailscaled every 15 seconds
+	// and exposes IsReady() to gates that must not fire before Tailscale is up
+	// (e.g. TLS cert probes that would otherwise trigger Caddy's ACME flow).
+	s.tsCache.Start(s.ctx)
+
 	// Migrate existing Caddy proxies to metadata storage
 	log.Printf("Migrating existing Caddy proxies to metadata storage...")
 	if err := s.caddyH.MigrateExistingProxies(); err != nil {
@@ -118,12 +132,6 @@ func (s *Server) Start() error {
 	if err := s.caddyH.InitializeAutostart(); err != nil {
 		log.Printf("Warning: failed to start autostart proxies: %v", err)
 	}
-
-	// Probe TLS certificates for MagicDNS proxies and warn early if any are
-	// missing or invalid — gives an immediate signal in container logs before
-	// the dashboard is opened.
-	log.Printf("Checking TLS certificates for MagicDNS proxies...")
-	s.caddyH.CheckTLSCertsAtStartup()
 
 	mux := s.setupRoutes()
 

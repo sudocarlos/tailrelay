@@ -18,6 +18,7 @@ type MetricsData struct {
 // Without per_host the single entry will have Host == "".
 type HostMetrics struct {
 	Host         string             `json:"host"`
+	Label        string             `json:"label"` // e.g. ":8888 → whoami-test:80"; empty when unknown
 	Requests     float64            `json:"requests"`
 	RequestsIn   float64            `json:"requests_in"`
 	ResponsesOut float64            `json:"responses_out"`
@@ -68,9 +69,11 @@ func ParseMetrics(raw []byte) *MetricsData {
 		switch {
 		// caddy_http_requests_total — request count per server/handler(/host)
 		case name == "caddy_http_requests_total":
-			// Only count the reverse_proxy handler to avoid double-counting
-			// (each request passes through multiple handlers).
-			if labels["handler"] != "reverse_proxy" {
+			// Only count the reverse_proxy or subroute handler to avoid double-counting
+			// (each request passes through multiple handlers). Routes built with a
+			// subroute wrapper emit metrics with handler="subroute" at the outer level.
+			h := labels["handler"]
+			if h != "reverse_proxy" && h != "subroute" {
 				continue
 			}
 			host := labels["host"] // empty string when per_host disabled
@@ -78,7 +81,8 @@ func ParseMetrics(raw []byte) *MetricsData {
 
 		// caddy_http_request_size_bytes_sum — bytes received (request bodies)
 		case name == "caddy_http_request_size_bytes_sum":
-			if labels["handler"] != "reverse_proxy" {
+			h := labels["handler"]
+			if h != "reverse_proxy" && h != "subroute" {
 				continue
 			}
 			host := labels["host"]
@@ -86,7 +90,8 @@ func ParseMetrics(raw []byte) *MetricsData {
 
 		// caddy_http_response_size_bytes_sum — bytes sent (response bodies)
 		case name == "caddy_http_response_size_bytes_sum":
-			if labels["handler"] != "reverse_proxy" {
+			h := labels["handler"]
+			if h != "reverse_proxy" && h != "subroute" {
 				continue
 			}
 			host := labels["host"]
@@ -95,7 +100,8 @@ func ParseMetrics(raw []byte) *MetricsData {
 		// caddy_http_request_duration_seconds_count — has code + host labels,
 		// use it to tally status-code class counts per host.
 		case name == "caddy_http_request_duration_seconds_count":
-			if labels["handler"] != "reverse_proxy" {
+			h := labels["handler"]
+			if h != "reverse_proxy" && h != "subroute" {
 				continue
 			}
 			host := labels["host"]

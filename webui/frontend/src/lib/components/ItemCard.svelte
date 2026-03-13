@@ -1,7 +1,7 @@
 <script>
-  import { Network, ShieldCheck, Play, Pause, Pencil, Trash2, AlertTriangle } from '@lucide/svelte';
+  import { Network, ShieldCheck, Play, Pause, Pencil, Trash2, AlertTriangle, RefreshCw } from '@lucide/svelte';
 
-  let { item, fqdn, onToggle, onAutostart, onEdit, onDelete } = $props();
+  let { item, fqdn, toggling = false, onToggle, onAutostart, onEdit, onDelete } = $props();
 
   function formatRelayTitle(relay) {
     const hostname = fqdn || 'unknown';
@@ -31,8 +31,8 @@
           <Network size={16} class="text-blue-500 flex-shrink-0" />
           <span class="font-medium text-sm truncate">{formatRelayTitle(relay)}</span>
           <span
-            class="w-2 h-2 rounded-full flex-shrink-0 {running ? 'bg-green-500 status-dot-running' : 'bg-gray-400 dark:bg-gray-600'}"
-            title={running ? 'Running' : 'Stopped'}
+            class="w-2 h-2 rounded-full flex-shrink-0 {toggling ? 'bg-amber-400 animate-pulse' : running ? 'bg-green-500 status-dot-running' : 'bg-gray-400 dark:bg-gray-600'}"
+            title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
           ></span>
         </div>
         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
@@ -55,11 +55,14 @@
         <div class="w-px h-5 bg-gray-200 dark:bg-gray-700"></div>
 
         <button
-          class="p-1.5 rounded-md transition-colors {running ? 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500' : 'hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600'}"
+          class="p-1.5 rounded-md transition-colors {toggling ? 'text-amber-500 cursor-not-allowed' : running ? 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500' : 'hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600'}"
           onclick={() => onToggle('relay', relay.id, running)}
-          title={running ? 'Stop' : 'Start'}
+          disabled={toggling}
+          title={toggling ? 'Updating…' : running ? 'Stop' : 'Start'}
         >
-          {#if running}
+          {#if toggling}
+            <RefreshCw size={15} class="animate-spin" />
+          {:else if running}
             <Pause size={15} />
           {:else}
             <Play size={15} />
@@ -105,8 +108,8 @@
             class="font-medium text-sm truncate hover:underline"
           >{proxyUrl}</a>
           <span
-            class="w-2 h-2 rounded-full flex-shrink-0 {running ? 'bg-green-500 status-dot-running' : 'bg-gray-400 dark:bg-gray-600'}"
-            title={running ? 'Running' : 'Stopped'}
+            class="w-2 h-2 rounded-full flex-shrink-0 {toggling ? 'bg-amber-400 animate-pulse' : running ? 'bg-green-500 status-dot-running' : 'bg-gray-400 dark:bg-gray-600'}"
+            title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
           ></span>
           {#if tlsError}
             <span title={tlsError} class="flex-shrink-0 text-amber-500 dark:text-amber-400 cursor-help">
@@ -140,11 +143,14 @@
         <div class="w-px h-5 bg-gray-200 dark:bg-gray-700"></div>
 
         <button
-          class="p-1.5 rounded-md transition-colors {proxy.enabled ? 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500' : 'hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600'}"
+          class="p-1.5 rounded-md transition-colors {toggling ? 'text-amber-500 cursor-not-allowed' : proxy.enabled ? 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500' : 'hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600'}"
           onclick={() => onToggle('proxy', proxy.id, proxy.enabled)}
-          title={proxy.enabled ? 'Disable' : 'Enable'}
+          disabled={toggling}
+          title={toggling ? 'Updating…' : proxy.enabled ? 'Disable' : 'Enable'}
         >
-          {#if proxy.enabled}
+          {#if toggling}
+            <RefreshCw size={15} class="animate-spin" />
+          {:else if proxy.enabled}
             <Pause size={15} />
           {:else}
             <Play size={15} />

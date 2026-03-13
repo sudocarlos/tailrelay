@@ -68,6 +68,7 @@
             required
             autocomplete="current-password"
             disabled={loading}
+            focus
           />
         </div>
 

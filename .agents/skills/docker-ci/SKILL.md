@@ -1,7 +1,7 @@
 ---
 name: docker-ci-pipeline
 description: Docker image building, Compose development environments, CI/CD pipeline, and testing infrastructure. Use when working with Dockerfiles, docker-compose, GitHub Actions CI, Make targets, integration tests, or deployment workflows.
-reviewed_at: 17791f3
+reviewed_at: feb333e
 ---
 
 # Docker & CI Pipeline
@@ -19,22 +19,29 @@ docker buildx build -t sudocarlos/tailrelay:latest --load .
 ```
 
 `Dockerfile` stages:
-1. **webui-builder** (`golang:1.24-alpine`) — builds Go binary with ldflags
-2. **main** (`tailscale/tailscale:v1.92.5`) — installs Caddy, socat, copies binary
+1. **frontend-builder** (`node:{NODE_VERSION}-alpine`) — builds Vite/Svelte/Tailwind SPA assets
+2. **webui-builder** (`golang:{GO_VERSION}-alpine`) — builds Caddy from source (`git clone caddyserver/caddy`) and the tailrelay-webui Go binary
+3. **tailscale-builder** (`golang:{GO_VERSION}-alpine`) — builds Tailscale binaries from source via `go install tailscale.com/cmd/...@{TAILSCALE_VERSION}`
+4. **binary-dev** (`scratch`) — holds a pre-built local binary from `./data/tailrelay-webui` for dev builds
+5. **binary-source** — selector stage; resolves to `webui-builder` (default) or `binary-dev` via `WEBUI_SOURCE` build arg
+6. **main** (`alpine:3.22`) — installs runtime deps (iptables, iproute2, socat, mailcap), copies all binaries from builder stages
 
 Key build args:
-- `TAILSCALE_VERSION` (default: `v1.92.5`)
-- `GO_VERSION` (default: `1.24`)
+- `TAILSCALE_VERSION` (default: `v1.94.2`) — version tag passed to `go install tailscale.com/cmd/...@${TAILSCALE_VERSION}`
+- `CADDY_VERSION` (default: `2.11.2`) — version tag used for `git clone --branch v${CADDY_VERSION} caddyserver/caddy`
+- `GO_VERSION` (default: `1.26.1`)
+- `NODE_VERSION` (default: `24`)
+- `WEBUI_SOURCE` (default: `webui-builder`; set to `binary-dev` for dev builds)
 - `VERSION`, `COMMIT`, `DATE`, `BRANCH`, `BUILDER` — build metadata
 
 ### Development
 
 ```bash
-make dev-build           # Build Go binary locally
+make dev-build           # Build Go binary + frontend locally
 make dev-docker-build    # Build Docker image using local binary
 ```
 
-`Dockerfile.dev` copies the locally-built `data/tailrelay-webui` instead of compiling in-container.
+`dev-docker-build` passes `--build-arg WEBUI_SOURCE=binary-dev` so Docker copies `./data/tailrelay-webui` from the build context instead of compiling in-container. No separate `Dockerfile.dev` is needed.
 
 ## Make Targets
 
@@ -156,6 +163,7 @@ Handles `SIGTERM`/`SIGINT` for graceful shutdown.
 | Component | Version |
 |-----------|---------|
 | Container | `v0.4.1` (see `start.sh`) |
-| Tailscale base | `v1.92.5` (Dockerfile ARG) |
-| Go | `1.24` (Dockerfile ARG) |
-| Node.js (CI) | `20` |
+| Tailscale | `v1.92.5` (built from source via `go install tailscale.com/cmd/...`) |
+| Caddy | `2.11.2` (built from source via `git clone caddyserver/caddy`) |
+| Go | `1.26.1` (Dockerfile ARG) |
+| Node.js (CI) | `24` |
