@@ -20,7 +20,11 @@ import time
 
 import pytest
 
-from conftest import container_exec, container_exec_check, CONTAINER_NAME
+from tests.integration.helpers import (
+    container_exec,
+    container_exec_check,
+    CONTAINER_NAME,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
