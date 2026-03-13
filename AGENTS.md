@@ -26,6 +26,9 @@ Detailed component knowledge is organized into Agent Skills at `.agents/skills/`
 | **socat** | `.agents/skills/socat/SKILL.md` | TCP relays, RELAY_LIST, process management |
 | **Web UI** | `.agents/skills/webui/SKILL.md` | Go app, handlers, auth, backup, frontend SPA, build |
 | **Docker/CI** | `.agents/skills/docker-ci/SKILL.md` | Dockerfile, Compose, GitHub Actions, testing |
+| **Security Review** | `.agents/skills/security-review/SKILL.md` | CVE scanning, auth review, injection risks, privacy audit |
+| **Testing & CI/CD** | `.agents/skills/testing-cicd/SKILL.md` | Writing Go tests, integration tests, extending ci.yml |
+| **Documentation** | `.agents/skills/documentation/SKILL.md` | README, CHANGELOG, release notes, AGENTS.md, SKILL.md files |
 
 Read the relevant SKILL.md before making changes to that component.
 
@@ -45,9 +48,7 @@ make clean             # Remove build artifacts
 
 ```bash
 cd webui && go test ./...       # Go unit tests
-python docker-compose-test.py   # Python integration suite
-./docker-compose-test.sh        # Bash integration suite
-./test_proxy_api.sh             # API endpoint tests
+pytest tests/integration/ -v    # Python integration suite
 ```
 
 ### Docker
@@ -91,15 +92,16 @@ curl -sSL http://localhost:8021            # Web UI
 
 ```
 ├── AGENTS.md               # This file — agent entry point
-├── Dockerfile / .dev        # Container images
-├── Makefile                 # Build targets
-├── start.sh                 # Container entrypoint
-├── webui/                   # Go Web UI (see webui skill)
-├── compose-test.yml         # Test Compose config
-├── docker-compose-test.*    # Integration test scripts
-├── .agents/skills/          # Agent Skills (see table above)
-├── .agent/workflows/        # Dev workflows (dev-build, docker-test)
-└── .github/workflows/       # CI pipeline
+├── CHANGELOG.md            # Release history (Keep a Changelog format)
+├── Dockerfile              # Container image (multi-stage)
+├── Makefile                # Build targets
+├── start.sh                # Container entrypoint
+├── webui/                  # Go Web UI (see webui skill)
+├── tests/                  # Integration test suite (pytest)
+├── compose-test.yml        # Test Compose config
+├── .agents/skills/         # Agent Skills (see table above)
+├── .agents/workflows/      # Dev workflows (dev-build, docker-test)
+└── .github/workflows/      # CI pipeline
 ```
 
 ## Documentation Review Status
@@ -110,19 +112,22 @@ curl -sSL http://localhost:8021            # Web UI
 
 | Document | `reviewed_at` | Paths Covered |
 |----------|---------------|---------------|
-| `AGENTS.md` | `17791f3` | `AGENTS.md`, `Makefile`, `start.sh` |
-| `.agents/skills/caddy/SKILL.md` | `17791f3` | `webui/internal/caddy/`, `webui/internal/handlers/caddy.go` |
-| `.agents/skills/socat/SKILL.md` | `17791f3` | `webui/internal/socat/`, `webui/internal/handlers/socat.go` |
-| `.agents/skills/webui/SKILL.md` | `2c28a60` | `webui/`, `Makefile` |
-| `.agents/skills/docker-ci/SKILL.md` | `2c28a60` | `Dockerfile`, `Dockerfile.dev`, `.github/workflows/`, `compose-test.yml` |
-| `.agents/skills/tailscale/SKILL.md` | `17791f3` | `webui/internal/tailscale/`, `start.sh` |
-| `webui/README.md` | `17791f3` | `webui/` |
-| `README.md` | `17791f3` | `README.md`, `webui/internal/web/server.go` |
+| `AGENTS.md` | `6fc3c61` | `AGENTS.md`, `Makefile`, `start.sh` |
+| `.agents/skills/caddy/SKILL.md` | `6fc3c61` | `webui/internal/caddy/`, `webui/internal/handlers/caddy.go` |
+| `.agents/skills/socat/SKILL.md` | `6fc3c61` | `webui/internal/socat/`, `webui/internal/handlers/socat.go` |
+| `.agents/skills/webui/SKILL.md` | `6fc3c61` | `webui/`, `Makefile` |
+| `.agents/skills/docker-ci/SKILL.md` | `6fc3c61` | `Dockerfile`, `.github/workflows/`, `compose-test.yml` |
+| `.agents/skills/tailscale/SKILL.md` | `6fc3c61` | `webui/internal/tailscale/`, `start.sh` |
+| `webui/README.md` | `6fc3c61` | `webui/` |
+| `README.md` | `6fc3c61` | `README.md`, `webui/internal/web/server.go` |
+| `.agents/skills/security-review/SKILL.md` | `6fc3c61` | `webui/internal/auth/`, `webui/internal/handlers/`, `webui/internal/caddy/`, `webui/internal/socat/`, `webui/internal/backup/`, `Dockerfile`, `start.sh` |
+| `.agents/skills/testing-cicd/SKILL.md` | `6fc3c61` | `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml` |
+| `.agents/skills/documentation/SKILL.md` | `6fc3c61` | `README.md`, `CHANGELOG.md`, `webui/README.md`, `AGENTS.md`, `.agents/skills/` |
 
 ## Making Changes
 
 1. Update version in `start.sh` (and release notes as needed)
 2. Rebuild: `make dev-build` or `make dev-docker-build`
-3. Run tests: `go test ./...` + integration scripts
+3. Run tests: `go test ./...` + `pytest tests/integration/ -v`
 4. Validate health endpoints
 5. Update `README.md` for user-facing changes

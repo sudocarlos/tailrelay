@@ -92,7 +92,7 @@ webui/
 
 ### Dependencies
 
-- Go 1.21+
+- Go 1.26.1+
 - `gopkg.in/yaml.v3` - YAML configuration parsing
 
 All other functionality uses the Go standard library.
@@ -100,12 +100,15 @@ All other functionality uses the Go standard library.
 ## Testing
 
 ```bash
-# Run tests
-go test ./...
+# Run Go unit tests
+make test
 
-# Build and test locally
-go build -o tailrelay-webui ./cmd/webui
-./tailrelay-webui --config ./config/webui.yaml
+# Run specific package tests
+go test ./internal/backup/...
+go test ./internal/web/...
+
+# Integration tests (requires Docker; see compose-test.yml)
+make integration-test
 ```
 
 ## Docker Integration
@@ -116,8 +119,8 @@ See the main project README for Docker usage instructions.
 
 ## Review Status
 
-<!-- reviewed_at: 17791f3 | paths: webui/ -->
-Last full review completed at commit `17791f3`. To check what has changed since:
+<!-- reviewed_at: 6fc3c61 | paths: webui/ -->
+Last full review completed at commit `6fc3c61`. To check what has changed since:
 ```bash
-git log --oneline 17791f3..HEAD -- webui/
+git log --oneline 6fc3c61..HEAD -- webui/
 ```

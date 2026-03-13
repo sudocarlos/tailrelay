@@ -486,7 +486,7 @@ cd tailrelay
 docker build -t tailrelay:dev .
 
 # Run tests
-docker-compose -f compose-test.yml up
+docker compose -f compose-test.yml up -d
 ```
 
 See [Development](#development) section for WebUI development workflow.
@@ -494,9 +494,7 @@ See [Development](#development) section for WebUI development workflow.
 
 ## Release Notes
 
-- [v0.3.0](docs/release-notes/RELEASE_NOTES_v0.3.0.md) - Logging, custom CA certs, and proxy management improvements
-- [v0.2.1](docs/release-notes/RELEASE_NOTES_v0.2.1.md) - Caddy API integration
-- [v0.2.0](docs/release-notes/RELEASE_NOTES_v0.2.0.md) - Web UI release
+See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
 
 ## License
@@ -513,8 +511,8 @@ Open source project. See repository for license details.
 
 ## Review Status
 
-<!-- reviewed_at: 17791f3 | paths: README.md webui/internal/web/server.go -->
-Last full review completed at commit `17791f3`. To check what has changed since:
+<!-- reviewed_at: 6fc3c61 | paths: README.md webui/internal/web/server.go -->
+Last full review completed at commit `6fc3c61`. To check what has changed since:
 ```bash
-git log --oneline 17791f3..HEAD -- README.md webui/internal/web/server.go
+git log --oneline 6fc3c61..HEAD -- README.md webui/internal/web/server.go
 ```
