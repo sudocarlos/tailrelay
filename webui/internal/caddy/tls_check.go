@@ -18,20 +18,6 @@ const (
 	tlsProbeTimeout = 3 * time.Second
 )
 
-// isMagicDNSHostname reports whether a hostname looks like a Tailscale
-// MagicDNS name (*.ts.net) that Caddy must provision a certificate for
-// automatically via ACME.
-func isMagicDNSHostname(hostname string) bool {
-	h := strings.ToLower(NormalizeHostname(hostname))
-	return strings.HasSuffix(h, ".ts.net")
-}
-
-// ProbeResult holds the outcome of a single TLS certificate probe.
-type ProbeResult struct {
-	ProxyID string
-	Err     string // empty string means the cert is present and valid
-}
-
 // probeTLSCert attempts a TLS handshake to localhost:<port> using the given
 // hostname as the SNI / ServerName. It does NOT verify the certificate chain
 // against system roots because the cert may be from Tailscale's own CA.
@@ -109,7 +95,7 @@ func CheckProxyCerts(proxies []config.CaddyProxy) map[string]string {
 		if !p.Enabled {
 			continue
 		}
-		if !isMagicDNSHostname(p.Hostname) {
+		if !strings.HasSuffix(strings.ToLower(NormalizeHostname(p.Hostname)), ".ts.net") {
 			continue
 		}
 

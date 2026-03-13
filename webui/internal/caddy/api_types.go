@@ -8,7 +8,6 @@ type CaddyConfig struct {
 // CaddyApps contains all Caddy app configurations
 type CaddyApps struct {
 	HTTP *HTTPApp `json:"http,omitempty"`
-	TLS  *TLSApp  `json:"tls,omitempty"`
 }
 
 // HTTPApp represents Caddy's HTTP app configuration
@@ -18,22 +17,9 @@ type HTTPApp struct {
 
 // HTTPServer represents a Caddy HTTP server
 type HTTPServer struct {
-	Listen          []string          `json:"listen,omitempty"`
-	Routes          []Route           `json:"routes,omitempty"`
-	Logs            *ServerLogs       `json:"logs,omitempty"`
-	TLSConnPolicies []TLSConnPolicy   `json:"tls_connection_policies,omitempty"`
-}
-
-// TLSConnPolicy represents a TLS connection policy for an HTTP server.
-// An empty policy (no fields set) means "use default TLS settings", which is
-// enough to tell Caddy that this server should speak TLS.
-type TLSConnPolicy struct {
-	Match *TLSConnPolicyMatch `json:"match,omitempty"`
-}
-
-// TLSConnPolicyMatch restricts which connections a TLS connection policy applies to.
-type TLSConnPolicyMatch struct {
-	SNI []string `json:"sni,omitempty"`
+	Listen []string    `json:"listen,omitempty"`
+	Routes []Route     `json:"routes,omitempty"`
+	Logs   *ServerLogs `json:"logs,omitempty"`
 }
 
 // Route represents a Caddy route with matchers and handlers
@@ -167,44 +153,6 @@ type KeepAlive struct {
 type ServerLogs struct {
 	DefaultLoggerName string            `json:"default_logger_name,omitempty"`
 	LoggerNames       map[string]string `json:"logger_names,omitempty"`
-}
-
-// TLSApp represents Caddy's TLS app configuration
-type TLSApp struct {
-	Automation   *TLSAutomation   `json:"automation,omitempty"`
-	Certificates *TLSCertificates `json:"certificates,omitempty"`
-}
-
-// TLSAutomation represents TLS automation configuration
-type TLSAutomation struct {
-	Policies []TLSPolicy `json:"policies,omitempty"`
-}
-
-// TLSPolicy represents a TLS automation policy
-type TLSPolicy struct {
-	Subjects       []string              `json:"subjects,omitempty"`
-	Issuers        []TLSIssuer           `json:"issuers,omitempty"`
-	// GetCertificate lists on-demand certificate managers (e.g. Tailscale).
-	// This maps to Caddy's AutomationPolicy.ManagersRaw field.
-	GetCertificate []TailscaleCertManager `json:"get_certificate,omitempty"`
-	// OnDemand enables on-demand TLS provisioning (required for Tailscale cert manager).
-	OnDemand bool `json:"on_demand,omitempty"`
-}
-
-// TailscaleCertManager configures Caddy's built-in Tailscale certificate manager
-// (module: tls.get_certificate.tailscale). It fetches certificates at TLS
-// handshake time from the local tailscaled socket.
-//
-// JSON inline module key is "via": "tailscale".
-type TailscaleCertManager struct {
-	// Via is the inline Caddy module key. Must be "tailscale".
-	Via string `json:"via"`
-}
-
-// TLSIssuer represents a certificate issuer configuration
-type TLSIssuer struct {
-	Module string                 `json:"module"`
-	Config map[string]interface{} `json:"config,omitempty"`
 }
 
 // TLSCertificates represents TLS certificate configuration

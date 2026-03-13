@@ -22,6 +22,43 @@ type StatusSummary struct {
 	LastCheck    time.Time
 }
 
+// knownBenignWarnings is a list of Tailscale daemon health message substrings
+// that are known to be cosmetic / non-actionable in a containerised environment
+// and should be suppressed from the UI. Each entry is matched as a substring of
+// the raw daemon message (case-sensitive).
+//
+// Add entries here when a daemon version begins emitting a new noisy-but-harmless
+// message; include a comment explaining why it is safe to ignore.
+var knownBenignWarnings = []string{
+	// Alpine / musl Linux containers do not support the OS-level DNS config
+	// reader that tailscaled uses for MagicDNS introspection.  Connectivity
+	// is unaffected — the daemon still works correctly.
+	"getting OS base config is not supported",
+}
+
+// filterHealth removes known-benign warning strings from a health slice.
+// Messages that contain any entry in knownBenignWarnings as a substring are
+// dropped; all other messages are preserved unchanged.
+func filterHealth(health []string) []string {
+	if len(health) == 0 {
+		return health
+	}
+	filtered := health[:0:0] // nil-preserving empty slice with no allocation until needed
+	for _, msg := range health {
+		benign := false
+		for _, pattern := range knownBenignWarnings {
+			if strings.Contains(msg, pattern) {
+				benign = true
+				break
+			}
+		}
+		if !benign {
+			filtered = append(filtered, msg)
+		}
+	}
+	return filtered
+}
+
 // GetStatusSummary returns a simplified status summary
 func (c *Client) GetStatusSummary() (*StatusSummary, error) {
 	status, err := c.GetStatus()
@@ -47,7 +84,7 @@ func (c *Client) GetStatusSummary() (*StatusSummary, error) {
 		IPv6:         ipv6,
 		Version:      status.Version,
 		PeerCount:    len(status.Peer),
-		Health:       status.Health,
+		Health:       filterHealth(status.Health),
 		LastCheck:    time.Now(),
 	}
 
@@ -123,8 +160,8 @@ func (c *Client) HealthCheck() (bool, []string, error) {
 		return false, nil, err
 	}
 
-	isHealthy := status.BackendState == "Running" && len(status.Health) == 0
-	return isHealthy, status.Health, nil
+	isHealthy := status.BackendState == "Running" && len(filterHealth(status.Health)) == 0
+	return isHealthy, filterHealth(status.Health), nil
 }
 
 // FormatBackendState returns a human-readable backend state

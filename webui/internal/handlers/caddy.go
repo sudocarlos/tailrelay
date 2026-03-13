@@ -25,6 +25,10 @@ type CaddyHandler struct {
 	templates *template.Template
 	manager   *caddy.Manager
 	tsClient  *tailscale.Client
+	// tsReady reports whether Tailscale is in the Running state. TLS cert probes
+	// are skipped when this returns false to avoid triggering Caddy's on-demand
+	// ACME provisioning before Tailscale has obtained its *.ts.net certificate.
+	tsReady func() bool
 }
 
 // NewCaddyHandler creates a new Caddy handler with its own Manager instance.
@@ -33,17 +37,23 @@ func NewCaddyHandler(cfg *config.Config, templates *template.Template) *CaddyHan
 		caddy.DefaultAdminAPI,
 		cfg.Paths.CaddyServerMap,
 	)
-	return NewCaddyHandlerWithManager(cfg, templates, manager)
+	return NewCaddyHandlerWithManager(cfg, templates, manager, nil)
 }
 
 // NewCaddyHandlerWithManager creates a Caddy handler using the provided Manager.
 // Use this when the manager must be shared with other handlers (e.g. TailscaleHandler).
-func NewCaddyHandlerWithManager(cfg *config.Config, templates *template.Template, manager *caddy.Manager) *CaddyHandler {
+// tsReady is an optional func that returns true when Tailscale is in the Running
+// state; pass nil to always allow TLS probing (e.g. in tests).
+func NewCaddyHandlerWithManager(cfg *config.Config, templates *template.Template, manager *caddy.Manager, tsReady func() bool) *CaddyHandler {
+	if tsReady == nil {
+		tsReady = func() bool { return true }
+	}
 	return &CaddyHandler{
 		cfg:       cfg,
 		templates: templates,
 		manager:   manager,
 		tsClient:  tailscale.NewClient(),
+		tsReady:   tsReady,
 	}
 }
 
@@ -288,8 +298,12 @@ func (h *CaddyHandler) APIList(w http.ResponseWriter, r *http.Request) {
 	// Only bother when Caddy itself is reachable; if Caddy is down the
 	// cert probe would just report a connection error for every proxy,
 	// which would be misleading.
+	// Also skip when Tailscale is not yet Running: probing too early causes
+	// Caddy's on-demand TLS to attempt ACME provisioning for *.ts.net names
+	// before Tailscale has obtained its certificate, triggering spurious
+	// Let's Encrypt requests.
 	var certErrors map[string]string
-	if caddyRunning {
+	if caddyRunning && h.tsReady() {
 		certErrors = caddy.CheckProxyCerts(proxies)
 	}
 
@@ -498,25 +512,6 @@ func ensureUniqueFile(path string) string {
 func parseBool(value string) bool {
 	value = strings.ToLower(strings.TrimSpace(value))
 	return value == "true" || value == "1" || value == "on" || value == "yes"
-}
-
-// CheckTLSCertsAtStartup probes TLS certificates for all enabled MagicDNS
-// proxies and logs a warning for each cert that is absent, expired, or
-// misconfigured. This gives operators an early signal in the container logs
-// without requiring the UI to be open.
-func (h *CaddyHandler) CheckTLSCertsAtStartup() {
-	proxies, err := h.manager.ListProxies()
-	if err != nil {
-		log.Printf("Warning: could not list proxies for TLS startup check: %v", err)
-		return
-	}
-
-	certErrors := caddy.CheckProxyCerts(proxies)
-	for id, errMsg := range certErrors {
-		if errMsg != "" {
-			log.Printf("Warning: TLS cert issue for proxy %s: %s", id, errMsg)
-		}
-	}
 }
 
 // Metrics returns parsed Caddy Prometheus metrics as JSON.

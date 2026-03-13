@@ -17,18 +17,28 @@
   let isAuthenticated = $state(false);
   let isNeedsSetup = $state(false);
   let loading = $state(true);
+  let checkingTailscale = $state(false);
   let interval;
 
   authenticated.subscribe((v) => (isAuthenticated = v));
   needsSetup.subscribe((v) => (isNeedsSetup = v));
 
-  // When Tailscale loses connection, lock navigation to the Tailscale tab.
-  // This fires reactively on every status refresh (every 15 s) so the UI
-  // self-corrects if Tailscale drops out without a page reload.
+  // Track whether the initial data load has completed so the reactive
+  // subscription below does not fire prematurely (before any status is known).
+  let dataLoaded = false;
+  // Track the last known connected state so we only redirect on a
+  // true→false transition (Tailscale dropped), not on every false value.
+  let wasConnected = false;
+
+  // When Tailscale loses connection after the initial load, lock navigation
+  // to the Tailscale tab. Only redirects on a connected→disconnected transition
+  // so a transient or initial false value doesn't interfere.
   tailscaleConnected.subscribe((connected) => {
-    if (!connected && get(authenticated)) {
+    if (!dataLoaded) return;                     // ignore pre-load transitions
+    if (wasConnected && !connected && get(authenticated)) {
       currentView.set('tailscale');
     }
+    wasConnected = connected;
   });
 
   onMount(async () => {
@@ -40,12 +50,20 @@
       authenticated.set(status.authenticated);
 
       if (status.authenticated) {
-        await refreshData();
-        // After first data load, enforce the navigation lock if Tailscale
-        // is not yet connected (subscription above may not have fired yet).
-        tailscaleConnected.subscribe((connected) => {
-          if (!connected) currentView.set('tailscale');
-        })();
+        checkingTailscale = true;
+        try {
+          await refreshData();
+          // After the first data load, navigate based on actual connection state.
+          // If Tailscale is connected, stay on dashboard; otherwise show Tailscale.
+          const connected = get(tailscaleConnected);
+          wasConnected = connected;
+          dataLoaded = true;
+          if (!connected) {
+            currentView.set('tailscale');
+          }
+        } finally {
+          checkingTailscale = false;
+        }
       }
     } catch (err) {
       if (err.message?.includes('401') || err.message?.includes('403')) {
@@ -102,18 +120,25 @@
   {:else if !isAuthenticated}
     <Login />
   {:else}
-    <Navbar />
-    <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6">
-      {#if $currentView === 'dashboard'}
-        <Dashboard />
-      {:else if $currentView === 'tailscale'}
-        <Tailscale />
-      {:else if $currentView === 'metrics'}
-        <Metrics />
-      {:else if $currentView === 'backups'}
-        <Backups />
-      {/if}
-    </main>
+    {#if checkingTailscale}
+      <div class="flex-1 flex flex-col items-center justify-center gap-3 text-gray-500 dark:text-gray-400">
+        <div class="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent"></div>
+        <p class="text-sm">Checking Tailscale connection…</p>
+      </div>
+    {:else}
+      <Navbar />
+      <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6">
+        {#if $currentView === 'dashboard'}
+          <Dashboard />
+        {:else if $currentView === 'tailscale'}
+          <Tailscale />
+        {:else if $currentView === 'metrics'}
+          <Metrics />
+        {:else if $currentView === 'backups'}
+          <Backups />
+        {/if}
+      </main>
+    {/if}
   {/if}
   <ToastContainer />
 </div>

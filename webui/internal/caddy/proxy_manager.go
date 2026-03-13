@@ -95,32 +95,14 @@ func (pm *ProxyManager) AddProxy(proxy config.CaddyProxy) (*config.CaddyProxy, e
 			Routes: []Route{*route},
 		}
 
-		// For *.ts.net hostnames Caddy must be told to terminate TLS. An
-		// empty TLS connection policy is sufficient — it signals HTTPS mode
-		// without restricting cipher suites or other parameters.
-		if isMagicDNSHostname(proxy.Hostname) {
-			server.TLSConnPolicies = []TLSConnPolicy{{}}
-		}
-
 		if err := pm.ensureHTTPServersPath(); err != nil {
 			logger.Error("caddy", "Failed to ensure HTTP path: %v", err)
 		}
 
 		if err := pm.client.PutConfig(path, server); err != nil {
-			logger.Error("caddy", "Failed to create server %s for %s:%d via Caddy API: %v", serverName, proxy.Hostname, proxy.Port, err)
-			// Clean up metadata
+			logger.Error("caddy", "Failed to create server %s for proxy %s via Caddy API: %v", serverName, proxy.ID, err)
 			DeleteProxyMetadata(pm.metadataPath, proxy.ID)
 			return nil, fmt.Errorf("create server: %w", err)
-		}
-
-		// Register the Tailscale TLS automation policy so Caddy can obtain a
-		// cert from tailscaled at handshake time (rather than falling back to
-		// public ACME, which would fail for *.ts.net domains).
-		if isMagicDNSHostname(proxy.Hostname) {
-			if err := pm.ensureTailscaleTLSPolicy(proxy.Hostname); err != nil {
-				logger.Warn("caddy", "Failed to register Tailscale TLS policy for %s: %v", proxy.Hostname, err)
-				// Non-fatal: proxy still works over HTTP; warn but don't roll back.
-			}
 		}
 
 		pm.updateServerMap(proxy, serverName)
@@ -198,11 +180,6 @@ func (pm *ProxyManager) UpdateProxy(proxy config.CaddyProxy) error {
 			Routes: []Route{*route},
 		}
 
-		// Preserve TLS connection policy for *.ts.net hostnames.
-		if isMagicDNSHostname(proxy.Hostname) {
-			server.TLSConnPolicies = []TLSConnPolicy{{}}
-		}
-
 		path := fmt.Sprintf("/apps/http/servers/%s", serverName)
 
 		// Use PUT if server doesn't exist (create), PATCH if it exists (update)
@@ -225,13 +202,6 @@ func (pm *ProxyManager) UpdateProxy(proxy config.CaddyProxy) error {
 			return fmt.Errorf("update server: %w", apiErr)
 		}
 
-		// Ensure TLS automation policy exists for *.ts.net hostnames.
-		if isMagicDNSHostname(proxy.Hostname) {
-			if err := pm.ensureTailscaleTLSPolicy(proxy.Hostname); err != nil {
-				logger.Warn("caddy", "Failed to register Tailscale TLS policy for %s: %v", proxy.Hostname, err)
-			}
-		}
-
 		pm.updateServerMap(proxy, serverName)
 	} else {
 		// If disabled, remove from Caddy but keep metadata
@@ -245,14 +215,6 @@ func (pm *ProxyManager) UpdateProxy(proxy config.CaddyProxy) error {
 			pm.removeServerMapByID(proxy.ID, serverName)
 			logger.Debug("caddy", "Removed server %s mapping for disabled proxy %s", serverName, proxy.ID)
 		}
-
-		// Disable also means the cert manager policy may no longer be needed
-		// for this hostname. Clean it up if no other enabled proxy uses it.
-		if isMagicDNSHostname(proxy.Hostname) {
-			if err := pm.removeTailscaleTLSPolicyIfUnused(proxy.Hostname, proxy.ID); err != nil {
-				logger.Warn("caddy", "Failed to clean up Tailscale TLS policy for %s: %v", proxy.Hostname, err)
-			}
-		}
 	}
 
 	logger.Info("caddy", "Updated Caddy proxy: %s (ID: %s, Enabled: %v)", proxy.Hostname, proxy.ID, proxy.Enabled)
@@ -262,13 +224,6 @@ func (pm *ProxyManager) UpdateProxy(proxy config.CaddyProxy) error {
 // DeleteProxy removes a proxy by ID
 func (pm *ProxyManager) DeleteProxy(id string) error {
 	logger.Debug("caddy", "DeleteProxy: removing proxy ID %s", id)
-
-	// Look up the proxy's hostname before removing metadata so we can clean up
-	// the Tailscale TLS policy if necessary.
-	var deletedHostname string
-	if proxy, err := GetProxyMetadata(pm.metadataPath, id); err == nil {
-		deletedHostname = proxy.Hostname
-	}
 
 	// Delete from Caddy if it exists
 	serverName, err := pm.getServerNameForProxy(config.CaddyProxy{ID: id})
@@ -284,14 +239,6 @@ func (pm *ProxyManager) DeleteProxy(id string) error {
 	if err := DeleteProxyMetadata(pm.metadataPath, id); err != nil {
 		logger.Error("caddy", "Failed to delete proxy metadata: %v", err)
 		return fmt.Errorf("delete metadata: %w", err)
-	}
-
-	// Clean up the Tailscale TLS automation policy if no remaining proxy uses
-	// this hostname.
-	if isMagicDNSHostname(deletedHostname) {
-		if err := pm.removeTailscaleTLSPolicyIfUnused(deletedHostname, id); err != nil {
-			logger.Warn("caddy", "Failed to clean up Tailscale TLS policy for %s: %v", deletedHostname, err)
-		}
 	}
 
 	logger.Info("caddy", "Deleted Caddy proxy: %s", id)
@@ -410,11 +357,6 @@ func (pm *ProxyManager) buildRoute(proxy config.CaddyProxy) (*Route, error) {
 	reverseProxyHandler := make(Handler)
 	reverseProxyHandler["handler"] = "reverse_proxy"
 
-	// Add @id if provided
-	if proxy.ID != "" {
-		reverseProxyHandler["@id"] = proxy.ID
-	}
-
 	// Build upstreams
 	upstreams := []Upstream{
 		{Dial: proxy.Target},
@@ -495,260 +437,6 @@ func (pm *ProxyManager) buildRoute(proxy config.CaddyProxy) (*Route, error) {
 	// The enabled flag is stored but not enforced at the Caddy level.
 
 	return route, nil
-}
-
-// ensureTailscaleTLSPolicy adds (or verifies) a TLS automation policy in
-// apps.tls.automation.policies that uses Caddy's built-in Tailscale cert
-// manager (tls.get_certificate.tailscale) for the given *.ts.net hostname.
-//
-// This is required because each proxy gets its own non-standard port server.
-// Caddy's automatic-HTTPS logic only injects TLS conn policies for servers on
-// port 443, so for other ports we must explicitly configure both the TLS
-// connection policy on the server (done in AddProxy/UpdateProxy) and the TLS
-// automation policy here.
-func (pm *ProxyManager) ensureTailscaleTLSPolicy(hostname string) error {
-	hostname = NormalizeHostname(hostname)
-	logger.Debug("caddy", "ensureTailscaleTLSPolicy: ensuring Tailscale TLS policy for %s", hostname)
-
-	// Read current TLS automation policies.
-	data, err := pm.client.GetConfig("/apps/tls/automation/policies")
-	if err != nil {
-		var httpErr *HTTPError
-		if !errors.As(err, &httpErr) || (httpErr.StatusCode != http.StatusNotFound && httpErr.StatusCode != http.StatusBadRequest) {
-			return fmt.Errorf("get tls policies: %w", err)
-		}
-		// Path doesn't exist yet — start with empty slice.
-		data = []byte("null")
-	}
-
-	var policies []json.RawMessage
-	if len(data) > 0 && string(data) != "null" {
-		if err := json.Unmarshal(data, &policies); err != nil {
-			return fmt.Errorf("parse tls policies: %w", err)
-		}
-	}
-
-	// Check whether a Tailscale policy already covers this hostname.
-	for i, rawPolicy := range policies {
-		var p struct {
-			Subjects       []string `json:"subjects"`
-			GetCertificate []struct {
-				Via string `json:"via"`
-			} `json:"get_certificate"`
-		}
-		if err := json.Unmarshal(rawPolicy, &p); err != nil {
-			continue
-		}
-		isTailscalePolicy := false
-		for _, mgr := range p.GetCertificate {
-			if mgr.Via == "tailscale" {
-				isTailscalePolicy = true
-				break
-			}
-		}
-		if !isTailscalePolicy {
-			continue
-		}
-		// Found a Tailscale policy — make sure our hostname is in subjects.
-		for _, s := range p.Subjects {
-			if strings.EqualFold(NormalizeHostname(s), hostname) {
-				logger.Debug("caddy", "Tailscale TLS policy already covers %s (policy index %d)", hostname, i)
-				return nil
-			}
-		}
-		// Tailscale policy exists but doesn't cover this hostname — add subject.
-		p.Subjects = append(p.Subjects, hostname)
-		updated, err := json.Marshal(p)
-		if err != nil {
-			return fmt.Errorf("marshal updated policy: %w", err)
-		}
-		policyPath := fmt.Sprintf("/apps/tls/automation/policies/%d", i)
-		if err := pm.client.PatchConfig(policyPath, json.RawMessage(updated)); err != nil {
-			return fmt.Errorf("patch tls policy: %w", err)
-		}
-		logger.Info("caddy", "Added %s to existing Tailscale TLS automation policy", hostname)
-		return nil
-	}
-
-	// No existing Tailscale policy — create a new one.
-	newPolicy := TLSPolicy{
-		Subjects: []string{hostname},
-		GetCertificate: []TailscaleCertManager{
-			{Via: "tailscale"},
-		},
-		OnDemand: true,
-	}
-
-	if err := pm.ensureTLSAutomationPath(); err != nil {
-		return fmt.Errorf("ensure tls automation path: %w", err)
-	}
-
-	if err := pm.client.PostConfig("/apps/tls/automation/policies", newPolicy); err != nil {
-		return fmt.Errorf("post tls policy: %w", err)
-	}
-
-	logger.Info("caddy", "Created Tailscale TLS automation policy for %s", hostname)
-	return nil
-}
-
-// removeTailscaleTLSPolicyIfUnused removes hostname from the Tailscale TLS
-// automation policy when no remaining enabled proxy (other than excludeProxyID)
-// still uses that hostname. If the policy becomes empty it is deleted entirely.
-func (pm *ProxyManager) removeTailscaleTLSPolicyIfUnused(hostname, excludeProxyID string) error {
-	hostname = NormalizeHostname(hostname)
-
-	// Check if any other enabled proxy uses the same hostname.
-	proxies, err := LoadProxyMetadata(pm.metadataPath)
-	if err != nil {
-		return fmt.Errorf("load metadata: %w", err)
-	}
-	for _, p := range proxies {
-		if p.ID == excludeProxyID {
-			continue
-		}
-		if !p.Enabled {
-			continue
-		}
-		if strings.EqualFold(NormalizeHostname(p.Hostname), hostname) {
-			logger.Debug("caddy", "Keeping Tailscale TLS policy for %s — still used by proxy %s", hostname, p.ID)
-			return nil
-		}
-	}
-
-	// No other proxy uses this hostname; remove it from the TLS policy.
-	data, err := pm.client.GetConfig("/apps/tls/automation/policies")
-	if err != nil {
-		var httpErr *HTTPError
-		if errors.As(err, &httpErr) && (httpErr.StatusCode == http.StatusNotFound || httpErr.StatusCode == http.StatusBadRequest) {
-			return nil // nothing to clean up
-		}
-		return fmt.Errorf("get tls policies: %w", err)
-	}
-
-	var policies []json.RawMessage
-	if len(data) == 0 || string(data) == "null" {
-		return nil
-	}
-	if err := json.Unmarshal(data, &policies); err != nil {
-		return fmt.Errorf("parse tls policies: %w", err)
-	}
-
-	for i, rawPolicy := range policies {
-		var p struct {
-			Subjects       []string `json:"subjects"`
-			GetCertificate []struct {
-				Via string `json:"via"`
-			} `json:"get_certificate"`
-			OnDemand bool `json:"on_demand"`
-		}
-		if err := json.Unmarshal(rawPolicy, &p); err != nil {
-			continue
-		}
-		isTailscalePolicy := false
-		for _, mgr := range p.GetCertificate {
-			if mgr.Via == "tailscale" {
-				isTailscalePolicy = true
-				break
-			}
-		}
-		if !isTailscalePolicy {
-			continue
-		}
-
-		// Remove the hostname from subjects.
-		newSubjects := p.Subjects[:0]
-		for _, s := range p.Subjects {
-			if !strings.EqualFold(NormalizeHostname(s), hostname) {
-				newSubjects = append(newSubjects, s)
-			}
-		}
-
-		policyPath := fmt.Sprintf("/apps/tls/automation/policies/%d", i)
-
-		if len(newSubjects) == 0 {
-			// Policy is now empty — delete it.
-			if err := pm.client.DeleteConfig(policyPath); err != nil {
-				return fmt.Errorf("delete empty tls policy: %w", err)
-			}
-			logger.Info("caddy", "Deleted empty Tailscale TLS automation policy (removed %s)", hostname)
-		} else {
-			p.Subjects = newSubjects
-			updated, err := json.Marshal(p)
-			if err != nil {
-				return fmt.Errorf("marshal updated policy: %w", err)
-			}
-			if err := pm.client.PatchConfig(policyPath, json.RawMessage(updated)); err != nil {
-				return fmt.Errorf("patch tls policy: %w", err)
-			}
-			logger.Info("caddy", "Removed %s from Tailscale TLS automation policy", hostname)
-		}
-		return nil
-	}
-
-	return nil
-}
-
-// ensureTLSAutomationPath creates the apps.tls.automation path in Caddy config
-// if it does not already exist, so that POST to /apps/tls/automation/policies
-// can succeed.
-func (pm *ProxyManager) ensureTLSAutomationPath() error {
-	data, err := pm.client.GetConfig("/")
-	if err != nil {
-		var httpErr *HTTPError
-		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
-			data = []byte(`{}`)
-		} else {
-			return fmt.Errorf("get root config: %w", err)
-		}
-	}
-
-	dataStr := strings.TrimSpace(string(data))
-	if len(dataStr) == 0 || dataStr == "null" {
-		data = []byte(`{}`)
-	}
-
-	var root map[string]interface{}
-	if err := json.Unmarshal(data, &root); err != nil {
-		return fmt.Errorf("parse root config: %w", err)
-	}
-
-	apps, _ := root["apps"].(map[string]interface{})
-	if apps == nil {
-		apps = make(map[string]interface{})
-	}
-
-	tlsApp, _ := apps["tls"].(map[string]interface{})
-	if tlsApp == nil {
-		// Create apps.tls with an empty automation block.
-		initPayload := map[string]interface{}{
-			"automation": map[string]interface{}{
-				"policies": []interface{}{},
-			},
-		}
-		if err := pm.client.PutConfig("/apps/tls", initPayload); err != nil {
-			return fmt.Errorf("create tls app: %w", err)
-		}
-		return nil
-	}
-
-	automation, _ := tlsApp["automation"].(map[string]interface{})
-	if automation == nil {
-		initPayload := map[string]interface{}{
-			"policies": []interface{}{},
-		}
-		if err := pm.client.PutConfig("/apps/tls/automation", initPayload); err != nil {
-			return fmt.Errorf("create tls automation: %w", err)
-		}
-		return nil
-	}
-
-	if _, hasPolicies := automation["policies"]; !hasPolicies {
-		if err := pm.client.PutConfig("/apps/tls/automation/policies", []interface{}{}); err != nil {
-			return fmt.Errorf("create tls policies array: %w", err)
-		}
-	}
-
-	return nil
 }
 
 // routeToProxy converts a Caddy Route back to a config.CaddyProxy
@@ -1007,16 +695,11 @@ func (pm *ProxyManager) ensureHTTPServersPath() error {
 		return nil
 	}
 
-	servers, hasServers := httpApp["servers"].(map[string]interface{})
-	if !hasServers {
-		// servers key doesn't exist yet; it will be created when the first
-		// server is PUT, so nothing more to do here.
-		return nil
-	}
-
-	// Ensure the global per_host metrics key exists directly under servers.
-	if _, hasMetrics := servers["metrics"]; !hasMetrics {
-		if err := pm.client.PutConfig("/apps/http/servers/metrics", map[string]interface{}{
+	// Ensure the per_host metrics config exists at the HTTP app level
+	// (/apps/http/metrics), not inside servers. The servers map may contain
+	// a key named "metrics" which is a server object, not the metrics config.
+	if _, hasMetrics := httpApp["metrics"]; !hasMetrics {
+		if err := pm.client.PutConfig("/apps/http/metrics", map[string]interface{}{
 			"per_host": true,
 		}); err != nil {
 			return fmt.Errorf("set servers metrics: %w", err)

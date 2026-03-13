@@ -3,6 +3,7 @@ package caddy
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/sudocarlos/tailrelay/internal/config"
 )
@@ -155,12 +156,43 @@ func (m *Manager) UpdateProxyHostnames(oldFQDN, newFQDN string) error {
 }
 
 // GetMetrics fetches Prometheus metrics from Caddy and returns parsed data.
+// Each HostMetrics entry is annotated with a Label of the form ":port → target"
+// derived from the known proxy list, so the UI can display a compact identifier
+// instead of the full FQDN.
 func (m *Manager) GetMetrics() (*MetricsData, error) {
 	raw, err := m.proxyManager.client.GetMetricsRaw()
 	if err != nil {
 		return nil, fmt.Errorf("fetch metrics: %w", err)
 	}
-	return ParseMetrics(raw), nil
+	data := ParseMetrics(raw)
+
+	// Build a hostname → label map from the current proxy list so we can
+	// replace the verbose FQDN with ":port → target" in the UI.
+	proxies, err := m.ListProxies()
+	if err == nil {
+		type labelEntry struct {
+			port   int
+			target string
+		}
+		// A hostname may map to multiple proxies; use all of them joined by ", ".
+		byHost := map[string][]labelEntry{}
+		for _, p := range proxies {
+			if p.Hostname != "" {
+				byHost[p.Hostname] = append(byHost[p.Hostname], labelEntry{p.Port, p.Target})
+			}
+		}
+		for i, hm := range data.Hosts {
+			if entries, ok := byHost[hm.Host]; ok {
+				parts := make([]string, 0, len(entries))
+				for _, e := range entries {
+					parts = append(parts, fmt.Sprintf(":%d \u2192 %s", e.port, e.target))
+				}
+				data.Hosts[i].Label = strings.Join(parts, ", ")
+			}
+		}
+	}
+
+	return data, nil
 }
 
 // Note: Reload, Start, Stop methods are no longer needed
