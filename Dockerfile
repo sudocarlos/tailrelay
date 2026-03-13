@@ -4,6 +4,7 @@ ARG TAILSCALE_VERSION=v1.92.5
 ARG CADDY_VERSION=2.11.2
 ARG GO_VERSION=1.26.1
 ARG NODE_VERSION=24
+ARG ALPINE_VERSION=3.22
 ARG MAILCAP_VERSION=2.1.54
 ARG SOCAT_VERSION=1.8.0.3
 ARG WEBUI_SOURCE=webui-builder
@@ -84,7 +85,8 @@ COPY data/tailrelay-webui /tailrelay-webui
 FROM ${WEBUI_SOURCE} AS binary-source
 
 # Main image — matches the base used by the official tailscale/tailscale Docker image
-FROM alpine:3.22
+ARG ALPINE_VERSION
+FROM alpine:${ALPINE_VERSION}
 
 LABEL maintainer="carlos@sudocarlos.com"
 
