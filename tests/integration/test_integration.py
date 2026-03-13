@@ -17,6 +17,7 @@ Environment variables that control behaviour are documented in conftest.py.
 
 import json
 import time
+from typing import Any
 
 import pytest
 
@@ -33,10 +34,11 @@ from tests.integration.helpers import (
 WEBUI_ADDR = "http://127.0.0.1:8021"
 HEALTHZ_ADDR = "http://127.0.0.1:9002/healthz"
 METRICS_ADDR = "http://127.0.0.1:9002/metrics"
-CADDY_HTTP_ADDR = "http://127.0.0.1:8080"
-CADDY_HTTP2_ADDR = "http://127.0.0.1:8081"
-CADDY_HTTPS_ADDR = "https://127.0.0.1:8443"
+CADDY_ADMIN_ADDR = "http://127.0.0.1:2019"
 SOCAT_RELAY_PORT = 8089
+
+# Token file written by the Web UI on first start.
+WEBUI_TOKEN_FILE = "/var/lib/tailscale/.webui_token"
 
 
 def wget(container: str, url: str, extra_flags: str = "") -> tuple[int, str]:
@@ -55,6 +57,46 @@ def wget_ok(container: str, url: str, extra_flags: str = "") -> str:
     code, output = wget(container, url, extra_flags)
     assert code == 0, f"wget {url} failed (exit {code}):\n{output}"
     return output
+
+
+def get_webui_token(container: str) -> str:
+    """Read the Web UI bearer token from the container."""
+    result = container_exec(container, f"cat {WEBUI_TOKEN_FILE}")
+    assert result.returncode == 0, (
+        f"Failed to read Web UI token from {WEBUI_TOKEN_FILE}:\n{result.stderr}"
+    )
+    return result.stdout.strip()
+
+
+def wget_authed(
+    container: str, url: str, token: str, extra_flags: str = ""
+) -> tuple[int, str]:
+    """Run wget with a Bearer token Authorization header."""
+    auth_flag = f'--header="Authorization: Bearer {token}"'
+    flags = f"-qO- --timeout=5 --tries=1 {auth_flag} {extra_flags}".strip()
+    result = container_exec(container, f"wget {flags} {url}")
+    return result.returncode, result.stdout + result.stderr
+
+
+def wget_authed_ok(container: str, url: str, token: str, extra_flags: str = "") -> str:
+    """Assert authenticated wget exits 0 and return the response body."""
+    code, output = wget_authed(container, url, token, extra_flags)
+    assert code == 0, f"wget {url} (authed) failed (exit {code}):\n{output}"
+    return output
+
+
+def parse_json_body(body: str, endpoint: str) -> Any:
+    """Parse JSON body, calling pytest.fail on error so callers get a clear message."""
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError:
+        pytest.fail(f"{endpoint} returned non-JSON: {body!r}")
+
+
+def is_port_open(container: str, port: int) -> bool:
+    """Return True if a TCP port is listening inside the container."""
+    result = container_exec(container, f"netstat -tulnp 2>/dev/null || ss -tulnp")
+    return f":{port}" in result.stdout
 
 
 # ---------------------------------------------------------------------------
@@ -81,13 +123,13 @@ class TestContainerStartup:
         result = container_exec(running_container, "pgrep -x tailscaled")
         assert result.returncode == 0, "tailscaled process should be running"
 
-    def test_listening_ports_include_caddy(self, running_container: str) -> None:
+    def test_listening_ports_include_caddy_admin(self, running_container: str) -> None:
+        """Caddy always opens its Admin API on :2019 regardless of routes."""
         result = container_exec_check(
             running_container, "netstat -tulnp 2>/dev/null || ss -tulnp"
         )
-        listening = result.stdout
-        assert ":8080" in listening or ":8081" in listening, (
-            f"Expected Caddy listen ports in netstat output:\n{listening}"
+        assert ":2019" in result.stdout, (
+            f"Expected Caddy Admin API port :2019 in netstat output:\n{result.stdout}"
         )
 
     def test_listening_ports_include_webui(self, running_container: str) -> None:
@@ -105,59 +147,57 @@ class TestContainerStartup:
 
 
 class TestTailscaleEndpoints:
-    """Tailscale health check and Prometheus metrics endpoints."""
+    """Tailscale health check and Prometheus metrics endpoints.
+
+    These endpoints (:9002) are only available after tailscaled has fully
+    authenticated to a tailnet (requires TS_AUTHKEY). In CI without an auth
+    key the port may not be open — tests are skipped automatically in that
+    case rather than failing.
+    """
 
     def test_healthz_returns_200(self, running_container: str) -> None:
+        if not is_port_open(running_container, 9002):
+            pytest.skip("Tailscale :9002 not open (no TS_AUTHKEY in this environment)")
         body = wget_ok(running_container, HEALTHZ_ADDR)
-        # tailscale /healthz returns plain text or JSON; just check it's reachable
         assert body is not None, "healthz returned empty response"
 
     def test_metrics_returns_prometheus_format(self, running_container: str) -> None:
+        if not is_port_open(running_container, 9002):
+            pytest.skip("Tailscale :9002 not open (no TS_AUTHKEY in this environment)")
         body = wget_ok(running_container, METRICS_ADDR)
-        # Prometheus format always starts metric lines with "# HELP" or a metric name
         assert "tailscale" in body.lower() or "go_" in body or "# HELP" in body, (
             f"Unexpected metrics response body (first 200 chars):\n{body[:200]}"
         )
 
 
 # ---------------------------------------------------------------------------
-# Caddy proxy ports
+# Caddy admin API
 # ---------------------------------------------------------------------------
 
 
-class TestCaddyPorts:
-    """Verify Caddy is listening and responding on its configured ports."""
+class TestCaddyAdminAPI:
+    """Verify Caddy's Admin API is reachable and well-formed.
 
-    def test_http_port_8080_responds(self, running_container: str) -> None:
-        # Caddy with no routes returns a 4xx/5xx but still connects.
-        # We only check that wget can connect (exit 0 = success, 8 = server error is fine).
-        result = container_exec(
-            running_container, f"wget -qO- --timeout=5 --tries=1 {CADDY_HTTP_ADDR}"
-        )
-        # wget exits 8 for server-issued errors (40x/50x) — connection worked.
-        assert result.returncode in (0, 8), (
-            f"Expected wget to connect to {CADDY_HTTP_ADDR} (exit 0 or 8), "
-            f"got {result.returncode}:\n{result.stderr}"
-        )
+    Caddy only opens proxy listener ports (8080/8081/8443) when at least one
+    route is configured. The Admin API port (:2019) is always available and is
+    the correct thing to probe in a freshly-started, route-free container.
+    """
 
-    def test_http_port_8081_responds(self, running_container: str) -> None:
-        result = container_exec(
-            running_container, f"wget -qO- --timeout=5 --tries=1 {CADDY_HTTP2_ADDR}"
-        )
-        assert result.returncode in (0, 8), (
-            f"Expected wget to connect to {CADDY_HTTP2_ADDR} (exit 0 or 8), "
-            f"got {result.returncode}:\n{result.stderr}"
+    def test_caddy_admin_responds(self, running_container: str) -> None:
+        """GET /config/ returns the current Caddy config as JSON."""
+        code, output = wget(running_container, f"{CADDY_ADMIN_ADDR}/config/")
+        assert code == 0, (
+            f"Caddy Admin API at {CADDY_ADMIN_ADDR}/config/ did not respond "
+            f"(exit {code}):\n{output}"
         )
 
-    def test_https_port_8443_responds(self, running_container: str) -> None:
-        result = container_exec(
-            running_container,
-            f"wget -qO- --timeout=5 --tries=1 --no-check-certificate {CADDY_HTTPS_ADDR}",
-        )
-        assert result.returncode in (0, 8), (
-            f"Expected wget to connect to {CADDY_HTTPS_ADDR} (exit 0 or 8), "
-            f"got {result.returncode}:\n{result.stderr}"
-        )
+    def test_caddy_admin_config_is_json(self, running_container: str) -> None:
+        """The Admin API /config/ endpoint must return valid JSON."""
+        body = wget_ok(running_container, f"{CADDY_ADMIN_ADDR}/config/")
+        try:
+            json.loads(body)
+        except json.JSONDecodeError:
+            pytest.fail(f"Caddy Admin API /config/ returned non-JSON:\n{body[:400]}")
 
 
 # ---------------------------------------------------------------------------
@@ -186,61 +226,37 @@ class TestWebUI:
             f"/api/auth/status should return 200, got exit {result.returncode}:\n{result.stderr}"
         )
         # Response must be valid JSON with a "needsSetup" key.
-        try:
-            data = json.loads(result.stdout)
-        except json.JSONDecodeError:
-            pytest.fail(f"/api/auth/status returned non-JSON: {result.stdout!r}")
+        data = parse_json_body(result.stdout, "/api/auth/status")
         assert "needsSetup" in data, (
             f"Expected 'needsSetup' key in auth status response: {data}"
         )
 
     def test_webui_caddy_api_list(self, running_container: str) -> None:
-        result = container_exec(
-            running_container,
-            f"wget -qO- --timeout=5 --tries=1 {WEBUI_ADDR}/api/caddy",
+        token = get_webui_token(running_container)
+        body = wget_authed_ok(
+            running_container, f"{WEBUI_ADDR}/api/caddy/proxies", token
         )
-        assert result.returncode == 0, (
-            f"/api/caddy should return 200, got exit {result.returncode}:\n{result.stderr}"
-        )
-        # Should be a JSON array (may be empty).
-        try:
-            data = json.loads(result.stdout)
-        except json.JSONDecodeError:
-            pytest.fail(f"/api/caddy returned non-JSON: {result.stdout!r}")
+        data = parse_json_body(body, "/api/caddy/proxies")
         assert isinstance(data, list), (
-            f"Expected JSON array from /api/caddy, got {type(data)}"
+            f"Expected JSON array from /api/caddy/proxies, got {type(data)}"
         )
 
     def test_webui_socat_api_list(self, running_container: str) -> None:
-        result = container_exec(
-            running_container,
-            f"wget -qO- --timeout=5 --tries=1 {WEBUI_ADDR}/api/socat",
+        token = get_webui_token(running_container)
+        body = wget_authed_ok(
+            running_container, f"{WEBUI_ADDR}/api/socat/relays", token
         )
-        assert result.returncode == 0, (
-            f"/api/socat should return 200, got exit {result.returncode}:\n{result.stderr}"
-        )
-        try:
-            data = json.loads(result.stdout)
-        except json.JSONDecodeError:
-            pytest.fail(f"/api/socat returned non-JSON: {result.stdout!r}")
+        data = parse_json_body(body, "/api/socat/relays")
         assert isinstance(data, list), (
-            f"Expected JSON array from /api/socat, got {type(data)}"
+            f"Expected JSON array from /api/socat/relays, got {type(data)}"
         )
 
     def test_webui_backup_api_list(self, running_container: str) -> None:
-        result = container_exec(
-            running_container,
-            f"wget -qO- --timeout=5 --tries=1 {WEBUI_ADDR}/api/backup",
-        )
-        assert result.returncode == 0, (
-            f"/api/backup should return 200, got exit {result.returncode}:\n{result.stderr}"
-        )
-        try:
-            data = json.loads(result.stdout)
-        except json.JSONDecodeError:
-            pytest.fail(f"/api/backup returned non-JSON: {result.stdout!r}")
+        token = get_webui_token(running_container)
+        body = wget_authed_ok(running_container, f"{WEBUI_ADDR}/api/backup/list", token)
+        data = parse_json_body(body, "/api/backup/list")
         assert isinstance(data, list), (
-            f"Expected JSON array from /api/backup, got {type(data)}"
+            f"Expected JSON array from /api/backup/list, got {type(data)}"
         )
 
 
@@ -251,37 +267,45 @@ class TestWebUI:
 
 class TestSocatRelay:
     """
-    Write a relay config into the container and verify that socat starts
-    and forwards TCP traffic to the whoami service on the test network.
+    Create a relay via the Web UI API and verify that socat starts and
+    forwards TCP traffic to the whoami service on the test network.
     """
 
-    RELAY_JSON = json.dumps(
-        {
-            "relays": [
-                {
-                    "id": "test-relay",
-                    "listen_port": SOCAT_RELAY_PORT,
-                    "target_host": "whoami-test",
-                    "target_port": 80,
-                    "enabled": True,
-                    "autostart": True,
-                }
-            ]
-        }
-    )
+    RELAY_ID = "test-relay"
     RELAY_PATH = "/var/lib/tailscale/relays.json"
 
+    def _create_relay_payload(self) -> str:
+        payload = {
+            "id": self.RELAY_ID,
+            "listen_port": SOCAT_RELAY_PORT,
+            "target_host": "whoami-test",
+            "target_port": 80,
+            "enabled": True,
+            "autostart": True,
+        }
+        return json.dumps(payload)
+
     def test_socat_relay_forwards_http(self, running_container: str) -> None:
-        # Write relay config and restart the container to trigger autostart.
-        container_exec_check(
+        token = get_webui_token(running_container)
+
+        # Create the relay via the Web UI API.
+        # The Create handler automatically starts the relay when enabled=true.
+        payload = self._create_relay_payload()
+        create_result = container_exec(
             running_container,
-            f"echo '{self.RELAY_JSON}' > {self.RELAY_PATH}",
+            f"wget -qO- --timeout=10 --tries=1 "
+            f'--header="Authorization: Bearer {token}" '
+            f'--header="Content-Type: application/json" '
+            f"--post-data='{payload}' "
+            f"{WEBUI_ADDR}/api/socat/create",
+        )
+        assert create_result.returncode == 0, (
+            f"POST /api/socat/create failed (exit {create_result.returncode}):\n"
+            f"stdout: {create_result.stdout}\nstderr: {create_result.stderr}"
         )
 
-        # Restart container to pick up the new relay config.
-        result = container_exec(running_container, "kill -HUP 1")
-        # HUP may not be honoured; fall back to a short sleep for socat to start.
-        time.sleep(3)
+        # Give socat a moment to bind.
+        time.sleep(2)
 
         # Verify socat is listening on the configured port.
         net_result = container_exec(
@@ -293,7 +317,7 @@ class TestSocatRelay:
 
     def test_socat_relay_responds_to_http(self, running_container: str) -> None:
         # The relay should already be running from test_socat_relay_forwards_http.
-        # whoami returns a small HTTP response containing the request Host header.
+        # whoami returns a small HTTP response containing the request headers.
         result = container_exec(
             running_container,
             f"wget -qO- --timeout=5 --tries=1 http://127.0.0.1:{SOCAT_RELAY_PORT}",
