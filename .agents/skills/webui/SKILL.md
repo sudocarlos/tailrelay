@@ -1,7 +1,7 @@
 ---
 name: webui-development
 description: Go Web UI application development — handlers, authentication, backup, frontend SPA, build workflow, and testing. Use when working with the webui/ directory, Go code, frontend assets, HTML templates, the SPA build system, or any Web UI feature development.
-reviewed_at: 17791f3
+reviewed_at: 6fc3c61
 ---
 
 # Web UI Development
@@ -27,12 +27,18 @@ webui/
 │   ├── logger/             # Structured logging
 │   ├── socat/              # Socat process management (see socat skill)
 │   ├── tailscale/          # Tailscale CLI wrapper (see tailscale skill)
+│   │   ├── client.go       # CLI wrapper (status, login, etc.)
+│   │   ├── status.go       # Status parsing structs
+│   │   └── cache.go        # StatusCache — background poller (15s interval)
 │   └── web/                # HTTP server, routing, middleware
-├── frontend/               # SPA build system (Node.js/npm/esbuild)
+├── frontend/               # SPA build system (Vite + Svelte 5 + Tailwind CSS 4)
 │   ├── src/
-│   │   ├── index.js        # Main SPA JavaScript
-│   │   └── index.css       # Main SPA stylesheet
-│   └── package.json        # Build config (esbuild)
+│   │   ├── App.svelte      # Root Svelte component
+│   │   ├── main.js         # SPA entry point
+│   │   └── lib/            # Svelte components
+│   ├── vite.config.js
+│   ├── svelte.config.js
+│   └── package.json        # Build config (Vite, Svelte, Tailwind)
 ├── config/                 # Example webui.yaml
 ├── examples/               # Usage examples (caddy_api_example.go)
 ├── go.mod / go.sum
@@ -53,7 +59,7 @@ make dev-build   # Runs frontend-build first, then Go build
 make frontend-build   # cd webui/frontend && npm install && npm run build
 ```
 
-Outputs bundled JS/CSS to `cmd/webui/web/static/` where they are embedded into the Go binary via `//go:embed`.
+Outputs bundled JS/CSS to `cmd/webui/web/dist/` where they are embedded into the Go binary via `//go:embed`.
 
 ### Backend only
 
@@ -87,6 +93,12 @@ var (
 Access: `./tailrelay-webui --version`
 
 ## Internal Packages
+
+### `tailscale/` — Tailscale CLI Wrapper
+
+- **`client.go`**: Wraps CLI commands (`tailscale status --json`, `tailscale up`, etc.)
+- **`status.go`**: Go structs for parsing status JSON
+- **`cache.go`**: `StatusCache` — background goroutine polls `IsConnected` every 15 seconds; provides a non-blocking `IsReady()` check used by TLS cert probes and auth middleware. Starts via `StatusCache.Start(ctx)`.
 
 ### `auth/` — Authentication Middleware
 
@@ -137,19 +149,14 @@ Structured logging with configurable verbosity and body size limits (`MAX_LOG_BO
 
 ## Frontend SPA
 
-Built with **esbuild** via npm:
-- Source: `frontend/src/index.js` + `frontend/src/index.css`
-- Output: bundled into `cmd/webui/web/static/`
-- Icons: Bootstrap Icons SVG sprite at `web/static/vendor/bootstrap-icons/bootstrap-icons.svg`
+Built with **Vite + Svelte 5 + Tailwind CSS 4** via npm:
+- Source: `frontend/src/App.svelte` + `frontend/src/lib/` components
+- Entry: `frontend/src/main.js`
+- Output: `cmd/webui/web/dist/` (embedded via `//go:embed`)
+- Icons: Lucide Svelte (`@lucide/svelte`) — imported directly as Svelte components
+- Charts: Chart.js (`chart.js`)
 
-### Update Bootstrap Icons
-
-```bash
-./update-bootstrap-icons.sh          # Latest version
-./update-bootstrap-icons.sh 1.11.3   # Specific version
-```
-
-> **Note:** As of Bootstrap Icons v1.13.0+, the SVG symbol IDs no longer include the `bi-` prefix. When referencing icons in HTML via `<use>`, you must use `#icon-name` instead of `#bi-icon-name` (e.g., `<use href="...#circle-half">`).
+> **Note:** Bootstrap Icons and the SVG sprite are no longer used. Icons are now Lucide Svelte components imported directly.
 
 ## Configuration Reference
 
@@ -167,14 +174,14 @@ Built with **esbuild** via npm:
 
 ```bash
 # Run all Go tests
-cd webui && go test ./...
+make test
 
 # Run specific package tests
-go test ./internal/backup/...
-go test ./internal/web/...
+cd webui && go test ./internal/backup/...
+cd webui && go test ./internal/web/...
 
-# API integration test
-./test_proxy_api.sh
+# Integration tests (requires Docker + .env)
+make integration-test
 ```
 
 ## Development Iteration
@@ -191,4 +198,4 @@ go test ./internal/web/...
 - Handlers in `internal/handlers/`, business logic in `internal/*`
 - Explicit error handling; avoid panics for runtime conditions
 - Config types in `internal/config`
-- Dependencies: Go 1.24+, `gopkg.in/yaml.v3` (everything else is stdlib)
+- Dependencies: Go 1.26.1+, `gopkg.in/yaml.v3` (everything else is stdlib)
