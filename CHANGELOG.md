@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-03-14
+
+### Fixed
+- **HTTPS relay target requires URL scheme** — selecting a preset in the Add Relay form now automatically prepends `http://` when the HTTPS relay toggle is on; the target input placeholder updates to show the expected `http://host:port` format; `saveProxy()` validates the scheme client-side before submitting, surfacing a clear error instead of a raw 400 from Caddy
+
+### Docker
+
+```
+docker pull sudocarlos/tailrelay:v0.8.1
+```
+
 ## [0.8.0] - 2026-03-14
 
 ### Security
