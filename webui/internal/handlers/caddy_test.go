@@ -217,6 +217,70 @@ func TestCaddyHandler_Create_Success(t *testing.T) {
 	}
 }
 
+func TestCaddyHandler_Create_BareHostPort(t *testing.T) {
+	h, _ := newTestCaddyHandler(t)
+	body := jsonBody(t, config.CaddyProxy{
+		Hostname: "new.ts.net",
+		Port:     8090,
+		Target:   "mempool.embassy:8080",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/caddy/create", body)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.Create(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for bare host:port target, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "http or https") {
+		t.Errorf("expected error mentioning 'http or https', got %q", rr.Body.String())
+	}
+}
+
+func TestCaddyHandler_Create_EmptyTarget(t *testing.T) {
+	h, _ := newTestCaddyHandler(t)
+	body := jsonBody(t, config.CaddyProxy{
+		Hostname: "new.ts.net",
+		Port:     8090,
+		Target:   "",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/caddy/create", body)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.Create(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for empty target, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "target is required") {
+		t.Errorf("expected error mentioning 'target is required', got %q", rr.Body.String())
+	}
+}
+
+func TestCaddyHandler_Create_HttpsTarget(t *testing.T) {
+	h, _ := newTestCaddyHandler(t)
+	body := jsonBody(t, config.CaddyProxy{
+		Hostname: "new.ts.net",
+		Port:     8090,
+		Target:   "https://mempool.embassy:8080",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/caddy/create", body)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.Create(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 for https:// target, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp["status"] != "success" {
+		t.Errorf("expected status=success, got %v", resp["status"])
+	}
+}
+
 // --- Update ---
 
 func TestCaddyHandler_Update_WrongMethod(t *testing.T) {
@@ -240,6 +304,40 @@ func TestCaddyHandler_Update_MissingID(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for missing id, got %d", rr.Code)
+	}
+}
+
+func TestCaddyHandler_Update_BareHostPort(t *testing.T) {
+	h, _ := newTestCaddyHandler(t)
+
+	// Create a valid proxy first.
+	createBody := jsonBody(t, config.CaddyProxy{
+		ID:      "upd-scheme",
+		Port:    8095,
+		Target:  "http://localhost:9095",
+		Enabled: true,
+	})
+	createReq := httptest.NewRequest(http.MethodPost, "/api/caddy/create", createBody)
+	createReq.Header.Set("Content-Type", "application/json")
+	h.Create(httptest.NewRecorder(), createReq)
+
+	// Attempt update with bare host:port target.
+	updateBody := jsonBody(t, config.CaddyProxy{
+		ID:      "upd-scheme",
+		Port:    8095,
+		Target:  "mempool.embassy:8080",
+		Enabled: true,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/caddy/update", updateBody)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.Update(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for bare host:port target on update, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "http or https") {
+		t.Errorf("expected error mentioning 'http or https', got %q", rr.Body.String())
 	}
 }
 

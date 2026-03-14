@@ -59,7 +59,8 @@
     const idx = e.target.value;
     if (idx === '') return;
     const t = targets[parseInt(idx)];
-    target = t.host ? (t.port ? `${t.host}:${t.port}` : t.host) : '';
+    const raw = t.host ? (t.port ? `${t.host}:${t.port}` : t.host) : '';
+    target = raw && httpRelay ? `http://${raw}` : raw;
   }
 
   // Parse "host:port" → { host, port } or null on failure.
@@ -125,6 +126,10 @@
     }
     if (!target.trim()) {
       showToast('danger', 'Target is required');
+      return;
+    }
+    if (!/^https?:\/\//i.test(target.trim())) {
+      showToast('danger', 'Target must start with http:// or https://');
       return;
     }
     if (!listenPort) {
@@ -256,7 +261,7 @@
           id="relay-target"
           type="text"
           bind:value={target}
-          placeholder="e.g. 192.168.1.10:3000"
+          placeholder={httpRelay ? "e.g. http://192.168.1.10:3000" : "e.g. 192.168.1.10:3000"}
           class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
       </div>
