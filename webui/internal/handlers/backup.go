@@ -185,7 +185,7 @@ func (h *BackupHandler) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(absBackupPath) < len(absBackupDir) || absBackupPath[:len(absBackupDir)] != absBackupDir {
+	if !strings.HasPrefix(absBackupPath, absBackupDir+string(filepath.Separator)) && absBackupPath != absBackupDir {
 		http.Error(w, "Invalid backup path", http.StatusBadRequest)
 		return
 	}

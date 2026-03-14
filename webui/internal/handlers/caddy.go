@@ -121,6 +121,12 @@ func (h *CaddyHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	proxy.Hostname = caddy.NormalizeHostname(proxy.Hostname)
 
+	// Validate upstream target URL
+	if err := validateProxyTarget(proxy.Target); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// Set default enabled state
 	if !proxy.Enabled {
 		proxy.Enabled = true
@@ -163,6 +169,12 @@ func (h *CaddyHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	proxy.Hostname = caddy.NormalizeHostname(proxy.Hostname)
+
+	// Validate upstream target URL
+	if err := validateProxyTarget(proxy.Target); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	// Update proxy via API (no reload needed - API handles it instantly)
 	if err := h.manager.UpdateProxy(proxy); err != nil {
@@ -512,6 +524,26 @@ func ensureUniqueFile(path string) string {
 func parseBool(value string) bool {
 	value = strings.ToLower(strings.TrimSpace(value))
 	return value == "true" || value == "1" || value == "on" || value == "yes"
+}
+
+// validateProxyTarget ensures the upstream target URL uses only http or https
+// schemes, preventing SSRF via file://, unix:, or other unexpected schemes.
+func validateProxyTarget(target string) error {
+	if target == "" {
+		return fmt.Errorf("target is required")
+	}
+	parsed, err := url.Parse(target)
+	if err != nil {
+		return fmt.Errorf("invalid target URL: %w", err)
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("target URL scheme must be http or https, got %q", parsed.Scheme)
+	}
+	if parsed.Host == "" {
+		return fmt.Errorf("target URL must include a host")
+	}
+	return nil
 }
 
 // Metrics returns parsed Caddy Prometheus metrics as JSON.

@@ -1,7 +1,7 @@
 ---
 name: docker-ci-pipeline
 description: Docker image building, Compose development environments, CI/CD pipeline, and testing infrastructure. Use when working with Dockerfiles, docker-compose, GitHub Actions CI, Make targets, integration tests, or deployment workflows.
-reviewed_at: 6fc3c61
+reviewed_at: 7288840
 ---
 
 # Docker & CI Pipeline
@@ -30,7 +30,7 @@ docker buildx build -t sudocarlos/tailrelay:latest --load .
 Key build args:
 - `TAILSCALE_VERSION` (default: `v1.92.5`) — version tag passed to `go install tailscale.com/cmd/...@${TAILSCALE_VERSION}`
 - `CADDY_VERSION` (default: `2.11.2`) — version tag used for `git clone --branch v${CADDY_VERSION} caddyserver/caddy`
-- `GO_VERSION` (default: `1.26.1`)
+- `GO_VERSION` (default: `1.26.2`)
 - `NODE_VERSION` (default: `24`)
 - `ALPINE_VERSION` (default: `3.22`)
 - `WEBUI_SOURCE` (default: `webui-builder`; set to `binary-dev` for dev builds)
@@ -166,5 +166,5 @@ Handles `SIGTERM`/`SIGINT` for graceful shutdown.
 | Container | `v0.8.0` (see `start.sh`) |
 | Tailscale | `v1.92.5` (built from source via `go install tailscale.com/cmd/...`) |
 | Caddy | `2.11.2` (built from source via `git clone caddyserver/caddy`) |
-| Go | `1.26.1` (Dockerfile ARG) |
+| Go | `1.26.2` (Dockerfile ARG) |
 | Node.js (CI) | `20` (GitHub Actions) / `24` (Dockerfile ARG) |

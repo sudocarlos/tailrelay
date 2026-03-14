@@ -33,6 +33,7 @@ type Server struct {
 	backupH    *handlers.BackupHandler
 	targetsH   *handlers.TargetsHandler
 	logsH      *handlers.Handler
+	infoH      *handlers.InfoHandler
 	distFS     fs.FS
 	staticFS   fs.FS
 	templateFS fs.FS
@@ -42,7 +43,7 @@ type Server struct {
 }
 
 // NewServer creates a new HTTP server
-func NewServer(cfg *config.Config, authToken string, distFS, staticFS, templateFS fs.FS) (*Server, error) {
+func NewServer(cfg *config.Config, authToken, version string, distFS, staticFS, templateFS fs.FS) (*Server, error) {
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -82,6 +83,7 @@ func NewServer(cfg *config.Config, authToken string, distFS, staticFS, templateF
 	backupH := handlers.NewBackupHandler(cfg, tmpl)
 	targetsH := handlers.NewTargetsHandler(cfg)
 	logsH := handlers.NewHandler(tmpl)
+	infoH := handlers.NewInfoHandler(version)
 
 	return &Server{
 		cfg:        cfg,
@@ -95,6 +97,7 @@ func NewServer(cfg *config.Config, authToken string, distFS, staticFS, templateF
 		backupH:    backupH,
 		targetsH:   targetsH,
 		logsH:      logsH,
+		infoH:      infoH,
 		distFS:     distFS,
 		staticFS:   staticFS,
 		templateFS: templateFS,
@@ -141,7 +144,7 @@ func (s *Server) Start() error {
 	// Create HTTP server for graceful shutdown support
 	httpServer := &http.Server{
 		Addr:    addr,
-		Handler: mux,
+		Handler: securityHeaders(mux),
 	}
 
 	// Set up signal handling for graceful shutdown
@@ -188,11 +191,38 @@ func (s *Server) Start() error {
 	return nil
 }
 
+// securityHeaders wraps a handler and adds defensive HTTP security headers.
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		next.ServeHTTP(w, r)
+	})
+}
+
 // setupRoutes configures all HTTP routes
 func (s *Server) setupRoutes() *http.ServeMux {
 	mux := http.NewServeMux()
 
+	// Public static assets — served without auth so browsers can fetch
+	// favicons, PWA icons, and the web manifest before/without a session.
+	for _, asset := range []struct{ path, mime string }{
+		{"/favicon.ico", "image/x-icon"},
+		{"/favicon.png", "image/png"},
+		{"/apple-touch-icon.png", "image/png"},
+		{"/icon-192.png", "image/png"},
+		{"/icon-512.png", "image/png"},
+		{"/manifest.webmanifest", "application/manifest+json"},
+	} {
+		asset := asset
+		mux.HandleFunc(asset.path, func(w http.ResponseWriter, r *http.Request) {
+			s.serveDistFile(w, r, asset.path[1:], asset.mime)
+		})
+	}
+
 	// Public routes (no authentication required)
+	mux.Handle("/api/info", http.HandlerFunc(s.infoH.Info))
 	mux.Handle("/api/auth/status", http.HandlerFunc(s.authH.Status))
 	mux.Handle("/api/auth/setup", http.HandlerFunc(s.authH.Setup))
 	mux.Handle("/api/auth/login", http.HandlerFunc(s.authH.Login))
@@ -381,6 +411,24 @@ func formatSize(bytes int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// serveDistFile reads a named file from the Vite dist FS and writes it
+// with the given Content-Type. Used for public static assets that must be
+// reachable without authentication (favicons, PWA icons, manifest).
+func (s *Server) serveDistFile(w http.ResponseWriter, r *http.Request, name, mime string) {
+	if s.distFS == nil {
+		http.NotFound(w, r)
+		return
+	}
+	content, err := fs.ReadFile(s.distFS, name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", mime)
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Write(content)
 }
 
 // serveDistIndex reads index.html from the Vite dist FS and writes it
