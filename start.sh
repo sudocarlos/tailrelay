@@ -1,6 +1,6 @@
 #!/bin/ash
 trap 'shutdown' TERM INT
-TAILRELAY_VERSION=v0.8.1
+TAILRELAY_VERSION=v0.8.2
 
 # Accept a single comma‑separated list of port:target pairs
 # Each item in the list represents one socat relay

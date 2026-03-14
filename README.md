@@ -350,7 +350,7 @@ The Web UI backend exposes a JSON API on port 8021. All endpoints under `/api/` 
 {
   "id": "abc123",
   "port": 8080,
-  "target": "http://192.168.1.10:3000",
+  "target": "192.168.1.10:3000",
   "tls_cert_file": "/data/cert.pem",
   "trusted_proxies": false,
   "enabled": true,
@@ -625,8 +625,8 @@ Open source project. See repository for license details.
 
 ## Review Status
 
-<!-- reviewed_at: 6fc3c61 | paths: README.md webui/internal/web/server.go -->
-Last full review completed at commit `6fc3c61`. To check what has changed since:
+<!-- reviewed_at: 677c1d6 | paths: README.md webui/internal/web/server.go -->
+Last full review completed at commit `677c1d6`. To check what has changed since:
 ```bash
-git log --oneline 6fc3c61..HEAD -- README.md webui/internal/web/server.go
+git log --oneline 677c1d6..HEAD -- README.md webui/internal/web/server.go
 ```
