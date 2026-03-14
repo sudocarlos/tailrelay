@@ -146,7 +146,7 @@
           class="p-1.5 rounded-md transition-colors {toggling ? 'text-amber-500 cursor-not-allowed' : proxy.enabled ? 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500' : 'hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600'}"
           onclick={() => onToggle('proxy', proxy.id, proxy.enabled)}
           disabled={toggling}
-          title={toggling ? 'Updating…' : proxy.enabled ? 'Disable' : 'Enable'}
+          title={toggling ? 'Updating…' : proxy.enabled ? 'Stop' : 'Start'}
         >
           {#if toggling}
             <RefreshCw size={15} class="animate-spin" />

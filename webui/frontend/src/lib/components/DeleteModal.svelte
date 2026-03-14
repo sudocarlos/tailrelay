@@ -15,7 +15,7 @@
       } else {
         await fetchJSON(`/api/caddy/delete?id=${encodeURIComponent(id)}`, { method: 'POST' });
       }
-      showToast('success', `${type === 'relay' ? 'Relay' : 'Proxy'} deleted successfully`);
+      showToast('success', `${type === 'relay' ? 'TCP relay' : 'HTTPS relay'} deleted successfully`);
       onDelete();
     } catch (err) {
       showToast('danger', err.message);
@@ -54,7 +54,7 @@
         <AlertTriangle size={24} class="text-red-500" />
       </div>
       <p class="text-sm text-gray-600 dark:text-gray-400">
-        Are you sure you want to delete this {type === 'relay' ? 'TCP relay' : 'HTTPS proxy'}?
+        Are you sure you want to delete this {type === 'relay' ? 'TCP relay' : 'HTTPS relay'}?
       </p>
       {#if name}
         <p class="text-sm font-medium mt-2 break-all">{name}</p>
