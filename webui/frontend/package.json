@@ -1,7 +1,7 @@
 {
   "name": "tailrelay-webui-frontend",
   "private": true,
-  "version": "0.8.0-1-gb86aec3",
+  "version": "0.8.2-1-g619b2a7",
   "type": "module",
   "scripts": {
     "dev": "vite",
