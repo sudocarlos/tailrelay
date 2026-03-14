@@ -49,7 +49,7 @@
   tailnetFQDN.subscribe((v) => (fqdn = v));
   targets.subscribe((v) => (targetList = v));
 
-  function openAdd(type = 'relay') {
+  function openAdd(type = 'proxy') {
     editItem = null;
     editType = type;
     showAddModal = true;
@@ -155,7 +155,7 @@
     if (showAddModal || showDeleteModal) return;
     if (e.key === 'n') {
       e.preventDefault();
-      openAdd('relay');
+      openAdd();
     }
   }
 
@@ -182,7 +182,7 @@
 <!-- Header -->
 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
   <div>
-    <h1 class="text-xl font-semibold">Relays & Proxies</h1>
+    <h1 class="text-xl font-semibold">Relays</h1>
     <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
       {items.length} item{items.length === 1 ? '' : 's'}
       {#if updated}
@@ -200,7 +200,7 @@
           bind:checked={filterRelays}
           class="rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800"
         />
-        <span class="text-gray-600 dark:text-gray-400">Relays</span>
+        <span class="text-gray-600 dark:text-gray-400">TCP</span>
       </label>
       <label class="flex items-center gap-1.5 text-sm cursor-pointer">
         <input
@@ -208,13 +208,13 @@
           bind:checked={filterProxies}
           class="rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800"
         />
-        <span class="text-gray-600 dark:text-gray-400">Proxies</span>
+        <span class="text-gray-600 dark:text-gray-400">HTTP</span>
       </label>
     </div>
 
     <button
       class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
-      onclick={() => openAdd('relay')}
+      onclick={() => openAdd()}
     >
       <Plus size={15} />
       Add
@@ -237,26 +237,26 @@
       </svg>
       <p class="text-gray-500 dark:text-gray-400 mb-4">
         {#if !filterRelays && !filterProxies}
-          Enable TCP relays or HTTPS proxies to view items.
+          Enable TCP or HTTP relays to view items.
         {:else if filterRelays && !filterProxies}
           No TCP relays configured. Get started by adding one.
         {:else if !filterRelays && filterProxies}
-          No HTTPS proxies configured. Get started by adding one.
+          No HTTP relays configured. Get started by adding one.
         {:else}
-          No relays or proxies configured. Get started by adding one.
+          No relays configured. Get started by adding one.
         {/if}
       </p>
       <button
         class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
-        onclick={() => openAdd(filterProxies && !filterRelays ? 'proxy' : 'relay')}
+        onclick={() => openAdd(filterRelays && !filterProxies ? 'relay' : 'proxy')}
       >
         <Plus size={15} />
         {#if filterRelays && !filterProxies}
           Add a Relay
         {:else if !filterRelays && filterProxies}
-          Add a Proxy
+          Add an HTTP Relay
         {:else}
-          Add a Proxy or Relay
+          Add a Relay
         {/if}
       </button>
     </div>
@@ -284,7 +284,7 @@
 <div class="sm:hidden fixed bottom-6 right-6 z-30">
   <button
     class="w-14 h-14 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all active:scale-95"
-    onclick={() => openAdd('relay')}
+    onclick={() => openAdd()}
   >
     <Plus size={24} />
   </button>
