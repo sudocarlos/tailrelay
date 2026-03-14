@@ -229,11 +229,15 @@ func TestCaddyHandler_Create_BareHostPort(t *testing.T) {
 	rr := httptest.NewRecorder()
 	h.Create(rr, req)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for bare host:port target, got %d (body: %s)", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 for bare host:port target, got %d (body: %s)", rr.Code, rr.Body.String())
 	}
-	if !strings.Contains(rr.Body.String(), "http or https") {
-		t.Errorf("expected error mentioning 'http or https', got %q", rr.Body.String())
+	var resp map[string]interface{}
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp["status"] != "success" {
+		t.Errorf("expected status=success, got %v", resp["status"])
 	}
 }
 
@@ -259,10 +263,11 @@ func TestCaddyHandler_Create_EmptyTarget(t *testing.T) {
 
 func TestCaddyHandler_Create_HttpsTarget(t *testing.T) {
 	h, _ := newTestCaddyHandler(t)
+	// Bare host:port is the required format; scheme prefixes are stripped.
 	body := jsonBody(t, config.CaddyProxy{
 		Hostname: "new.ts.net",
 		Port:     8090,
-		Target:   "https://mempool.embassy:8080",
+		Target:   "mempool.embassy:8080",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/caddy/create", body)
 	req.Header.Set("Content-Type", "application/json")
@@ -270,7 +275,7 @@ func TestCaddyHandler_Create_HttpsTarget(t *testing.T) {
 	h.Create(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Fatalf("expected 200 for https:// target, got %d (body: %s)", rr.Code, rr.Body.String())
+		t.Fatalf("expected 200 for bare host:port target, got %d (body: %s)", rr.Code, rr.Body.String())
 	}
 	var resp map[string]interface{}
 	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
@@ -278,6 +283,28 @@ func TestCaddyHandler_Create_HttpsTarget(t *testing.T) {
 	}
 	if resp["status"] != "success" {
 		t.Errorf("expected status=success, got %v", resp["status"])
+	}
+}
+
+// TestCaddyHandler_Create_SchemeStripped verifies that http:// or https:// prefixes
+// submitted by accident are silently stripped before the target is stored/forwarded.
+func TestCaddyHandler_Create_SchemeStripped(t *testing.T) {
+	cases := []struct {
+		name   string
+		target string
+		want   string
+	}{
+		{"http prefix", "http://mempool.embassy:8080", "mempool.embassy:8080"},
+		{"https prefix", "https://mempool.embassy:8080", "mempool.embassy:8080"},
+		{"bare", "mempool.embassy:8080", "mempool.embassy:8080"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := normalizeProxyTarget(tc.target)
+			if got != tc.want {
+				t.Errorf("normalizeProxyTarget(%q) = %q, want %q", tc.target, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -314,14 +341,14 @@ func TestCaddyHandler_Update_BareHostPort(t *testing.T) {
 	createBody := jsonBody(t, config.CaddyProxy{
 		ID:      "upd-scheme",
 		Port:    8095,
-		Target:  "http://localhost:9095",
+		Target:  "localhost:9095",
 		Enabled: true,
 	})
 	createReq := httptest.NewRequest(http.MethodPost, "/api/caddy/create", createBody)
 	createReq.Header.Set("Content-Type", "application/json")
 	h.Create(httptest.NewRecorder(), createReq)
 
-	// Attempt update with bare host:port target.
+	// Update with bare host:port — must succeed.
 	updateBody := jsonBody(t, config.CaddyProxy{
 		ID:      "upd-scheme",
 		Port:    8095,
@@ -333,11 +360,8 @@ func TestCaddyHandler_Update_BareHostPort(t *testing.T) {
 	rr := httptest.NewRecorder()
 	h.Update(rr, req)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for bare host:port target on update, got %d (body: %s)", rr.Code, rr.Body.String())
-	}
-	if !strings.Contains(rr.Body.String(), "http or https") {
-		t.Errorf("expected error mentioning 'http or https', got %q", rr.Body.String())
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 for bare host:port target on update, got %d (body: %s)", rr.Code, rr.Body.String())
 	}
 }
 

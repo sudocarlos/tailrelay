@@ -357,9 +357,17 @@ func (pm *ProxyManager) buildRoute(proxy config.CaddyProxy) (*Route, error) {
 	reverseProxyHandler := make(Handler)
 	reverseProxyHandler["handler"] = "reverse_proxy"
 
-	// Build upstreams
+	// Build upstreams — dial address must be bare host:port with no scheme.
+	// Strip any accidental http:// or https:// prefix that may have survived
+	// from older stored configs or direct API calls.
+	dialAddr := proxy.Target
+	if lower := strings.ToLower(dialAddr); strings.HasPrefix(lower, "https://") {
+		dialAddr = dialAddr[len("https://"):]
+	} else if strings.HasPrefix(lower, "http://") {
+		dialAddr = dialAddr[len("http://"):]
+	}
 	upstreams := []Upstream{
-		{Dial: proxy.Target},
+		{Dial: dialAddr},
 	}
 	reverseProxyHandler["upstreams"] = upstreams
 
