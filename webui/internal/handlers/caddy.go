@@ -121,11 +121,12 @@ func (h *CaddyHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	proxy.Hostname = caddy.NormalizeHostname(proxy.Hostname)
 
-	// Validate upstream target URL
+	// Validate and normalize upstream target (strip any accidental scheme prefix)
 	if err := validateProxyTarget(proxy.Target); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	proxy.Target = normalizeProxyTarget(proxy.Target)
 
 	// Set default enabled state
 	if !proxy.Enabled {
@@ -170,11 +171,12 @@ func (h *CaddyHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	proxy.Hostname = caddy.NormalizeHostname(proxy.Hostname)
 
-	// Validate upstream target URL
+	// Validate and normalize upstream target (strip any accidental scheme prefix)
 	if err := validateProxyTarget(proxy.Target); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	proxy.Target = normalizeProxyTarget(proxy.Target)
 
 	// Update proxy via API (no reload needed - API handles it instantly)
 	if err := h.manager.UpdateProxy(proxy); err != nil {
@@ -447,19 +449,18 @@ func (h *CaddyHandler) saveTLSCertFile(target string, file multipart.File, heade
 		return "", fmt.Errorf("target is required for cert upload")
 	}
 
-	parsed, err := url.Parse(target)
+	// Normalize to bare host:port before parsing so that both "host:port" and
+	// "http://host:port" inputs produce a valid host component.
+	bare := normalizeProxyTarget(target)
+	parsed, err := url.Parse("dummy://" + bare)
 	if err != nil {
-		return "", fmt.Errorf("invalid target URL")
+		return "", fmt.Errorf("invalid target address")
 	}
 
 	host := parsed.Hostname()
 	port := parsed.Port()
 	if port == "" {
-		if parsed.Scheme == "https" {
-			port = "443"
-		} else {
-			port = "80"
-		}
+		port = "80"
 	}
 
 	if host == "" {
@@ -526,22 +527,37 @@ func parseBool(value string) bool {
 	return value == "true" || value == "1" || value == "on" || value == "yes"
 }
 
-// validateProxyTarget ensures the upstream target URL uses only http or https
-// schemes, preventing SSRF via file://, unix:, or other unexpected schemes.
+// normalizeProxyTarget strips any http:// or https:// scheme prefix from a
+// target address, returning a bare host:port string suitable for Caddy's
+// reverse_proxy dial field. Caddy's upstream dial address must not include a
+// scheme — passing http://host:port causes the upstream to be unreachable.
+func normalizeProxyTarget(target string) string {
+	lower := strings.ToLower(target)
+	if strings.HasPrefix(lower, "https://") {
+		return target[len("https://"):]
+	}
+	if strings.HasPrefix(lower, "http://") {
+		return target[len("http://"):]
+	}
+	return target
+}
+
+// validateProxyTarget ensures the target is a non-empty host:port address.
+// It accepts bare host:port (e.g. "jam.embassy:80") and also tolerates an
+// accidental http:// or https:// prefix by normalizing it away, so that only
+// the raw address reaches Caddy's dial field.
 func validateProxyTarget(target string) error {
 	if target == "" {
 		return fmt.Errorf("target is required")
 	}
-	parsed, err := url.Parse(target)
-	if err != nil {
-		return fmt.Errorf("invalid target URL: %w", err)
+	normalized := normalizeProxyTarget(target)
+	if normalized == "" {
+		return fmt.Errorf("target is required")
 	}
-	scheme := strings.ToLower(parsed.Scheme)
-	if scheme != "http" && scheme != "https" {
-		return fmt.Errorf("target URL scheme must be http or https, got %q", parsed.Scheme)
-	}
-	if parsed.Host == "" {
-		return fmt.Errorf("target URL must include a host")
+	// Use url.Parse on a dummy scheme so we can extract the host component.
+	parsed, err := url.Parse("dummy://" + normalized)
+	if err != nil || parsed.Host == "" {
+		return fmt.Errorf("target must be a valid host:port address")
 	}
 	return nil
 }
