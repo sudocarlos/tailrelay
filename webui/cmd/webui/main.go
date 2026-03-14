@@ -97,7 +97,7 @@ func main() {
 	}
 
 	// Create and start web server
-	server, err := web.NewServer(cfg, authToken, distFS, staticFS, templateFS)
+	server, err := web.NewServer(cfg, authToken, Version, distFS, staticFS, templateFS)
 	if err != nil {
 		logger.Error("main", "Failed to create server: %v", err)
 		os.Exit(1)

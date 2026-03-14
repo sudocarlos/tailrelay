@@ -16,11 +16,10 @@ A Docker container that exposes local services to your Tailscale network. Combin
 - **Dual Authentication** - Token or Tailscale network authentication
 - **Multi-Platform** - Docker images for amd64 and arm64
 
-![](images/tailrelay.svg)
-
 ## Table of Contents
 
 - [Features](#features)
+- [Screenshots](#screenshots)
 - [Why tailrelay?](#why-tailrelay)
 - [Technology Stack](#technology-stack)
 - [Quick Start](#quick-start)
@@ -495,6 +494,121 @@ See [Development](#development) section for WebUI development workflow.
 ## Release Notes
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
+
+
+## Screenshots
+
+The Web UI supports light and dark themes and is fully responsive on mobile.
+
+### Login
+
+<table>
+<tr>
+  <th>Light — Desktop</th>
+  <th>Dark — Desktop</th>
+</tr>
+<tr>
+  <td><img src="docs/screenshots/login-light-desktop.png" alt="Login light desktop" width="480"/></td>
+  <td><img src="docs/screenshots/login-dark-desktop.png" alt="Login dark desktop" width="480"/></td>
+</tr>
+<tr>
+  <th>Light — Mobile</th>
+  <th>Dark — Mobile</th>
+</tr>
+<tr>
+  <td><img src="docs/screenshots/login-light-mobile.png" alt="Login light mobile" width="240"/></td>
+  <td><img src="docs/screenshots/login-dark-mobile.png" alt="Login dark mobile" width="240"/></td>
+</tr>
+</table>
+
+### Dashboard
+
+<table>
+<tr>
+  <th>Light — Desktop</th>
+  <th>Dark — Desktop</th>
+</tr>
+<tr>
+  <td><img src="docs/screenshots/dashboard-light-desktop.png" alt="Dashboard light desktop" width="480"/></td>
+  <td><img src="docs/screenshots/dashboard-dark-desktop.png" alt="Dashboard dark desktop" width="480"/></td>
+</tr>
+<tr>
+  <th>Light — Mobile</th>
+  <th>Dark — Mobile</th>
+</tr>
+<tr>
+  <td><img src="docs/screenshots/dashboard-light-mobile.png" alt="Dashboard light mobile" width="240"/></td>
+  <td><img src="docs/screenshots/dashboard-dark-mobile.png" alt="Dashboard dark mobile" width="240"/></td>
+</tr>
+</table>
+
+**Log console expanded (dark):**
+
+![Dashboard with log console expanded](docs/screenshots/dashboard-logs-dark-desktop.png)
+
+**Mobile navigation menu open:**
+
+<table>
+<tr>
+  <td><img src="docs/screenshots/dashboard-mobile-menu-light.png" alt="Mobile menu light" width="240"/></td>
+  <td><img src="docs/screenshots/dashboard-mobile-menu-dark.png" alt="Mobile menu dark" width="240"/></td>
+</tr>
+</table>
+
+### Tailscale
+
+<table>
+<tr>
+  <th>Light — Desktop</th>
+  <th>Dark — Desktop</th>
+</tr>
+<tr>
+  <td><img src="docs/screenshots/tailscale-light-desktop.png" alt="Tailscale light desktop" width="480"/></td>
+  <td><img src="docs/screenshots/tailscale-dark-desktop.png" alt="Tailscale dark desktop" width="480"/></td>
+</tr>
+<tr>
+  <th>Light — Mobile</th>
+  <th>Dark — Mobile</th>
+</tr>
+<tr>
+  <td><img src="docs/screenshots/tailscale-light-mobile.png" alt="Tailscale light mobile" width="240"/></td>
+  <td><img src="docs/screenshots/tailscale-dark-mobile.png" alt="Tailscale dark mobile" width="240"/></td>
+</tr>
+</table>
+
+### Metrics
+
+<table>
+<tr>
+  <th>Light — Desktop</th>
+  <th>Dark — Desktop</th>
+</tr>
+<tr>
+  <td><img src="docs/screenshots/metrics-light-desktop.png" alt="Metrics light desktop" width="480"/></td>
+  <td><img src="docs/screenshots/metrics-dark-desktop.png" alt="Metrics dark desktop" width="480"/></td>
+</tr>
+</table>
+
+**Full-page (dark):**
+
+![Metrics full page dark](docs/screenshots/metrics-dark-desktop-full.png)
+
+### Backups
+
+<table>
+<tr>
+  <th>Light — Desktop</th>
+  <th>Dark — Desktop</th>
+</tr>
+<tr>
+  <td><img src="docs/screenshots/backups-light-desktop.png" alt="Backups light desktop" width="480"/></td>
+  <td><img src="docs/screenshots/backups-dark-desktop.png" alt="Backups dark desktop" width="480"/></td>
+</tr>
+</table>
+
+**Mobile (dark):**
+
+<img src="docs/screenshots/backups-dark-mobile.png" alt="Backups dark mobile" width="240"/>
 
 
 ## License

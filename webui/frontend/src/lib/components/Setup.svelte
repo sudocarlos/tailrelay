@@ -1,5 +1,4 @@
 <script>
-  import { ShieldAlert } from '@lucide/svelte';
   import { theme } from '../stores/theme.js';
   import { authenticated, needsSetup } from '../stores/app.js';
   import { fetchJSON } from '../api.js';
@@ -47,9 +46,7 @@
 <div class="flex-1 flex flex-col items-center justify-center p-4">
   <div class="w-full max-w-md">
     <div class="text-center mb-8">
-      <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-500 mb-4">
-        <ShieldAlert size={32} />
-      </div>
+      <img src="/icon-192.png" alt="Tailrelay" class="w-16 h-16 rounded-2xl mb-4 mx-auto" />
       <h1 class="text-2xl font-bold mb-2">Initial Setup</h1>
       <p class="text-gray-500 dark:text-gray-400">
         Welcome to Tailrelay. Please set an administrator password to secure the dashboard.
