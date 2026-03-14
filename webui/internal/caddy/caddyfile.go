@@ -42,8 +42,8 @@ func GenerateCaddyfile(proxies []config.CaddyProxy, outputPath string) error {
 			}
 		}
 
-		// TLS configuration for HTTPS targets
-		if strings.HasPrefix(proxy.Target, "https://") {
+		// TLS configuration for HTTPS upstream targets
+		if proxy.TLS {
 			sb.WriteString("\t\ttransport http {\n")
 			sb.WriteString("\t\t\ttls_insecure_skip_verify\n")
 			sb.WriteString("\t\t}\n")
