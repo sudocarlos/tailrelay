@@ -1,7 +1,7 @@
 ---
 name: webui-development
 description: Go Web UI application development — handlers, authentication, backup, frontend SPA, build workflow, and testing. Use when working with the webui/ directory, Go code, frontend assets, HTML templates, the SPA build system, or any Web UI feature development.
-reviewed_at: 6fc3c61
+reviewed_at: 7288840
 ---
 
 # Web UI Development

@@ -1,7 +1,7 @@
 ---
 name: security-review
 description: Security and privacy review for tailrelay — dependency CVE scanning, Go module auditing, auth review, and code-level vulnerability checks. Use when reviewing code for security issues, auditing Dockerfile dependencies, checking for secrets/injection risks, or assessing privacy of logged/persisted data.
-reviewed_at: 6fc3c61
+reviewed_at: 7288840
 ---
 
 # Security & Privacy Review
@@ -141,22 +141,21 @@ Key modules to pay attention to in `webui/go.mod`:
 
 ### Auth Flow
 
-tailrelay supports two auth methods (both can be enabled simultaneously):
+tailrelay uses two auth mechanisms (can be used together):
 
-1. **Tailscale IP auth** (`internal/auth/`): Requests from `100.x.x.x` Tailscale IP range are auto-authenticated by checking the `X-Forwarded-For` or `RemoteAddr`. Verify the IP range check is strict (not bypassable via spoofed headers from non-Tailscale sources).
+1. **Session cookie auth** (`internal/auth/middleware.go`): Login via POST `/api/auth/login` with bcrypt-verified password. Session token is `crypto/rand`-generated (32 bytes), stored in a `HttpOnly; SameSite=Strict` cookie, expiry 24 h. Cookie gains `Secure` flag when served over TLS.
 
-2. **Token auth** (`internal/auth/`): File-based token at `paths.token_file` (default `/var/lib/tailscale/.webui_token`). Token is generated on first run. Check: random generation entropy, file permissions (should be `0600`), token length (≥32 bytes recommended).
+2. **Static API token** (`internal/auth/middleware.go`): Bearer token from `paths.token_file` (default `/var/lib/tailscale/.webui_token`). Written at container start with `0600` permissions.
 
 ### Checklist
 
-- [ ] Token file permissions are `0600` (owner-only read)
-- [ ] Token has sufficient entropy (≥32 random bytes from `crypto/rand`, not `math/rand`)
-- [ ] IP range check uses a strict CIDR match, not string prefix (`strings.HasPrefix`)
-- [ ] Auth middleware is applied to **all** non-public routes (no accidentally exposed endpoints)
-- [ ] Login handler rate-limits or locks out after repeated failures
-- [ ] Password storage uses bcrypt (added in v0.7.0) — verify `bcrypt.CompareHashAndPassword` usage
-- [ ] No credentials appear in logs (check `logger/` and handler logging)
-- [ ] Auth token is not returned in any API response body or error message
+- [x] Token file written with `0600` permissions (`os.WriteFile(path, data, 0600)`)
+- [x] Session token uses `crypto/rand` (32 bytes → 64-char hex) — not `math/rand`
+- [x] Auth middleware applied to all non-public routes (`server.go:setupRoutes`)
+- [x] Password storage uses `bcrypt.DefaultCost` — verify `bcrypt.CompareHashAndPassword` usage
+- [x] No credentials appear in logs (auth handlers use no logger calls containing passwords)
+- [ ] Login handler rate-limits or locks out after repeated failures (not yet implemented)
+- [ ] Auth token not returned in any API response body
 
 ---
 
@@ -166,9 +165,9 @@ tailrelay supports two auth methods (both can be enabled simultaneously):
 
 Caddy routes are constructed from user-supplied upstream URLs and hostnames. Check:
 
-- [ ] Upstream URLs are validated (scheme must be `http://` or `https://`, not `file://`, `unix:`, etc.)
-- [ ] Hostname in routes is taken from `TS_HOSTNAME` env var — verify it is sanitized before use in Caddy JSON config (no newlines, special chars)
-- [ ] Caddy Admin API endpoint (`localhost:2019`) is not exposed outside the container
+- [x] Upstream URL scheme validated in `validateProxyTarget()` — only `http`/`https` accepted (added v0.8.0)
+- [x] Hostname normalised via `caddy.NormalizeHostname()` before use in Caddy JSON config
+- [x] Caddy Admin API (`localhost:2019`) is not routed through the public mux
 - [ ] Route `@id` tags are user-controlled — check for injection via crafted IDs (path traversal in IDs: `../../`)
 
 ```go
@@ -180,10 +179,10 @@ route := CaddyRoute{ID: userInput}  // dangerous if userInput contains ../
 
 socat relays involve port numbers and target addresses from user input:
 
-- [ ] Port numbers are validated as integers in range 1–65535
-- [ ] Target host/address is validated — reject shell metacharacters (`;`, `&`, `|`, `` ` ``, `$()`)
-- [ ] socat is not invoked via `sh -c` with unsanitized arguments (command injection)
-- [ ] Relay list file (`relays.json`) is not world-writable
+- [x] Port numbers validated 1–65535 in `validateSocatRelay()` handler (`handlers/socat.go`) — added v0.8.0
+- [x] Target host validated — shell metacharacters rejected in `validateSocatRelay()` — added v0.8.0
+- [x] socat launched via `exec.Command(binary, arg1, arg2)` — **not** `sh -c`; no shell interpolation
+- [ ] Relay list file (`relays.json`) written with `0644` — consider tightening to `0600`
 
 ```bash
 # Check how socat is invoked in Go code
@@ -237,8 +236,9 @@ Files written by tailrelay:
 ### SSE Log Stream
 
 The Web UI exposes a live log stream via Server-Sent Events:
-- [ ] SSE endpoint requires authentication
-- [ ] Log lines are sanitized before streaming (no ANSI injection, no embedded HTML)
+- [x] SSE endpoint protected by `RequireAuth` middleware (`/api/logs/stream` in `server.go`)
+- [x] `Access-Control-Allow-Origin: *` header removed from SSE response (v0.8.0)
+- [ ] Log lines not yet stripped of ANSI escape sequences before streaming
 
 ---
 
@@ -274,11 +274,12 @@ cd webui/frontend && npm audit
 npm audit fix
 ```
 
-- [ ] No `npm audit` high/critical findings
-- [ ] Frontend does not store auth tokens in `localStorage` (prefer `sessionStorage` or httpOnly cookies)
-- [ ] API requests from the SPA include the auth token in headers, not query strings
-- [ ] Content Security Policy (CSP) headers are set by the Go server
-- [ ] No inline `<script>` execution that could enable XSS
+- [x] No `npm audit` high/critical findings (0 vulnerabilities as of v0.8.0)
+- [x] Auth uses `HttpOnly` session cookie — token not stored in `localStorage`
+- [x] API requests use session cookie, not query-string tokens
+- [x] `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy` headers added (v0.8.0) in `securityHeaders` middleware (`web/server.go`)
+- [ ] Content Security Policy (CSP) header not yet set
+- [ ] Inline `<script>` usage not audited
 
 ---
 

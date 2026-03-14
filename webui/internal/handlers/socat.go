@@ -97,6 +97,12 @@ func (h *SocatHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate ports
+	if err := validateSocatRelay(relay); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// Generate ID if not provided
 	if relay.ID == "" {
 		relay.ID = generateRelayID()
@@ -146,6 +152,12 @@ func (h *SocatHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	if relay.ID == "" {
 		http.Error(w, "Relay ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Validate ports
+	if err := validateSocatRelay(relay); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -464,4 +476,26 @@ func generateRelayID() string {
 	b := make([]byte, 8)
 	rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// validateSocatRelay checks that port numbers are within valid range (1-65535)
+// and that the target host does not contain shell metacharacters.
+func validateSocatRelay(relay config.SocatRelay) error {
+	if relay.ListenPort < 1 || relay.ListenPort > 65535 {
+		return fmt.Errorf("listen_port must be between 1 and 65535")
+	}
+	if relay.TargetPort < 1 || relay.TargetPort > 65535 {
+		return fmt.Errorf("target_port must be between 1 and 65535")
+	}
+	// Reject shell metacharacters in target host to prevent command injection
+	for _, ch := range relay.TargetHost {
+		switch ch {
+		case ';', '&', '|', '`', '$', '(', ')', '<', '>', '\n', '\r', '\t', '\\', '\'', '"', ' ':
+			return fmt.Errorf("target_host contains invalid character: %q", ch)
+		}
+	}
+	if relay.TargetHost == "" {
+		return fmt.Errorf("target_host is required")
+	}
+	return nil
 }

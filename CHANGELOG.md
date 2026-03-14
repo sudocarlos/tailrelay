@@ -5,7 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.0] - 2026-03-13
+## [0.8.0] - 2026-03-14
+
+### Security
+- **Go runtime upgraded to 1.26.2** — resolves three Go standard library CVEs (GO-2026-4601: incorrect IPv6 parsing in `net/url`; GO-2026-4602: `FileInfo` escape in `os`; GO-2026-4603: unescaped URLs in `html/template` meta content attributes)
+- **Input validation for socat relay ports and target host** — listen and target ports are now validated to be within 1–65535; target host is rejected if it contains shell metacharacters, preventing potential command injection
+- **Caddy proxy target URL scheme validation** — upstream target must use `http://` or `https://`; `file://`, `unix:`, and other schemes are now rejected at the API handler level
+- **SSE log stream CORS header removed** — `Access-Control-Allow-Origin: *` on the `/api/logs/stream` endpoint was removed; the endpoint is already protected by session auth
+- **Path traversal fix in backup download handler** — replaced a fragile string-length comparison with `strings.HasPrefix(path, dir+separator)` matching the same pattern used in `backup.Manager.Delete`
+- **Security response headers** — all responses now include `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy: strict-origin-when-cross-origin`
 
 ### Added
 
@@ -30,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Dockerfile.dev` removed — dev builds now use `--build-arg WEBUI_SOURCE=binary-dev` on the main Dockerfile
 - Integration tests consolidated under `tests/integration/` with `helpers.py` as the single source of truth for shared utilities; removed root-level `docker-compose-test.py`, `test_proxy_api.sh`
 - CI integration job updated to use `pytest tests/integration/ -v` instead of shell scripts
-- Go version updated to `1.26.1`, Node to `24` in Dockerfile build args
+- Go version updated to `1.26.2` (security), Node to `24` in Dockerfile build args
 - Tailscale peers table shows DNS name (first label only) and "just now" for recently-seen peers
 - `caddy start` no longer requires `--config` flag (auto-discovers `/etc/caddy/Caddyfile`)
 

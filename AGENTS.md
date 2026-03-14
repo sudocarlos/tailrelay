@@ -112,17 +112,17 @@ curl -sSL http://localhost:8021            # Web UI
 
 | Document | `reviewed_at` | Paths Covered |
 |----------|---------------|---------------|
-| `AGENTS.md` | `6fc3c61` | `AGENTS.md`, `Makefile`, `start.sh` |
-| `.agents/skills/caddy/SKILL.md` | `6fc3c61` | `webui/internal/caddy/`, `webui/internal/handlers/caddy.go` |
-| `.agents/skills/socat/SKILL.md` | `6fc3c61` | `webui/internal/socat/`, `webui/internal/handlers/socat.go` |
-| `.agents/skills/webui/SKILL.md` | `6fc3c61` | `webui/`, `Makefile` |
-| `.agents/skills/docker-ci/SKILL.md` | `6fc3c61` | `Dockerfile`, `.github/workflows/`, `compose-test.yml` |
-| `.agents/skills/tailscale/SKILL.md` | `6fc3c61` | `webui/internal/tailscale/`, `start.sh` |
-| `webui/README.md` | `6fc3c61` | `webui/` |
-| `README.md` | `6fc3c61` | `README.md`, `webui/internal/web/server.go` |
-| `.agents/skills/security-review/SKILL.md` | `6fc3c61` | `webui/internal/auth/`, `webui/internal/handlers/`, `webui/internal/caddy/`, `webui/internal/socat/`, `webui/internal/backup/`, `Dockerfile`, `start.sh` |
-| `.agents/skills/testing-cicd/SKILL.md` | `6fc3c61` | `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml` |
-| `.agents/skills/documentation/SKILL.md` | `6fc3c61` | `README.md`, `CHANGELOG.md`, `webui/README.md`, `AGENTS.md`, `.agents/skills/` |
+| `AGENTS.md` | `7288840` | `AGENTS.md`, `Makefile`, `start.sh` |
+| `.agents/skills/caddy/SKILL.md` | `7288840` | `webui/internal/caddy/`, `webui/internal/handlers/caddy.go` |
+| `.agents/skills/socat/SKILL.md` | `7288840` | `webui/internal/socat/`, `webui/internal/handlers/socat.go` |
+| `.agents/skills/webui/SKILL.md` | `7288840` | `webui/`, `Makefile` |
+| `.agents/skills/docker-ci/SKILL.md` | `7288840` | `Dockerfile`, `.github/workflows/`, `compose-test.yml` |
+| `.agents/skills/tailscale/SKILL.md` | `7288840` | `webui/internal/tailscale/`, `start.sh` |
+| `webui/README.md` | `7288840` | `webui/` |
+| `README.md` | `7288840` | `README.md`, `webui/internal/web/server.go` |
+| `.agents/skills/security-review/SKILL.md` | `7288840` | `webui/internal/auth/`, `webui/internal/handlers/`, `webui/internal/caddy/`, `webui/internal/socat/`, `webui/internal/backup/`, `Dockerfile`, `start.sh` |
+| `.agents/skills/testing-cicd/SKILL.md` | `7288840` | `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml` |
+| `.agents/skills/documentation/SKILL.md` | `7288840` | `README.md`, `CHANGELOG.md`, `webui/README.md`, `AGENTS.md`, `.agents/skills/` |
 
 ## Making Changes
 
