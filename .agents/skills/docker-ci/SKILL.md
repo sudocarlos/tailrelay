@@ -30,7 +30,7 @@ docker buildx build -t sudocarlos/tailrelay:latest --load .
 Key build args:
 - `TAILSCALE_VERSION` (default: `v1.92.5`) — version tag passed to `go install tailscale.com/cmd/...@${TAILSCALE_VERSION}`
 - `CADDY_VERSION` (default: `2.11.2`) — version tag used for `git clone --branch v${CADDY_VERSION} caddyserver/caddy`
-- `GO_VERSION` (default: `1.26.2`)
+- `GO_VERSION` (default: `1.26.1`)
 - `NODE_VERSION` (default: `24`)
 - `ALPINE_VERSION` (default: `3.22`)
 - `WEBUI_SOURCE` (default: `webui-builder`; set to `binary-dev` for dev builds)
@@ -166,5 +166,5 @@ Handles `SIGTERM`/`SIGINT` for graceful shutdown.
 | Container | `v0.8.0` (see `start.sh`) |
 | Tailscale | `v1.92.5` (built from source via `go install tailscale.com/cmd/...`) |
 | Caddy | `2.11.2` (built from source via `git clone caddyserver/caddy`) |
-| Go | `1.26.2` (Dockerfile ARG) |
+| Go | `1.26.1` (Dockerfile ARG) |
 | Node.js (CI) | `20` (GitHub Actions) / `24` (Dockerfile ARG) |
