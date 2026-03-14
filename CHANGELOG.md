@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - 2026-03-14
+
+### Fixed
+- **HTTPS relay target accepts bare `host:port`** — the proxy target field no longer requires an `http://` or `https://` scheme prefix; any accidentally supplied scheme is stripped before storage and before the address is passed to Caddy's `reverse_proxy` dial field (passing `http://host:port` to Caddy caused the upstream to be unreachable); the Add/Edit modal placeholder and client-side validation have been updated to reflect the bare `host:port` format (fixes #4, PR #5)
+- **Path traversal in backup upload handler** — multipart filename is now sanitised with `filepath.Base` before being joined to the backup directory, preventing a crafted filename such as `../../etc/cron.d/evil.tar.gz` from writing outside the backup directory
+- **Zip-slip in backup restore (certificates)** — tar entries under `certificates/` are now checked to remain within the certificates directory after path resolution; entries that would escape are silently skipped
+- **Path guard missing separator in backup delete** — `strings.HasPrefix` check now appends `filepath.Separator` to the base directory, preventing a sibling directory whose name starts with the backup dir name from bypassing the guard
+- **Unquoted `Content-Disposition` filename in backup download** — filename is now quoted per RFC 6266, preventing header parameter injection via semicolons in filenames
+
+### Security
+- Resolved four backup-related security findings identified during internal audit (path traversal write, zip-slip restore, path guard bypass, header injection)
+
+### Docker
+
+```
+docker pull sudocarlos/tailrelay:v0.8.2
+```
+
 ## [0.8.1] - 2026-03-14
 
 ### Fixed

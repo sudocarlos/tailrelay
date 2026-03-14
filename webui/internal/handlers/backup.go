@@ -208,7 +208,7 @@ func (h *BackupHandler) Download(w http.ResponseWriter, r *http.Request) {
 
 	// Set headers for download
 	w.Header().Set("Content-Type", "application/gzip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(filename)))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", info.Size()))
 
 	// Stream file to response
@@ -235,8 +235,10 @@ func (h *BackupHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Validate filename
-	if !strings.HasSuffix(handler.Filename, ".tar.gz") {
+	// Validate filename — strip directory components to prevent path traversal
+	// (e.g. "../../etc/cron.d/evil.tar.gz" → "evil.tar.gz")
+	safeFilename := filepath.Base(handler.Filename)
+	if !strings.HasSuffix(safeFilename, ".tar.gz") {
 		http.Error(w, "Invalid file type, must be .tar.gz", http.StatusBadRequest)
 		return
 	}
@@ -249,7 +251,7 @@ func (h *BackupHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save file
-	backupPath := filepath.Join(h.cfg.Paths.BackupDir, handler.Filename)
+	backupPath := filepath.Join(h.cfg.Paths.BackupDir, safeFilename)
 	dst, err := os.Create(backupPath)
 	if err != nil {
 		log.Printf("Error creating backup file: %v", err)
@@ -273,7 +275,7 @@ func (h *BackupHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	response := map[string]interface{}{
 		"status":   "success",
 		"message":  "Backup uploaded successfully",
-		"filename": handler.Filename,
+		"filename": safeFilename,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

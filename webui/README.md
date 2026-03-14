@@ -119,8 +119,8 @@ See the main project README for Docker usage instructions.
 
 ## Review Status
 
-<!-- reviewed_at: 6fc3c61 | paths: webui/ -->
-Last full review completed at commit `6fc3c61`. To check what has changed since:
+<!-- reviewed_at: 677c1d6 | paths: webui/ -->
+Last full review completed at commit `677c1d6`. To check what has changed since:
 ```bash
-git log --oneline 6fc3c61..HEAD -- webui/
+git log --oneline 677c1d6..HEAD -- webui/
 ```

@@ -150,9 +150,23 @@ func (m *Manager) Restore(backupPath string) error {
 			// Skip metadata, just for info
 			continue
 		case strings.HasPrefix(header.Name, "certificates/"):
-			// Restore to certificates directory
+			// Restore to certificates directory — guard against zip-slip
+			// (e.g. "certificates/../../etc/passwd" must not escape CertificatesDir)
 			relPath := strings.TrimPrefix(header.Name, "certificates/")
-			targetPath = filepath.Join(m.cfg.Paths.CertificatesDir, relPath)
+			candidate := filepath.Join(m.cfg.Paths.CertificatesDir, relPath)
+			absCertDir, err := filepath.Abs(m.cfg.Paths.CertificatesDir)
+			if err != nil {
+				return fmt.Errorf("failed to resolve certificates dir: %w", err)
+			}
+			absCandidate, err := filepath.Abs(candidate)
+			if err != nil {
+				return fmt.Errorf("failed to resolve cert path: %w", err)
+			}
+			if !strings.HasPrefix(absCandidate, absCertDir+string(filepath.Separator)) && absCandidate != absCertDir {
+				// Zip-slip attempt — skip this entry silently
+				continue
+			}
+			targetPath = candidate
 		case strings.HasSuffix(header.Name, "Caddyfile"):
 			targetPath = m.cfg.Paths.CaddyConfig
 		case strings.HasSuffix(header.Name, "relays.json"):
@@ -260,7 +274,7 @@ func (m *Manager) Delete(filename string) error {
 		return fmt.Errorf("failed to get absolute backup dir: %w", err)
 	}
 
-	if !strings.HasPrefix(absBackupPath, absBackupDir) {
+	if !strings.HasPrefix(absBackupPath, absBackupDir+string(filepath.Separator)) && absBackupPath != absBackupDir {
 		return fmt.Errorf("invalid backup path")
 	}
 
