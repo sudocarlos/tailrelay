@@ -1,6 +1,6 @@
 <script>
   import { untrack } from 'svelte';
-  import { X, Upload, Info } from '@lucide/svelte';
+  import { X, Info } from '@lucide/svelte';
   import { fetchJSON, postFormData } from '../api.js';
   import { showToast } from '../stores/toast.js';
 
@@ -19,12 +19,11 @@
       httpRelay: isEditing ? isProxy : true,
       title: isEditing ? (isProxy ? 'Edit HTTP Relay' : 'Edit TCP Relay') : 'Add Relay',
       relayId: i && t === 'relay' ? i.id : '',
-      listenPort: i && t === 'relay' ? i.listen_port : '',
-      targetHost: i && t === 'relay' ? i.target_host : '',
-      targetPort: i && t === 'relay' ? i.target_port : '',
       proxyId: i && t === 'proxy' ? i.id : '',
-      proxyPort: i && t === 'proxy' ? (i.port || '') : '',
-      proxyTarget: i && t === 'proxy' ? i.target : '',
+      // Unified listen port: relay uses listen_port, proxy uses port
+      listenPort: i ? (t === 'relay' ? String(i.listen_port) : String(i.port || '')) : '',
+      // Unified target: relay combines host:port, proxy uses target verbatim
+      target: i ? (t === 'relay' ? `${i.target_host}:${i.target_port}` : (i.target || '')) : '',
       trustedProxies: i && t === 'proxy' ? (i.trusted_proxies ?? false) : false,
       autostart: i ? (i.autostart ?? true) : true,
       existingCert: i && t === 'proxy' ? i.tls_cert_file : null,
@@ -35,26 +34,23 @@
   let removeTlsCert = $state(false);
   let showCertTooltip = $state(false);
 
-  // HTTP relay toggle (controls whether HTTP relay fields are shown)
+  // HTTP relay toggle (controls whether HTTP-only fields are shown)
   let httpRelay = $state(initialState.httpRelay);
 
-  // TCP relay fields
+  // IDs (needed for update calls)
   let relayId = $state(initialState.relayId);
-  let listenPort = $state(initialState.listenPort);
-  let targetHost = $state(initialState.targetHost);
-  let targetPort = $state(initialState.targetPort);
-
-  // HTTP relay fields
   let proxyId = $state(initialState.proxyId);
-  let proxyPort = $state(initialState.proxyPort);
-  let proxyTarget = $state(initialState.proxyTarget);
-  let trustedProxies = $state(initialState.trustedProxies);
-  let tlsCertFile = $state(null);
-  let existingCert = $state(initialState.existingCert);
 
   // Shared fields
   let preset = $state('');
+  let listenPort = $state(initialState.listenPort);
+  let target = $state(initialState.target);
   let autostart = $state(initialState.autostart);
+
+  // HTTP-only fields
+  let trustedProxies = $state(initialState.trustedProxies);
+  let tlsCertFile = $state(null);
+  let existingCert = $state(initialState.existingCert);
 
   const editing = initialState.editing;
   const title = initialState.title;
@@ -62,44 +58,46 @@
   function handlePreset(e) {
     const idx = e.target.value;
     if (idx === '') return;
-    const target = targets[parseInt(idx)];
-    // Fill TCP relay fields
-    targetHost = target.host || '';
-    if (target.port) targetPort = target.port;
-    // Fill HTTP relay target URL
-    let url = target.host || '';
-    if (target.port) url += `:${target.port}`;
-    proxyTarget = url;
+    const t = targets[parseInt(idx)];
+    target = t.host ? (t.port ? `${t.host}:${t.port}` : t.host) : '';
+  }
+
+  // Parse "host:port" → { host, port } or null on failure.
+  // Handles IPv6 addresses in brackets: [::1]:8080
+  function parseTarget(raw) {
+    const s = raw.trim();
+    if (!s) return null;
+    // IPv6 bracketed: [::1]:port
+    const ipv6 = s.match(/^(\[.+\]):(\d+)$/);
+    if (ipv6) return { host: ipv6[1], port: parseInt(ipv6[2]) };
+    const lastColon = s.lastIndexOf(':');
+    if (lastColon === -1) return null;
+    const host = s.slice(0, lastColon);
+    const port = parseInt(s.slice(lastColon + 1));
+    if (!host || isNaN(port) || port < 1 || port > 65535) return null;
+    return { host, port };
   }
 
   async function handleSave() {
-    if (editing) {
-      // When editing, type is fixed
-      if (initialState.httpRelay) {
-        await saveProxy();
-      } else {
-        await saveRelay();
-      }
+    const isHttp = editing ? initialState.httpRelay : httpRelay;
+    if (isHttp) {
+      await saveProxy();
     } else {
-      // When adding, httpRelay toggle determines type
-      if (httpRelay) {
-        await saveProxy();
-      } else {
-        await saveRelay();
-      }
+      await saveRelay();
     }
   }
 
   async function saveRelay() {
-    if (!listenPort || !targetHost || !targetPort) {
-      showToast('danger', 'Please fill in all required fields');
+    const parsed = parseTarget(target);
+    if (!listenPort || !parsed) {
+      showToast('danger', !listenPort ? 'Listen port is required' : 'Target must be in host:port format');
       return;
     }
 
     const relay = {
       listen_port: parseInt(listenPort),
-      target_host: targetHost.trim(),
-      target_port: parseInt(targetPort),
+      target_host: parsed.host,
+      target_port: parsed.port,
       autostart,
       enabled: true,
     };
@@ -109,10 +107,7 @@
     saving = true;
     try {
       const url = relayId ? '/api/socat/update' : '/api/socat/create';
-      await fetchJSON(url, {
-        method: 'POST',
-        body: JSON.stringify(relay),
-      });
+      await fetchJSON(url, { method: 'POST', body: JSON.stringify(relay) });
       showToast('success', `TCP relay ${relayId ? 'updated' : 'created'} successfully`);
       onSave();
     } catch (err) {
@@ -128,16 +123,16 @@
       showToast('danger', 'MagicDNS hostname not available. Please ensure Tailscale is connected.');
       return;
     }
-    if (!proxyTarget.trim()) {
-      showToast('danger', 'Please fill in the target URL');
+    if (!target.trim()) {
+      showToast('danger', 'Target is required');
       return;
     }
-    if (!proxyPort) {
-      showToast('danger', 'Port is required');
+    if (!listenPort) {
+      showToast('danger', 'Listen port is required');
       return;
     }
 
-    const portNum = parseInt(proxyPort);
+    const portNum = parseInt(listenPort);
     if ([80, 443, 8021].includes(portNum)) {
       showToast('danger', 'Ports 80, 443, and 8021 are reserved and cannot be used');
       return;
@@ -158,11 +153,11 @@
 
     const formData = new FormData();
     formData.append('hostname', hostname);
-    formData.append('target', proxyTarget.trim());
+    formData.append('target', target.trim());
     formData.append('trusted_proxies', trustedProxies.toString());
     formData.append('autostart', autostart.toString());
     formData.append('enabled', 'true');
-    formData.append('port', proxyPort);
+    formData.append('port', listenPort);
 
     if (proxyId) formData.append('id', proxyId);
     if (tlsCertFile) formData.append('tls_cert_upload', tlsCertFile);
@@ -235,18 +230,18 @@
             class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="">Custom...</option>
-            {#each targets as target, i}
-              <option value={i.toString()}>{target.target_name || `${target.app_id} (${target.port})`}</option>
+            {#each targets as t, i}
+              <option value={i.toString()}>{t.target_name || `${t.app_id} (${t.port})`}</option>
             {/each}
           </select>
         </div>
       {/if}
 
-      <!-- TCP relay fields (always shown) -->
+      <!-- Listen Port (shared) -->
       <div>
-        <label for="relay-listen-port" class="block text-sm font-medium mb-1">Listen Port</label>
+        <label for="listen-port" class="block text-sm font-medium mb-1">Listen Port</label>
         <input
-          id="relay-listen-port"
+          id="listen-port"
           type="number"
           bind:value={listenPort}
           placeholder="e.g. 8080"
@@ -254,27 +249,16 @@
         />
       </div>
 
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label for="relay-target-host" class="block text-sm font-medium mb-1">Target Host</label>
-          <input
-            id="relay-target-host"
-            type="text"
-            bind:value={targetHost}
-            placeholder="e.g. 192.168.1.10"
-            class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-        <div>
-          <label for="relay-target-port" class="block text-sm font-medium mb-1">Target Port</label>
-          <input
-            id="relay-target-port"
-            type="number"
-            bind:value={targetPort}
-            placeholder="e.g. 3000"
-            class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
+      <!-- Target (shared) -->
+      <div>
+        <label for="relay-target" class="block text-sm font-medium mb-1">Target</label>
+        <input
+          id="relay-target"
+          type="text"
+          bind:value={target}
+          placeholder="e.g. 192.168.1.10:3000"
+          class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
       </div>
 
       <!-- HTTP relay toggle (only when adding) -->
@@ -301,32 +285,11 @@
         </div>
       {/if}
 
-      <!-- HTTP relay fields (shown when httpRelay is on, or always when editing a proxy) -->
+      <!-- HTTP-only fields (CA cert + trusted proxies) -->
       {#if httpRelay}
-        <div class="space-y-4 {!editing ? '' : ''}">
-          <div>
-            <label for="proxy-port" class="block text-sm font-medium mb-1">HTTP Port</label>
-            <input
-              id="proxy-port"
-              type="number"
-              bind:value={proxyPort}
-              placeholder="e.g. 8443"
-              class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
+        <div class="space-y-4">
 
-          <div>
-            <label for="proxy-target" class="block text-sm font-medium mb-1">Target URL</label>
-            <input
-              id="proxy-target"
-              type="text"
-              bind:value={proxyTarget}
-              placeholder="e.g. http://192.168.1.10:3000"
-              class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          <!-- TLS Certificate -->
+          <!-- CA Certificate -->
           <div>
             <div class="flex items-center gap-1.5 mb-1">
               <label for="tls-cert-file" class="block text-sm font-medium">CA Certificate (optional)</label>
@@ -369,6 +332,7 @@
             />
           </div>
 
+          <!-- Trust proxy headers -->
           <label class="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -377,11 +341,12 @@
             />
             <span class="text-sm">Trust proxy headers</span>
           </label>
+
         </div>
       {/if}
 
       <!-- Autostart (shared) -->
-      <label class="flex items-center gap-2 cursor-pointer {httpRelay ? '' : ''}">
+      <label class="flex items-center gap-2 cursor-pointer">
         <input
           type="checkbox"
           bind:checked={autostart}
