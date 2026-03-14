@@ -208,7 +208,7 @@
           bind:checked={filterProxies}
           class="rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800"
         />
-        <span class="text-gray-600 dark:text-gray-400">HTTP</span>
+        <span class="text-gray-600 dark:text-gray-400">HTTPS</span>
       </label>
     </div>
 
@@ -237,11 +237,11 @@
       </svg>
       <p class="text-gray-500 dark:text-gray-400 mb-4">
         {#if !filterRelays && !filterProxies}
-          Enable TCP or HTTP relays to view items.
+          Enable TCP or HTTPS relays to view items.
         {:else if filterRelays && !filterProxies}
           No TCP relays configured. Get started by adding one.
         {:else if !filterRelays && filterProxies}
-          No HTTP relays configured. Get started by adding one.
+          No HTTPS relays configured. Get started by adding one.
         {:else}
           No relays configured. Get started by adding one.
         {/if}
@@ -254,7 +254,7 @@
         {#if filterRelays && !filterProxies}
           Add a Relay
         {:else if !filterRelays && filterProxies}
-          Add an HTTP Relay
+          Add an HTTPS Relay
         {:else}
           Add a Relay
         {/if}

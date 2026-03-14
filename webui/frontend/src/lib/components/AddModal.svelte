@@ -17,7 +17,7 @@
       editing: isEditing,
       // When editing, httpRelay reflects the item type; when adding, always start with HTTP relay on
       httpRelay: isEditing ? isProxy : true,
-      title: isEditing ? (isProxy ? 'Edit HTTP Relay' : 'Edit TCP Relay') : 'Add Relay',
+      title: isEditing ? (isProxy ? 'Edit HTTPS Relay' : 'Edit TCP Relay') : 'Add Relay',
       relayId: i && t === 'relay' ? i.id : '',
       proxyId: i && t === 'proxy' ? i.id : '',
       // Unified listen port: relay uses listen_port, proxy uses port
@@ -167,7 +167,7 @@
     try {
       const url = proxyId ? '/api/caddy/update' : '/api/caddy/create';
       await postFormData(url, formData);
-      showToast('success', `HTTP relay ${proxyId ? 'updated' : 'created'} successfully`);
+      showToast('success', `HTTPS relay ${proxyId ? 'updated' : 'created'} successfully`);
       onSave();
     } catch (err) {
       showToast('danger', err.message);
@@ -265,12 +265,12 @@
       {#if !editing}
         <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
           <label class="flex items-center justify-between cursor-pointer">
-            <span class="text-sm font-medium">HTTP relay</span>
+            <span class="text-sm font-medium">HTTPS relay</span>
             <button
               type="button"
               role="switch"
               aria-checked={httpRelay}
-              aria-label="Enable HTTP relay"
+              aria-label="Enable HTTPS relay"
               onclick={() => (httpRelay = !httpRelay)}
               class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 {httpRelay ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}"
             >
@@ -280,7 +280,7 @@
             </button>
           </label>
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Enable to proxy HTTP/HTTPS traffic through Caddy with TLS termination.
+            Enable to proxy HTTPS traffic through Caddy with TLS termination.
           </p>
         </div>
       {/if}
