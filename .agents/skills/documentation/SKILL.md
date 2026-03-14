@@ -1,7 +1,7 @@
 ---
 name: documentation
 description: Updating all tailrelay documentation — README, CHANGELOG, release notes, AGENTS.md, SKILL.md files, and webui/README.md. Use when adding user-facing features, releasing a new version, updating component versions, or when any doc's reviewed_at SHA is out of date with HEAD.
-reviewed_at: 7288840
+reviewed_at: fe23b67
 ---
 
 # Documentation
@@ -258,24 +258,88 @@ head -10 CHANGELOG.md
 
 ## 7. Documentation Review Workflow
 
-1. Identify which documents are stale using the `reviewed_at` SHAs in `AGENTS.md`:
-   ```bash
-   git log --oneline <reviewed_at>..HEAD -- <paths>
-   ```
+A full documentation review covers **every** document and **every** skill file. Run through all steps below in order.
 
-2. Read each changed file and update the relevant doc section.
+### Step 1 — Get current HEAD SHA
 
-3. Update `reviewed_at` in:
-   - The SKILL.md's own front matter (for skill files)
-   - The Documentation Review Status table in `AGENTS.md` (for all docs)
+```bash
+git rev-parse --short HEAD   # this becomes the new reviewed_at for everything you review
+```
 
-4. The SHA to use is the current HEAD at time of review:
-   ```bash
-   git rev-parse --short HEAD
-   ```
+### Step 2 — Check staleness for every tracked document
 
-5. Commit all doc changes together:
-   ```bash
-   git add README.md CHANGELOG.md AGENTS.md .agents/skills/
-   git commit -m "docs: update documentation to reflect changes since <old-sha>"
-   ```
+For each row in the AGENTS.md Documentation Review Status table, run:
+
+```bash
+git log --oneline <reviewed_at>..HEAD -- <covered-paths>
+```
+
+If the output is non-empty the document is stale and must be updated.
+
+### Step 3 — Review and update all user-facing docs
+
+| Document | What to check |
+|----------|--------------|
+| `README.md` | Feature list, Quick Start, API examples, version references, Tech Stack |
+| `CHANGELOG.md` | New entry for every release since last review |
+| `webui/README.md` | API endpoint list, config settings, build commands |
+| `AGENTS.md` | Skills table, File Map, env vars, Quick Reference commands |
+
+For each stale document: read the diff (`git diff <reviewed_at>..HEAD -- <path>`), update the affected sections, then mark it reviewed.
+
+### Step 4 — Review and update ALL skill files
+
+A full review must inspect every skill file, not just the ones whose covered paths changed. For each skill, read the file and verify its content reflects the current codebase.
+
+Work through every skill in this order:
+
+1. **`caddy-proxy-management`** — `.agents/skills/caddy/SKILL.md`
+   - Covers: `webui/internal/caddy/`, `webui/internal/handlers/caddy.go`
+   - Check: proxy target format, dial field, route IDs, Admin API patterns, TLS cert handling
+
+2. **`socat-relay-management`** — `.agents/skills/socat/SKILL.md`
+   - Covers: `webui/internal/socat/`, `webui/internal/handlers/socat.go`
+   - Check: RELAY_LIST format, validation rules, exec.Command invocation, relay lifecycle
+
+3. **`webui-development`** — `.agents/skills/webui/SKILL.md`
+   - Covers: `webui/`, `Makefile`
+   - Check: build workflow, handler structure, auth flow, frontend SPA build
+
+4. **`docker-ci-pipeline`** — `.agents/skills/docker-ci/SKILL.md`
+   - Covers: `Dockerfile`, `.github/workflows/`, `compose-test.yml`
+   - Check: pinned versions (Go, Node, Alpine, Tailscale, Caddy, socat), CI job names, Make targets
+
+5. **`tailscale-management`** — `.agents/skills/tailscale/SKILL.md`
+   - Covers: `webui/internal/tailscale/`, `start.sh`
+   - Check: CLI wrapper methods, StatusCache, auth key handling, start.sh version
+
+6. **`security-review`** — `.agents/skills/security-review/SKILL.md`
+   - Covers: all security-relevant code paths
+   - Check: known findings, checklist items, any new auth/input/backup code
+
+7. **`testing-cicd`** — `.agents/skills/testing-cicd/SKILL.md`
+   - Covers: `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml`
+   - Check: test package list, CI job names, integration test structure
+
+8. **`git-workflow`** — `.agents/skills/git-workflow/SKILL.md`
+   - Covers: commit conventions, branch naming
+   - Check: commit types, branch format, PR template
+
+9. **`documentation`** — `.agents/skills/documentation/SKILL.md` (this file)
+   - Covers: all docs
+   - Check: skill file table completeness, review workflow accuracy
+
+For each skill:
+- If covered paths changed: read the diff and update affected sections
+- In all cases: update `reviewed_at` in the front matter to the current HEAD SHA
+
+### Step 5 — Update AGENTS.md Documentation Review Status table
+
+Advance every `reviewed_at` cell you touched to the current HEAD SHA.
+
+### Step 6 — Commit
+
+```bash
+git add README.md CHANGELOG.md webui/README.md AGENTS.md .agents/skills/
+git commit -m "docs: update documentation for review at <new-sha>"
+```

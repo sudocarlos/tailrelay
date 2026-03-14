@@ -122,7 +122,7 @@ curl -sSL http://localhost:8021            # Web UI
 | `README.md` | `677c1d6` | `README.md`, `webui/internal/web/server.go` |
 | `.agents/skills/security-review/SKILL.md` | `7288840` | `webui/internal/auth/`, `webui/internal/handlers/`, `webui/internal/caddy/`, `webui/internal/socat/`, `webui/internal/backup/`, `Dockerfile`, `start.sh` |
 | `.agents/skills/testing-cicd/SKILL.md` | `7288840` | `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml` |
-| `.agents/skills/documentation/SKILL.md` | `7288840` | `README.md`, `CHANGELOG.md`, `webui/README.md`, `AGENTS.md`, `.agents/skills/` |
+| `.agents/skills/documentation/SKILL.md` | `fe23b67` | `README.md`, `CHANGELOG.md`, `webui/README.md`, `AGENTS.md`, `.agents/skills/` |
 
 ## Making Changes
 
