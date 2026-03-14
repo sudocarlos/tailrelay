@@ -13,6 +13,7 @@
   import Login from './lib/components/Login.svelte';
   import Setup from './lib/components/Setup.svelte';
   import ToastContainer from './lib/components/ToastContainer.svelte';
+  import Footer from './lib/components/Footer.svelte';
 
   let isAuthenticated = $state(false);
   let isNeedsSetup = $state(false);
@@ -138,6 +139,7 @@
           <Backups />
         {/if}
       </main>
+      <Footer />
     {/if}
   {/if}
   <ToastContainer />
