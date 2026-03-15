@@ -27,14 +27,15 @@ type AuthConfig struct {
 
 // PathsConfig contains file paths for various configurations
 type PathsConfig struct {
-	CaddyConfig      string `yaml:"caddy_config"`
-	SocatRelayConfig string `yaml:"socat_relay_config"`
-	CaddyProxyConfig string `yaml:"caddy_proxy_config"`
-	CaddyServerMap   string `yaml:"caddy_server_map"`
-	StateDir         string `yaml:"state_dir"`
-	BackupDir        string `yaml:"backup_dir"`
-	CertificatesDir  string `yaml:"certificates_dir"`
-	TargetsFile      string `yaml:"targets_file"`
+	CaddyConfig        string `yaml:"caddy_config"`
+	SocatRelayConfig   string `yaml:"socat_relay_config"`
+	CaddyProxyConfig   string `yaml:"caddy_proxy_config"`
+	CaddyServerMap     string `yaml:"caddy_server_map"`
+	StateDir           string `yaml:"state_dir"`
+	BackupDir          string `yaml:"backup_dir"`
+	CertificatesDir    string `yaml:"certificates_dir"`
+	TargetsFile        string `yaml:"targets_file"`
+	MetricsHistoryFile string `yaml:"metrics_history_file"`
 }
 
 // BackupConfig contains backup settings

@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/sudocarlos/tailrelay/internal/caddy"
 	"github.com/sudocarlos/tailrelay/internal/config"
@@ -563,13 +564,30 @@ func validateProxyTarget(target string) error {
 }
 
 // Metrics returns parsed Caddy Prometheus metrics as JSON.
+//
+// Optional query parameter:
+//
+//	?window=1h|1d|1w|1m   — return traffic delta within the requested window.
+//	                          Omit (or use any other value) for all-time totals.
 func (h *CaddyHandler) Metrics(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	data, err := h.manager.GetMetrics()
+	var window time.Duration
+	switch r.URL.Query().Get("window") {
+	case "1h":
+		window = time.Hour
+	case "1d":
+		window = 24 * time.Hour
+	case "1w":
+		window = 7 * 24 * time.Hour
+	case "1m":
+		window = 31 * 24 * time.Hour
+	}
+
+	data, err := h.manager.GetMetrics(window)
 	if err != nil {
 		log.Printf("Error fetching Caddy metrics: %v", err)
 		http.Error(w, "Failed to fetch metrics", http.StatusInternalServerError)
