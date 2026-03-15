@@ -104,6 +104,107 @@ func TestMetricsStore_RecordPause_Accumulates(t *testing.T) {
 	}
 }
 
+// TestMetricsStore_LastSnapshot returns nil on empty store and the latest snapshot otherwise.
+func TestMetricsStore_LastSnapshot(t *testing.T) {
+	ms := NewMetricsStore("")
+
+	if ms.LastSnapshot() != nil {
+		t.Fatal("expected nil from empty store")
+	}
+
+	t0 := time.Now().Add(-1 * time.Minute)
+	ms.AddSnapshot(makeSnap(t0, map[string]HostMetrics{"srv0": makeHM(":80 → a:80", 10, 0, 0)}))
+	ms.AddSnapshot(makeSnap(time.Now(), map[string]HostMetrics{"srv0": makeHM(":80 → a:80", 20, 0, 0)}))
+
+	last := ms.LastSnapshot()
+	if last == nil {
+		t.Fatal("expected non-nil last snapshot")
+	}
+	if last.Hosts["srv0"].Requests != 20 {
+		t.Errorf("expected 20 requests in last snapshot, got %v", last.Hosts["srv0"].Requests)
+	}
+}
+
+// TestMetricsStore_GlobalReset simulates the Caddy behaviour where toggling any
+// proxy resets ALL HTTP metric counters to 0.  The snapshotMetrics caller is
+// expected to detect the reset, call RecordPause for every label, and then
+// apply baselines so stored values remain monotonically increasing.
+//
+// This test exercises the store primitives (RecordPause + ApplyBaseline) in the
+// same sequence that snapshotMetrics uses them; the full integration is covered
+// by the manager-level test.
+func TestMetricsStore_GlobalReset(t *testing.T) {
+	ms := NewMetricsStore("")
+
+	const (
+		labelA = ":8080 → backend-a:80"
+		labelB = ":9090 → backend-b:80"
+	)
+
+	// Pre-reset: two relays have accumulated traffic.
+	t0 := time.Now().Add(-5 * time.Minute)
+	ms.AddSnapshot(makeSnap(t0, map[string]HostMetrics{
+		"srv0": makeHM(labelA, 100, 2000, 10000),
+		"srv1": makeHM(labelB, 50, 1000, 5000),
+	}))
+
+	prev := ms.LastSnapshot()
+
+	// Simulate reset detection: save baselines for all active relays.
+	for _, prevHM := range prev.Hosts {
+		if prevHM.Label != "" {
+			ms.RecordPause(prevHM.Label, prevHM)
+		}
+	}
+
+	// Caddy counters reset to 0 for both servers.
+	rawA := makeHM(labelA, 0, 0, 0)
+	rawB := makeHM(labelB, 0, 0, 0)
+
+	adjustedA := ms.ApplyBaseline(labelA, rawA)
+	adjustedB := ms.ApplyBaseline(labelB, rawB)
+
+	ms.AddSnapshot(makeSnap(time.Now(), map[string]HostMetrics{
+		"srv0": adjustedA,
+		"srv1": adjustedB,
+	}))
+
+	// window=0: should return pre-reset totals, not zeros.
+	result := ms.Query(0)
+	byLabel := map[string]HostMetrics{}
+	for _, hm := range result.Hosts {
+		byLabel[hm.Label] = hm
+	}
+
+	if byLabel[labelA].Requests != 100 {
+		t.Errorf("labelA: expected 100 after reset, got %v", byLabel[labelA].Requests)
+	}
+	if byLabel[labelB].Requests != 50 {
+		t.Errorf("labelB: expected 50 after reset, got %v", byLabel[labelB].Requests)
+	}
+
+	// New traffic after reset: 5 more requests on A.
+	rawA2 := makeHM(labelA, 5, 100, 500)
+	adjustedA2 := ms.ApplyBaseline(labelA, rawA2)
+	ms.AddSnapshot(makeSnap(time.Now().Add(time.Second), map[string]HostMetrics{
+		"srv0": adjustedA2,
+		"srv1": adjustedB, // B unchanged
+	}))
+
+	result2 := ms.Query(0)
+	byLabel2 := map[string]HostMetrics{}
+	for _, hm := range result2.Hosts {
+		byLabel2[hm.Label] = hm
+	}
+
+	if byLabel2[labelA].Requests != 105 {
+		t.Errorf("labelA after new traffic: expected 105, got %v", byLabel2[labelA].Requests)
+	}
+	if byLabel2[labelB].Requests != 50 {
+		t.Errorf("labelB: expected 50 (unchanged), got %v", byLabel2[labelB].Requests)
+	}
+}
+
 // TestMetricsStore_Query_Window verifies windowed delta queries still work
 // correctly when all snapshots are on the same server key (no pause).
 func TestMetricsStore_Query_Window(t *testing.T) {

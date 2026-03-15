@@ -247,33 +247,75 @@ func (m *Manager) GetMetrics(window time.Duration) (*MetricsData, error) {
 }
 
 // snapshotMetrics is the fetchFn supplied to MetricsStore.Start.  It fetches
-// the current Caddy metrics, applies accumulated baselines to handle counter
-// resets on proxy resume, and returns a snapshot ready for storage.
+// the current Caddy metrics and stores a baseline-adjusted snapshot so that
+// the stored counter sequence is monotonically increasing even across Caddy
+// config changes that reset all HTTP metrics counters.
+//
+// Counter-reset detection: Caddy resets the Prometheus counters of ALL HTTP
+// servers whenever the HTTP app config changes (adding or removing any srvN).
+// This means toggling any proxy causes every other proxy's counter to jump
+// back to 0 on the next scrape.  We detect this by comparing each server's
+// new raw value against the last stored value for that server key.  If any
+// server's request counter decreased, we treat it as a global reset:
+//   1. Save the pre-reset (last stored) value as a baseline for every server
+//      that was present in the previous snapshot.
+//   2. Apply all accumulated baselines to the new raw values before storing.
+//
+// The ToggleProxy → recordProxyPauseBaseline path is an additional early save
+// that fires immediately at disable time (before Caddy's DELETE), catching the
+// case where the background poller hasn't run yet.
 func (m *Manager) snapshotMetrics() (*MetricsSnapshot, error) {
 	data, err := m.liveFetch()
 	if err != nil {
 		return nil, err
 	}
 
-	snap := &MetricsSnapshot{
-		At:    time.Now(),
-		Hosts: make(map[string]HostMetrics, len(data.Hosts)),
-	}
+	// Build a map of new raw values keyed by server name for fast lookup.
+	newByKey := make(map[string]HostMetrics, len(data.Hosts))
 	for _, hm := range data.Hosts {
-		// Key on the Caddy server name (e.g. "srv0") — stable, unique per proxy.
-		// Fall back to host FQDN when server name is absent.
 		key := hm.Server
 		if key == "" {
 			key = hm.Host
 		}
+		newByKey[key] = hm
+	}
 
-		// If there is a stored baseline for this label (set when the proxy was
-		// last paused), add it to the raw Caddy counters so the stored sequence
-		// is monotonically increasing across pause/resume cycles.
+	// Compare against the previous snapshot to detect a Caddy-wide counter reset.
+	if m.store != nil {
+		prev := m.store.LastSnapshot()
+		if prev != nil {
+			resetDetected := false
+			for key, prevHM := range prev.Hosts {
+				if newHM, ok := newByKey[key]; ok {
+					if newHM.Requests < prevHM.Requests {
+						resetDetected = true
+						break
+					}
+				}
+			}
+			if resetDetected {
+				// Save all previous (pre-reset) values as baselines before the
+				// raw counter values hit storage.  This covers every active relay,
+				// not just the one whose toggle triggered the config change.
+				log.Printf("metrics_store: Caddy counter reset detected — saving baselines for all active relays")
+				for _, prevHM := range prev.Hosts {
+					if prevHM.Label != "" {
+						m.store.RecordPause(prevHM.Label, prevHM)
+					}
+				}
+			}
+		}
+	}
+
+	// Build the final snapshot with baselines applied.
+	snap := &MetricsSnapshot{
+		At:    time.Now(),
+		Hosts: make(map[string]HostMetrics, len(newByKey)),
+	}
+	for key, hm := range newByKey {
 		if hm.Label != "" && m.store != nil {
 			hm = m.store.ApplyBaseline(hm.Label, hm)
 		}
-
 		snap.Hosts[key] = hm
 	}
 	return snap, nil
