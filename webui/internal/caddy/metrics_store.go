@@ -83,6 +83,19 @@ func NewMetricsStore(storePath string) *MetricsStore {
 	return ms
 }
 
+// LastSnapshot returns a pointer to the most recent snapshot, or nil if the
+// store is empty.  The returned pointer is only valid while the caller holds
+// no lock; copy the value if you need it across a lock boundary.
+func (ms *MetricsStore) LastSnapshot() *MetricsSnapshot {
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
+	if len(ms.snapshots) == 0 {
+		return nil
+	}
+	s := ms.snapshots[len(ms.snapshots)-1]
+	return &s
+}
+
 // AddSnapshot appends a new timestamped snapshot, pruning entries older than
 // maxRetention, then returns immediately without blocking callers.
 func (ms *MetricsStore) AddSnapshot(snap MetricsSnapshot) {
