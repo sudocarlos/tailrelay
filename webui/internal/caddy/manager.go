@@ -206,9 +206,11 @@ func (m *Manager) snapshotMetrics() (*MetricsSnapshot, error) {
 		Hosts: make(map[string]HostMetrics, len(data.Hosts)),
 	}
 	for _, hm := range data.Hosts {
-		key := hm.Host
-		if hm.Label != "" {
-			key = hm.Label
+		// Key on the Caddy server name (e.g. "srv0") — stable, unique per proxy.
+		// Fall back to host FQDN when server name is absent.
+		key := hm.Server
+		if key == "" {
+			key = hm.Host
 		}
 		snap.Hosts[key] = hm
 	}
@@ -217,6 +219,17 @@ func (m *Manager) snapshotMetrics() (*MetricsSnapshot, error) {
 
 // liveFetch fetches metrics directly from Caddy and annotates labels.
 // This is used both by the fallback path in GetMetrics and by snapshotMetrics.
+//
+// Label resolution strategy:
+//  1. Primary — server-map lookup: each proxy owns a dedicated Caddy server
+//     (srv0, srv1, …).  We build a reverse map srvN → ":<port> → <target>"
+//     from the persisted ServerMap and the proxy metadata list.  This gives
+//     an exact per-proxy label even when multiple proxies share the same FQDN.
+//  2. Fallback — hostname lookup: used when the server label is absent from
+//     the Prometheus output or the server is not in the map.  In that case we
+//     match against the "host" Prometheus label as before.  If multiple proxies
+//     share the hostname we take the first one (alphabetically by port) rather
+//     than joining them all into an unreadable string.
 func (m *Manager) liveFetch() (*MetricsData, error) {
 	raw, err := m.proxyManager.client.GetMetricsRaw()
 	if err != nil {
@@ -224,29 +237,72 @@ func (m *Manager) liveFetch() (*MetricsData, error) {
 	}
 	data := ParseMetrics(raw)
 
-	// Build a hostname → label map from the current proxy list so we can
-	// replace the verbose FQDN with ":port → target" in the UI.
 	proxies, err := m.ListProxies()
-	if err == nil {
-		type labelEntry struct {
-			port   int
-			target string
+	if err != nil {
+		return data, nil
+	}
+
+	// Build proxyID → ":<port> → <target>" label.
+	labelByID := make(map[string]string, len(proxies))
+	for _, p := range proxies {
+		if p.ID != "" {
+			labelByID[p.ID] = fmt.Sprintf(":%d \u2192 %s", p.Port, p.Target)
 		}
-		// A hostname may map to multiple proxies; use all of them joined by ", ".
-		byHost := map[string][]labelEntry{}
-		for _, p := range proxies {
-			if p.Hostname != "" {
-				byHost[p.Hostname] = append(byHost[p.Hostname], labelEntry{p.Port, p.Target})
+	}
+
+	// Primary: srvN → label via server map (proxyID → srvN → label).
+	// Invert: srvN → proxyID first, then resolve to label.
+	bySrv := make(map[string]string) // srvN → label
+	m.proxyManager.mapMu.Lock()
+	for proxyID, srvName := range m.proxyManager.serverMap.ByProxyID {
+		if lbl, ok := labelByID[proxyID]; ok {
+			bySrv[srvName] = lbl
+		}
+	}
+	m.proxyManager.mapMu.Unlock()
+
+	// Fallback: host → label (for the case where server label is absent).
+	// When multiple proxies share a hostname, pick the one whose port matches
+	// the port suffix in the host label (e.g. "mynode.ts.net:8080" → :8080),
+	// or if no port suffix, just use the first proxy for that hostname.
+	type fallbackEntry struct {
+		port  int
+		label string
+	}
+	byHost := make(map[string][]fallbackEntry)
+	for _, p := range proxies {
+		if p.Hostname != "" {
+			h := NormalizeHostname(p.Hostname)
+			byHost[h] = append(byHost[h], fallbackEntry{p.Port, labelByID[p.ID]})
+		}
+	}
+
+	for i, hm := range data.Hosts {
+		// 1. Try exact server-name lookup.
+		if hm.Server != "" {
+			if lbl, ok := bySrv[hm.Server]; ok {
+				data.Hosts[i].Label = lbl
+				continue
 			}
 		}
-		for i, hm := range data.Hosts {
-			if entries, ok := byHost[hm.Host]; ok {
-				parts := make([]string, 0, len(entries))
-				for _, e := range entries {
-					parts = append(parts, fmt.Sprintf(":%d \u2192 %s", e.port, e.target))
+
+		// 2. Fallback: match on hostname, disambiguating by port when possible.
+		bare := hm.Host
+		portHint := 0
+		if h, portStr, splitErr := strings.Cut(hm.Host, ":"); splitErr {
+			// strings.Cut returns found=true when the sep exists
+			bare = h
+			fmt.Sscanf(portStr, "%d", &portHint)
+		}
+		if entries, ok := byHost[bare]; ok {
+			chosen := entries[0]
+			for _, e := range entries {
+				if portHint != 0 && e.port == portHint {
+					chosen = e
+					break
 				}
-				data.Hosts[i].Label = strings.Join(parts, ", ")
 			}
+			data.Hosts[i].Label = chosen.label
 		}
 	}
 
