@@ -36,6 +36,9 @@ func Load(filename string) (*Config, error) {
 	if cfg.Paths.CaddyServerMap == "" {
 		cfg.Paths.CaddyServerMap = "/var/lib/tailscale/caddy_servers.json"
 	}
+	if cfg.Paths.MetricsHistoryFile == "" {
+		cfg.Paths.MetricsHistoryFile = "/var/lib/tailscale/metrics_history.json"
+	}
 
 	cfg.ConfigFile = filename
 
@@ -95,14 +98,15 @@ func DefaultConfig() *Config {
 			AdminHashFile: "/var/lib/tailscale/.admin_hash",
 		},
 		Paths: PathsConfig{
-			CaddyConfig:      "/etc/caddy/Caddyfile",
-			SocatRelayConfig: "/var/lib/tailscale/relays.json",
-			CaddyProxyConfig: "/var/lib/tailscale/proxies.json",
-			CaddyServerMap:   "/var/lib/tailscale/caddy_servers.json",
-			StateDir:         "/var/lib/tailscale",
-			BackupDir:        "/var/lib/tailscale/backups",
-			CertificatesDir:  "/data",
-			TargetsFile:      "/targets.json",
+			CaddyConfig:        "/etc/caddy/Caddyfile",
+			SocatRelayConfig:   "/var/lib/tailscale/relays.json",
+			CaddyProxyConfig:   "/var/lib/tailscale/proxies.json",
+			CaddyServerMap:     "/var/lib/tailscale/caddy_servers.json",
+			StateDir:           "/var/lib/tailscale",
+			BackupDir:          "/var/lib/tailscale/backups",
+			CertificatesDir:    "/data",
+			TargetsFile:        "/targets.json",
+			MetricsHistoryFile: "/var/lib/tailscale/metrics_history.json",
 		},
 		Backup: BackupConfig{
 			AutoBackupEnabled:  false,

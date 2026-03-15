@@ -1,9 +1,11 @@
 package caddy
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/sudocarlos/tailrelay/internal/config"
 )
@@ -13,6 +15,7 @@ type Manager struct {
 	proxyManager *ProxyManager
 	apiURL       string
 	serverMap    string
+	store        *MetricsStore
 }
 
 // NewManager creates a new Caddy manager using the API
@@ -27,6 +30,23 @@ func NewManager(apiURL, serverMapPath string) *Manager {
 		proxyManager: proxyMgr,
 		apiURL:       apiURL,
 		serverMap:    serverMapPath,
+	}
+}
+
+// StartMetricsPoller initialises the MetricsStore with the given history file
+// and starts the background polling goroutine.  It should be called once during
+// server startup and the provided context should be cancelled on shutdown so
+// the goroutine flushes to disk before exiting.
+func (m *Manager) StartMetricsPoller(ctx context.Context, historyFile string) {
+	m.store = NewMetricsStore(historyFile)
+	m.store.Start(ctx, m.snapshotMetrics)
+}
+
+// FlushMetrics writes the current metrics history to disk.  Call this during
+// graceful shutdown if StartMetricsPoller was used.
+func (m *Manager) FlushMetrics() {
+	if m.store != nil {
+		m.store.Flush()
 	}
 }
 
@@ -155,11 +175,49 @@ func (m *Manager) UpdateProxyHostnames(oldFQDN, newFQDN string) error {
 	return m.proxyManager.UpdateProxyHostnames(oldFQDN, newFQDN)
 }
 
-// GetMetrics fetches Prometheus metrics from Caddy and returns parsed data.
-// Each HostMetrics entry is annotated with a Label of the form ":port → target"
-// derived from the known proxy list, so the UI can display a compact identifier
-// instead of the full FQDN.
-func (m *Manager) GetMetrics() (*MetricsData, error) {
+// GetMetrics returns metrics data for the requested time window.
+//
+// window == 0  →  latest snapshot values (cumulative totals, current behaviour)
+// window > 0   →  traffic delta within that window (e.g. last hour)
+//
+// When the MetricsStore is active (StartMetricsPoller was called) data is
+// served from the store, which preserves history for paused relays.
+// If the store is not yet initialised the method falls back to a live Caddy
+// fetch so the handler always has something to return.
+func (m *Manager) GetMetrics(window time.Duration) (*MetricsData, error) {
+	if m.store != nil {
+		data := m.store.Query(window)
+		return data, nil
+	}
+	// Fallback: live fetch (no store yet, e.g. very early startup).
+	return m.liveFetch()
+}
+
+// snapshotMetrics is the fetchFn supplied to MetricsStore.Start.  It fetches
+// the current Caddy metrics and annotates each host with the compact label.
+func (m *Manager) snapshotMetrics() (*MetricsSnapshot, error) {
+	data, err := m.liveFetch()
+	if err != nil {
+		return nil, err
+	}
+
+	snap := &MetricsSnapshot{
+		At:    time.Now(),
+		Hosts: make(map[string]HostMetrics, len(data.Hosts)),
+	}
+	for _, hm := range data.Hosts {
+		key := hm.Host
+		if hm.Label != "" {
+			key = hm.Label
+		}
+		snap.Hosts[key] = hm
+	}
+	return snap, nil
+}
+
+// liveFetch fetches metrics directly from Caddy and annotates labels.
+// This is used both by the fallback path in GetMetrics and by snapshotMetrics.
+func (m *Manager) liveFetch() (*MetricsData, error) {
 	raw, err := m.proxyManager.client.GetMetricsRaw()
 	if err != nil {
 		return nil, fmt.Errorf("fetch metrics: %w", err)

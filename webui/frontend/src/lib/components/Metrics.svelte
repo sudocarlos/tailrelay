@@ -1,7 +1,13 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import ChartCanvas from './ChartCanvas.svelte';
-  import { metricsData, metricsError, metricsLoading, fetchMetrics } from '../stores/metrics.js';
+  import {
+    metricsData,
+    metricsError,
+    metricsLoading,
+    metricsWindow,
+    fetchMetrics,
+  } from '../stores/metrics.js';
   import { theme } from '../stores/theme.js';
 
   let data = $state(null);
@@ -9,44 +15,94 @@
   let loading = $state(false);
   let interval;
 
-  metricsData.subscribe((v) => {
-    data = v;
-  });
+  metricsData.subscribe((v) => { data = v; });
   metricsError.subscribe((v) => (error = v));
   metricsLoading.subscribe((v) => (loading = v));
 
-  // Track current theme value reactively
+  // ── Time window ────────────────────────────────────────────────────
+  /** @type {''|'1h'|'1d'|'1w'|'1m'} */
+  let activeWindow = $state('');
+  metricsWindow.subscribe((v) => (activeWindow = v));
+
+  const windows = [
+    { value: '',   label: 'All time' },
+    { value: '1h', label: '1h' },
+    { value: '1d', label: '1d' },
+    { value: '1w', label: '1w' },
+    { value: '1m', label: '1m' },
+  ];
+
+  function setWindow(w) {
+    activeWindow = w;
+    metricsWindow.set(w);
+    fetchMetrics(w);
+    restartPoll();
+  }
+
+  // ── Relay filter ───────────────────────────────────────────────────
+  /** '' means "all relays" */
+  let selectedRelay = $state('');
+
+  /** Unique host keys from the data (label if present, else host). */
+  const relayOptions = $derived(
+    data?.hosts
+      ? [...new Set(data.hosts.map((h) => h.label || h.host || '(all hosts)'))]
+      : []
+  );
+
+  // Reset relay filter if the selected relay disappears from the data.
+  $effect(() => {
+    if (selectedRelay && !relayOptions.includes(selectedRelay)) {
+      selectedRelay = '';
+    }
+  });
+
+  // ── Theme ──────────────────────────────────────────────────────────
   let currentTheme = $state('light');
   theme.subscribe((v) => (currentTheme = v));
 
-  onMount(() => {
-    fetchMetrics();
-    interval = setInterval(fetchMetrics, 15000);
-  });
-
-  onDestroy(() => {
-    if (interval) clearInterval(interval);
-  });
-
-  // ── Theme-derived colors ───────────────────────────────────────────
-
   const isDark = $derived(currentTheme === 'dark');
+  const tickColor   = $derived(isDark ? 'rgba(156,163,175,1)' : 'rgba(107,114,128,1)');
+  const gridColor   = $derived(isDark ? 'rgba(55,65,81,1)'    : 'rgba(229,231,235,1)');
+  const legendColor = $derived(isDark ? 'rgba(209,213,219,1)' : 'rgba(55,65,81,1)');
 
-  const tickColor = $derived(isDark ? 'rgba(156,163,175,1)' : 'rgba(107,114,128,1)');   // gray-400 / gray-500
-  const gridColor = $derived(isDark ? 'rgba(55,65,81,1)'   : 'rgba(229,231,235,1)');    // gray-700 / gray-200
-  const legendColor = $derived(isDark ? 'rgba(209,213,219,1)' : 'rgba(55,65,81,1)');    // gray-300 / gray-700
+  // ── Polling ────────────────────────────────────────────────────────
+  onMount(() => {
+    fetchMetrics(activeWindow);
+    interval = setInterval(() => fetchMetrics(activeWindow), 15000);
+  });
 
-  // ── Derived chart data ─────────────────────────────────────────────
+  onDestroy(() => { if (interval) clearInterval(interval); });
 
-  function sortedHosts() {
-    if (!data?.hosts) return [];
-    return [...data.hosts].sort((a, b) => b.requests - a.requests);
+  function restartPoll() {
+    if (interval) clearInterval(interval);
+    interval = setInterval(() => fetchMetrics(activeWindow), 15000);
   }
 
+  // ── Filtered host list ─────────────────────────────────────────────
+  function sortedHosts() {
+    if (!data?.hosts) return [];
+    let hosts = [...data.hosts].sort((a, b) => b.requests - a.requests);
+    if (selectedRelay) {
+      hosts = hosts.filter(
+        (h) => (h.label || h.host || '(all hosts)') === selectedRelay
+      );
+    }
+    return hosts;
+  }
+
+  /** Return the display label for a host entry. */
+  function hostLabel(h) {
+    // Prefer the compact ":port → target" label set by the backend.
+    // Fall back to the raw host FQDN, then a generic placeholder.
+    return h.label || h.host || '(all hosts)';
+  }
+
+  // ── Chart datasets ─────────────────────────────────────────────────
   function requestsChartData() {
     const hosts = sortedHosts();
     return {
-      labels: hosts.map((h) => h.label || h.host || '(all hosts)'),
+      labels: hosts.map(hostLabel),
       datasets: [
         {
           label: 'Requests',
@@ -62,7 +118,7 @@
   function bandwidthChartData() {
     const hosts = sortedHosts();
     return {
-      labels: hosts.map((h) => h.label || h.host || '(all hosts)'),
+      labels: hosts.map(hostLabel),
       datasets: [
         {
           label: 'Bytes In',
@@ -98,7 +154,7 @@
       '5xx': 'rgba(239,68,68,1)',
     };
     return {
-      labels: hosts.map((h) => h.label || h.host || '(all hosts)'),
+      labels: hosts.map(hostLabel),
       datasets: classes.map((cls) => ({
         label: cls,
         data: hosts.map((h) => (h.status_codes?.[cls] ?? 0)),
@@ -109,8 +165,7 @@
     };
   }
 
-  // ── Theme-aware chart options ──────────────────────────────────────
-
+  // ── Chart options ──────────────────────────────────────────────────
   function makeScales(stacked = false) {
     return {
       x: {
@@ -151,23 +206,56 @@
     indexAxis: 'y',
   });
 
+  // ── Formatting helpers ─────────────────────────────────────────────
   function formatBytes(bytes) {
-    if (bytes === 0) return '0 B';
+    if (!bytes || bytes === 0) return '0 B';
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
     return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
   }
-
-  function formatTime(date) {
-    if (!date) return '';
-    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  }
-
 </script>
 
 <div class="space-y-8">
-  <div class="flex items-center justify-between">
+  <!-- Header + filters -->
+  <div class="flex flex-wrap items-center justify-between gap-3">
     <h1 class="text-xl font-semibold">Metrics</h1>
+
+    <div class="flex flex-wrap items-center gap-3">
+      <!-- Relay filter -->
+      {#if relayOptions.length > 0}
+        <div class="flex items-center gap-1.5">
+          <label for="relay-filter" class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Relay</label>
+          <select
+            id="relay-filter"
+            bind:value={selectedRelay}
+            class="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+          >
+            <option value="">All relays</option>
+            {#each relayOptions as opt}
+              <option value={opt}>{opt}</option>
+            {/each}
+          </select>
+        </div>
+      {/if}
+
+      <!-- Time window selector -->
+      <div class="flex items-center gap-1.5">
+        <span class="text-xs text-gray-500 dark:text-gray-400">Window</span>
+        <div class="flex rounded border border-gray-300 overflow-hidden dark:border-gray-600">
+          {#each windows as w}
+            <button
+              onclick={() => setWindow(w.value)}
+              class="px-2 py-1 text-xs font-medium transition-colors
+                {activeWindow === w.value
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'}"
+            >
+              {w.label}
+            </button>
+          {/each}
+        </div>
+      </div>
+    </div>
   </div>
 
   {#if error}
@@ -181,31 +269,34 @@
   {/if}
 
   {#if data}
-    {#if !data.hosts || data.hosts.length === 0}
+    {#if sortedHosts().length === 0}
       <div class="rounded-md border border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-        No request data yet. Metrics are collected from active reverse proxy traffic.
+        {#if selectedRelay}
+          No data for the selected relay in this window.
+        {:else}
+          No request data yet. Metrics are collected from active reverse proxy traffic.
+        {/if}
       </div>
     {:else}
-      <!-- Requests per Host -->
+      <!-- Requests per Relay -->
       <section>
-        <h2 class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">Requests per Host</h2>
+        <h2 class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">Requests per Relay</h2>
         <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
           <ChartCanvas type="bar" data={requestsChartData()} options={barOptions} />
         </div>
       </section>
 
-      <!-- Bandwidth per Host -->
+      <!-- Bandwidth per Relay -->
       <section>
-        <h2 class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">Bandwidth per Host</h2>
+        <h2 class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">Bandwidth per Relay</h2>
         <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
           <ChartCanvas type="bar" data={bandwidthChartData()} options={groupedBarOptions} />
         </div>
-        <!-- Summary table -->
         <div class="mt-2 overflow-x-auto">
           <table class="w-full text-xs text-left text-gray-600 dark:text-gray-400">
             <thead>
               <tr class="border-b border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                <th class="pb-1 pr-4 font-medium">Host</th>
+                <th class="pb-1 pr-4 font-medium">Relay</th>
                 <th class="pb-1 pr-4 font-medium">Bytes In</th>
                 <th class="pb-1 font-medium">Bytes Out</th>
               </tr>
@@ -213,7 +304,7 @@
             <tbody>
               {#each sortedHosts() as h}
                 <tr class="border-b border-gray-100 dark:border-gray-800">
-                  <td class="py-1 pr-4 font-mono">{h.label || h.host || '(all hosts)'}</td>
+                  <td class="py-1 pr-4 font-mono">{hostLabel(h)}</td>
                   <td class="py-1 pr-4">{formatBytes(h.requests_in)}</td>
                   <td class="py-1">{formatBytes(h.responses_out)}</td>
                 </tr>
@@ -223,18 +314,17 @@
         </div>
       </section>
 
-      <!-- HTTP Status Codes per Host -->
+      <!-- HTTP Status Codes per Relay -->
       <section>
-        <h2 class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">HTTP Status Codes per Host</h2>
+        <h2 class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">HTTP Status Codes per Relay</h2>
         <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
           <ChartCanvas type="bar" data={statusCodeChartData()} options={stackedBarOptions} />
         </div>
-        <!-- Summary table -->
         <div class="mt-2 overflow-x-auto">
           <table class="w-full text-xs text-left text-gray-600 dark:text-gray-400">
             <thead>
               <tr class="border-b border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                <th class="pb-1 pr-4 font-medium">Host</th>
+                <th class="pb-1 pr-4 font-medium">Relay</th>
                 <th class="pb-1 pr-4 font-medium">2xx</th>
                 <th class="pb-1 pr-4 font-medium">3xx</th>
                 <th class="pb-1 pr-4 font-medium">4xx</th>
@@ -244,7 +334,7 @@
             <tbody>
               {#each sortedHosts() as h}
                 <tr class="border-b border-gray-100 dark:border-gray-800">
-                  <td class="py-1 pr-4 font-mono">{h.label || h.host || '(all hosts)'}</td>
+                  <td class="py-1 pr-4 font-mono">{hostLabel(h)}</td>
                   <td class="py-1 pr-4 text-emerald-700 dark:text-emerald-400">{h.status_codes?.['2xx'] ?? 0}</td>
                   <td class="py-1 pr-4 text-blue-700 dark:text-blue-400">{h.status_codes?.['3xx'] ?? 0}</td>
                   <td class="py-1 pr-4 text-amber-700 dark:text-amber-400">{h.status_codes?.['4xx'] ?? 0}</td>
