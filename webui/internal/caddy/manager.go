@@ -88,8 +88,16 @@ func (m *Manager) ListProxies() ([]config.CaddyProxy, error) {
 	return m.proxyManager.ListProxies()
 }
 
-// ToggleProxy enables or disables a proxy
+// ToggleProxy enables or disables a proxy.
+// When disabling, the current Caddy counters are snapshotted into the metrics
+// baseline before the server is removed so history is not lost on resume.
 func (m *Manager) ToggleProxy(id string, enabled bool) error {
+	if !enabled && m.store != nil {
+		// Capture the current counters for this proxy before Caddy deletes the
+		// server and resets them to zero.
+		m.recordProxyPauseBaseline(id)
+	}
+
 	if err := m.proxyManager.ToggleProxy(id, enabled); err != nil {
 		return fmt.Errorf("failed to toggle proxy: %w", err)
 	}
@@ -99,6 +107,51 @@ func (m *Manager) ToggleProxy(id string, enabled bool) error {
 	}
 	log.Printf("Proxy %s: %s", status, id)
 	return nil
+}
+
+// recordProxyPauseBaseline captures the current Caddy counter values for proxy
+// id into the metrics store baseline so they survive the server deletion.
+func (m *Manager) recordProxyPauseBaseline(id string) {
+	// Find the server name for this proxy.
+	m.proxyManager.mapMu.Lock()
+	srvName := m.proxyManager.serverMap.ByProxyID[id]
+	m.proxyManager.mapMu.Unlock()
+	if srvName == "" {
+		return
+	}
+
+	// Find the label for this proxy so we can key the baseline correctly.
+	proxies, err := m.ListProxies()
+	if err != nil {
+		return
+	}
+	label := ""
+	for _, p := range proxies {
+		if p.ID == id {
+			label = fmt.Sprintf(":%d \u2192 %s", p.Port, p.Target)
+			break
+		}
+	}
+	if label == "" {
+		return
+	}
+
+	// Pull the latest value from the store for this server key.
+	m.store.mu.RLock()
+	var latest HostMetrics
+	found := false
+	if n := len(m.store.snapshots); n > 0 {
+		if hm, ok := m.store.snapshots[n-1].Hosts[srvName]; ok {
+			latest = hm
+			found = true
+		}
+	}
+	m.store.mu.RUnlock()
+
+	if found {
+		m.store.RecordPause(label, latest)
+		log.Printf("metrics_store: recorded pause baseline for %s (%s)", label, srvName)
+	}
 }
 
 // GetStatus checks if Caddy API is accessible
@@ -194,7 +247,8 @@ func (m *Manager) GetMetrics(window time.Duration) (*MetricsData, error) {
 }
 
 // snapshotMetrics is the fetchFn supplied to MetricsStore.Start.  It fetches
-// the current Caddy metrics and annotates each host with the compact label.
+// the current Caddy metrics, applies accumulated baselines to handle counter
+// resets on proxy resume, and returns a snapshot ready for storage.
 func (m *Manager) snapshotMetrics() (*MetricsSnapshot, error) {
 	data, err := m.liveFetch()
 	if err != nil {
@@ -212,6 +266,14 @@ func (m *Manager) snapshotMetrics() (*MetricsSnapshot, error) {
 		if key == "" {
 			key = hm.Host
 		}
+
+		// If there is a stored baseline for this label (set when the proxy was
+		// last paused), add it to the raw Caddy counters so the stored sequence
+		// is monotonically increasing across pause/resume cycles.
+		if hm.Label != "" && m.store != nil {
+			hm = m.store.ApplyBaseline(hm.Label, hm)
+		}
+
 		snap.Hosts[key] = hm
 	}
 	return snap, nil
