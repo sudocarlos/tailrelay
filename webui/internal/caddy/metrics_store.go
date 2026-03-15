@@ -27,9 +27,23 @@ type MetricsSnapshot struct {
 	Hosts map[string]HostMetrics `json:"hosts"` // keyed by host label
 }
 
-// metricsHistory is the on-disk/wire format for the full snapshot list.
+// metricsHistory is the on-disk/wire format for the full snapshot list and
+// accumulated baselines.
 type metricsHistory struct {
-	Snapshots []MetricsSnapshot `json:"snapshots"`
+	Snapshots []MetricsSnapshot          `json:"snapshots"`
+	Baselines map[string]labelBaseline   `json:"baselines,omitempty"`
+}
+
+// labelBaseline holds the accumulated counter totals for one proxy label at
+// the moment its Caddy server was last deleted (i.e. when the proxy was paused).
+// When the proxy is re-enabled, Caddy creates a fresh server whose counters
+// restart from 0.  Adding these baseline values to the new raw counters keeps
+// the sequence monotonically increasing so Query() delta math stays correct.
+type labelBaseline struct {
+	Requests     float64            `json:"requests"`
+	RequestsIn   float64            `json:"requests_in"`
+	ResponsesOut float64            `json:"responses_out"`
+	StatusCodes  map[string]float64 `json:"status_codes"`
 }
 
 // MetricsStore accumulates per-host counter snapshots sampled from Caddy and
@@ -39,16 +53,28 @@ type metricsHistory struct {
 // On-disk persistence: the store periodically writes all snapshots to a JSON
 // file so that history survives container restarts.  Snapshots older than
 // maxRetention are pruned automatically.
+//
+// Counter-reset handling: when a proxy is paused its Caddy server is deleted
+// and counters reset to 0 on re-enable.  MetricsStore maintains a baselines
+// map (keyed by stable proxy label) that records the last-known cumulative
+// value each time a proxy disappears.  snapshotMetrics adds the baseline to
+// raw Caddy values before storing, so the stored sequence stays monotonic.
 type MetricsStore struct {
 	mu        sync.RWMutex
 	snapshots []MetricsSnapshot
 	storePath string
+	// baselines is keyed by proxy label (":port → target"), which is stable
+	// across Caddy server renames that occur when a proxy is re-enabled.
+	baselines map[string]labelBaseline
 }
 
 // NewMetricsStore creates an empty MetricsStore that persists to storePath.
 // If storePath is non-empty it attempts to load any existing history from disk.
 func NewMetricsStore(storePath string) *MetricsStore {
-	ms := &MetricsStore{storePath: storePath}
+	ms := &MetricsStore{
+		storePath: storePath,
+		baselines: make(map[string]labelBaseline),
+	}
 	if storePath != "" {
 		if err := ms.load(); err != nil && !os.IsNotExist(err) {
 			log.Printf("metrics_store: failed to load history from %s: %v", storePath, err)
@@ -64,6 +90,64 @@ func (ms *MetricsStore) AddSnapshot(snap MetricsSnapshot) {
 	defer ms.mu.Unlock()
 	ms.snapshots = append(ms.snapshots, snap)
 	ms.prune()
+}
+
+// RecordPause saves the last-known cumulative counters for a proxy label as a
+// baseline.  Call this when a proxy is about to be paused (before its Caddy
+// server is deleted and its counters disappear).  The baseline is added to raw
+// Caddy counters on resume so the stored sequence stays monotonically increasing.
+func (ms *MetricsStore) RecordPause(label string, hm HostMetrics) {
+	if label == "" {
+		return
+	}
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+	existing := ms.baselines[label]
+	ms.baselines[label] = labelBaseline{
+		Requests:     existing.Requests + hm.Requests,
+		RequestsIn:   existing.RequestsIn + hm.RequestsIn,
+		ResponsesOut: existing.ResponsesOut + hm.ResponsesOut,
+		StatusCodes:  mergeStatusCodes(existing.StatusCodes, hm.StatusCodes),
+	}
+}
+
+// ApplyBaseline returns a copy of hm with the stored baseline for label added
+// to all counter fields.  The result is what snapshotMetrics should store —
+// a value that is always >= any previously stored value for this label.
+func (ms *MetricsStore) ApplyBaseline(label string, hm HostMetrics) HostMetrics {
+	ms.mu.RLock()
+	b, ok := ms.baselines[label]
+	ms.mu.RUnlock()
+	if !ok {
+		return hm
+	}
+	out := hm
+	out.Requests += b.Requests
+	out.RequestsIn += b.RequestsIn
+	out.ResponsesOut += b.ResponsesOut
+	if len(b.StatusCodes) > 0 {
+		merged := make(map[string]float64, len(hm.StatusCodes))
+		for k, v := range hm.StatusCodes {
+			merged[k] = v
+		}
+		for k, v := range b.StatusCodes {
+			merged[k] += v
+		}
+		out.StatusCodes = merged
+	}
+	return out
+}
+
+// mergeStatusCodes returns the element-wise sum of a and b.
+func mergeStatusCodes(a, b map[string]float64) map[string]float64 {
+	out := make(map[string]float64, len(a)+len(b))
+	for k, v := range a {
+		out[k] = v
+	}
+	for k, v := range b {
+		out[k] += v
+	}
+	return out
 }
 
 // Query computes the delta of all host counters over the given window duration.
@@ -217,6 +301,9 @@ func (ms *MetricsStore) load() error {
 
 	ms.mu.Lock()
 	ms.snapshots = h.Snapshots
+	if h.Baselines != nil {
+		ms.baselines = h.Baselines
+	}
 	ms.prune()
 	ms.mu.Unlock()
 
@@ -233,7 +320,7 @@ func (ms *MetricsStore) writeLocked() error {
 	}
 
 	enc := json.NewEncoder(f)
-	if err := enc.Encode(metricsHistory{Snapshots: ms.snapshots}); err != nil {
+	if err := enc.Encode(metricsHistory{Snapshots: ms.snapshots, Baselines: ms.baselines}); err != nil {
 		f.Close()
 		os.Remove(tmp)
 		return err
