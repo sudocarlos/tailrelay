@@ -404,16 +404,20 @@ func (pm *ProxyManager) buildRoute(proxy config.CaddyProxy) (*Route, error) {
 		}
 	}
 
-	// Configure TLS transport only when a CA file is provided (srv0-like config)
-	if proxy.TLSCertFile != "" {
+	// Configure TLS transport when either the HTTPS target flag is set or a custom CA file is provided.
+	// The two options are independent: TLS flag alone sends an empty tls:{} block (use system trust
+	// pool), while TLSCertFile supplies a custom CA — both can be combined.
+	if proxy.TLS || proxy.TLSCertFile != "" {
 		transport := HTTPTransport{
 			Protocol: "http",
 			TLS:      &TLSConfig{},
 		}
 
-		transport.TLS.CA = &TLSCAConfig{
-			Provider: "file",
-			PEMFiles: []string{proxy.TLSCertFile},
+		if proxy.TLSCertFile != "" {
+			transport.TLS.CA = &TLSCAConfig{
+				Provider: "file",
+				PEMFiles: []string{proxy.TLSCertFile},
+			}
 		}
 
 		reverseProxyHandler["transport"] = transport

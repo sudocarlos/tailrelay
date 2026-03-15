@@ -27,6 +27,7 @@
       trustedProxies: i && t === 'proxy' ? (i.trusted_proxies ?? false) : false,
       autostart: i ? (i.autostart ?? true) : true,
       existingCert: i && t === 'proxy' ? i.tls_cert_file : null,
+      httpsTarget: i && t === 'proxy' ? (i.tls ?? false) : false,
     };
   });
 
@@ -49,6 +50,7 @@
 
   // HTTP-only fields
   let trustedProxies = $state(initialState.trustedProxies);
+  let httpsTarget = $state(initialState.httpsTarget);
   let tlsCertFile = $state(null);
   let existingCert = $state(initialState.existingCert);
 
@@ -154,6 +156,7 @@
     const formData = new FormData();
     formData.append('hostname', hostname);
     formData.append('target', target.trim());
+    formData.append('tls', httpsTarget.toString());
     formData.append('trusted_proxies', trustedProxies.toString());
     formData.append('autostart', autostart.toString());
     formData.append('enabled', 'true');
@@ -285,9 +288,22 @@
         </div>
       {/if}
 
-      <!-- HTTP-only fields (CA cert + trusted proxies) -->
+      <!-- HTTP-only fields (HTTPS target + CA cert + trusted proxies) -->
       {#if httpRelay}
         <div class="space-y-4">
+
+          <!-- HTTPS target -->
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              bind:checked={httpsTarget}
+              class="rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800"
+            />
+            <span class="text-sm font-medium">HTTPS target</span>
+          </label>
+          <p class="text-xs text-gray-500 dark:text-gray-400 -mt-2">
+            Connect to the upstream over HTTPS. Enable this when your target service listens on HTTPS with a trusted certificate.
+          </p>
 
           <!-- CA Certificate -->
           <div>
