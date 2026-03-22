@@ -83,6 +83,20 @@
     if (idx === '') return;
     const t = targets[parseInt(idx)];
     target = t.host ? (t.port ? `${t.host}:${t.port}` : t.host) : '';
+
+    // Apply type + protocol from the target definition to set form mode.
+    // type aliases: relay/tcp/socat → socat; proxy/https/caddy → Caddy
+    // protocol: 'https' → insecure TLS by default (user can switch to cert);
+    //           'http'  → plain HTTP target; 'tcp' → relay (no TLS concept)
+    const isRelay = ['relay', 'tcp', 'socat'].includes(t.type);
+    const isProxy = ['proxy', 'https', 'caddy'].includes(t.type);
+    if (isRelay) {
+      httpRelay = false;
+    } else if (isProxy) {
+      httpRelay = true;
+      if (t.protocol === 'https') setTlsMode('insecure');
+      else setTlsMode('off');
+    }
   }
 
   // Parse "host:port" → { host, port } or null on failure.
