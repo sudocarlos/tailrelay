@@ -13,6 +13,15 @@
     const i = initItem;
     const isEditing = i !== null;
     const isProxy = t === 'proxy';
+    // Derive tlsMode from stored proxy fields:
+    //   tls == true && no cert file  → insecure mode
+    //   cert file present            → custom CA mode
+    //   otherwise                   → plain HTTP target
+    let tlsMode = 'off';
+    if (i && t === 'proxy') {
+      if (i.tls) tlsMode = 'insecure';
+      else if (i.tls_cert_file) tlsMode = 'cert';
+    }
     return {
       editing: isEditing,
       // When editing, httpRelay reflects the item type; when adding, always start with HTTP relay on
@@ -27,12 +36,13 @@
       trustedProxies: i && t === 'proxy' ? (i.trusted_proxies ?? false) : false,
       autostart: i ? (i.autostart ?? true) : true,
       existingCert: i && t === 'proxy' ? i.tls_cert_file : null,
-      httpsTarget: i && t === 'proxy' ? (i.tls ?? false) : false,
+      tlsMode,
     };
   });
 
   let saving = $state(false);
   let removeTlsCert = $state(false);
+  let showInsecureTooltip = $state(false);
   let showCertTooltip = $state(false);
 
   // HTTP relay toggle (controls whether HTTP-only fields are shown)
@@ -50,12 +60,24 @@
 
   // HTTP-only fields
   let trustedProxies = $state(initialState.trustedProxies);
-  let httpsTarget = $state(initialState.httpsTarget);
+  // tlsMode: 'off' | 'insecure' | 'cert'
+  let tlsMode = $state(initialState.tlsMode);
   let tlsCertFile = $state(null);
   let existingCert = $state(initialState.existingCert);
 
   const editing = initialState.editing;
   const title = initialState.title;
+
+  // Switch the HTTPS target mode. Clears any uploaded/existing cert when moving away from cert mode.
+  function setTlsMode(mode) {
+    if (mode !== 'cert' && (existingCert || tlsCertFile)) {
+      removeTlsCert = true;
+      existingCert = null;
+      tlsCertFile = null;
+    }
+    if (mode === 'cert') removeTlsCert = false;
+    tlsMode = mode;
+  }
 
   function handlePreset(e) {
     const idx = e.target.value;
@@ -140,7 +162,7 @@
       return;
     }
 
-    if (tlsCertFile) {
+    if (tlsMode === 'cert' && tlsCertFile) {
       const validExts = ['.pem', '.crt', '.cer'];
       const name = tlsCertFile.name.toLowerCase();
       if (!validExts.some((ext) => name.endsWith(ext))) {
@@ -156,14 +178,14 @@
     const formData = new FormData();
     formData.append('hostname', hostname);
     formData.append('target', target.trim());
-    formData.append('tls', httpsTarget.toString());
+    formData.append('tls', (tlsMode === 'insecure').toString());
     formData.append('trusted_proxies', trustedProxies.toString());
     formData.append('autostart', autostart.toString());
     formData.append('enabled', 'true');
     formData.append('port', listenPort);
 
     if (proxyId) formData.append('id', proxyId);
-    if (tlsCertFile) formData.append('tls_cert_upload', tlsCertFile);
+    if (tlsMode === 'cert' && tlsCertFile) formData.append('tls_cert_upload', tlsCertFile);
     if (removeTlsCert) formData.append('remove_tls_cert', 'true');
 
     saving = true;
@@ -186,12 +208,14 @@
   function handleRemoveCert() {
     removeTlsCert = true;
     existingCert = null;
-    showToast('info', 'Certificate will be removed when you save.');
+    tlsCertFile = null;
   }
 
   function handleKeydown(e) {
     if (e.key === 'Escape') {
-      if (showCertTooltip) {
+      if (showInsecureTooltip) {
+        showInsecureTooltip = false;
+      } else if (showCertTooltip) {
         showCertTooltip = false;
       } else {
         onClose();
@@ -288,65 +312,114 @@
         </div>
       {/if}
 
-      <!-- HTTP-only fields (HTTPS target + CA cert + trusted proxies) -->
+      <!-- HTTP-only fields (HTTPS target mode + trusted proxies) -->
       {#if httpRelay}
         <div class="space-y-4">
 
-          <!-- HTTPS target -->
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              bind:checked={httpsTarget}
-              class="rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800"
-            />
-            <span class="text-sm font-medium">HTTPS target</span>
-          </label>
-          <p class="text-xs text-gray-500 dark:text-gray-400 -mt-2">
-            Connect to the upstream over HTTPS. Enable this when your target service listens on HTTPS with a trusted certificate.
-          </p>
+          <!-- HTTPS target — three-segment control -->
+          <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <span class="block text-sm font-medium mb-2">HTTPS target</span>
+            <div class="flex rounded-lg border border-gray-300 dark:border-gray-700 overflow-hidden text-sm">
 
-          <!-- CA Certificate -->
-          <div>
-            <div class="flex items-center gap-1.5 mb-1">
-              <label for="tls-cert-file" class="block text-sm font-medium">CA Certificate (optional)</label>
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <div class="relative">
-                <span
-                  class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-help"
-                  onmouseenter={() => (showCertTooltip = true)}
-                  onmouseleave={() => (showCertTooltip = false)}
-                  onclick={() => (showCertTooltip = !showCertTooltip)}
-                  onkeydown={() => {}}
-                >
-                  <Info size={14} />
+              <!-- HTTP target -->
+              <button
+                type="button"
+                onclick={() => setTlsMode('off')}
+                class="flex-1 px-3 py-2 text-center transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500
+                  {tlsMode === 'off'
+                    ? 'bg-blue-500 text-white font-medium'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}"
+              >
+                HTTP target
+              </button>
+
+              <!-- HTTPS target (insecure) -->
+              <button
+                type="button"
+                onclick={() => setTlsMode('insecure')}
+                class="flex-1 px-3 py-2 text-center border-l border-gray-300 dark:border-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500
+                  {tlsMode === 'insecure'
+                    ? 'bg-blue-500 text-white font-medium'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}"
+              >
+                <span class="flex items-center justify-center gap-1">
+                  HTTPS target (insecure)
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <span
+                    class="relative inline-flex"
+                    onmouseenter={() => (showInsecureTooltip = true)}
+                    onmouseleave={() => (showInsecureTooltip = false)}
+                    onclick={(e) => { e.stopPropagation(); showInsecureTooltip = !showInsecureTooltip; }}
+                    onkeydown={() => {}}
+                  >
+                    <Info size={13} class={tlsMode === 'insecure' ? 'text-white/80' : 'text-gray-400'} />
+                    {#if showInsecureTooltip}
+                      <div class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 z-20 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg pointer-events-none">
+                        Turns off TLS handshake verification, making the connection insecure and vulnerable to man-in-the-middle attacks. Do not use in production.
+                        <div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900 dark:border-t-gray-700"></div>
+                      </div>
+                    {/if}
+                  </span>
                 </span>
-                {#if showCertTooltip}
-                  <div class="absolute left-0 bottom-full mb-2 w-72 z-10 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg">
-                    Upload a CA certificate to trust when your upstream uses HTTPS with a self-signed or private CA certificate. Without this, Caddy uses the system trust pool to verify the upstream's TLS certificate.
-                    <div class="absolute left-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900 dark:border-t-gray-700"></div>
-                  </div>
-                {/if}
-              </div>
+              </button>
+
+              <!-- HTTPS target (custom CA cert) -->
+              <button
+                type="button"
+                onclick={() => setTlsMode('cert')}
+                class="flex-1 px-3 py-2 text-center border-l border-gray-300 dark:border-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500
+                  {tlsMode === 'cert'
+                    ? 'bg-blue-500 text-white font-medium'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}"
+              >
+                <span class="flex items-center justify-center gap-1">
+                  HTTPS target (custom CA cert)
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <span
+                    class="relative inline-flex"
+                    onmouseenter={() => (showCertTooltip = true)}
+                    onmouseleave={() => (showCertTooltip = false)}
+                    onclick={(e) => { e.stopPropagation(); showCertTooltip = !showCertTooltip; }}
+                    onkeydown={() => {}}
+                  >
+                    <Info size={13} class={tlsMode === 'cert' ? 'text-white/80' : 'text-gray-400'} />
+                    {#if showCertTooltip}
+                      <div class="absolute right-0 bottom-full mb-2 w-72 z-20 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg pointer-events-none">
+                        Upload a CA certificate to trust when your upstream uses HTTPS with a self-signed or private CA certificate. Without this, Caddy uses the system trust pool to verify the upstream's TLS certificate.
+                        <div class="absolute right-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900 dark:border-t-gray-700"></div>
+                      </div>
+                    {/if}
+                  </span>
+                </span>
+              </button>
+
             </div>
-            {#if existingCert}
-              <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-2">
-                <span class="truncate">{existingCert.split('/').pop()}</span>
-                <button
-                  class="text-red-500 hover:text-red-600 text-xs font-medium"
-                  onclick={handleRemoveCert}
-                >
-                  Remove
-                </button>
-              </div>
-            {/if}
-            <input
-              id="tls-cert-file"
-              type="file"
-              accept=".pem,.crt,.cer"
-              onchange={handleFileChange}
-              class="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-gray-100 dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-200 dark:hover:file:bg-gray-700"
-            />
           </div>
+
+          <!-- CA cert upload (only in cert mode) -->
+          {#if tlsMode === 'cert'}
+            <div>
+              {#if existingCert}
+                <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-2">
+                  <span class="truncate">{existingCert.split('/').pop()}</span>
+                  <button
+                    type="button"
+                    class="text-red-500 hover:text-red-600 text-xs font-medium"
+                    onclick={handleRemoveCert}
+                  >
+                    Remove
+                  </button>
+                </div>
+              {/if}
+              <input
+                id="tls-cert-file"
+                type="file"
+                accept=".pem,.crt,.cer"
+                onchange={handleFileChange}
+                class="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-gray-100 dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-200 dark:hover:file:bg-gray-700"
+              />
+            </div>
+          {/if}
 
           <!-- Trust proxy headers -->
           <label class="flex items-center gap-2 cursor-pointer">
