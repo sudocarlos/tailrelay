@@ -3,6 +3,7 @@
   import { X, Info } from '@lucide/svelte';
   import { fetchJSON, postFormData } from '../api.js';
   import { showToast } from '../stores/toast.js';
+  import Tooltip from './Tooltip.svelte';
 
   let { type: initType = 'proxy', item: initItem = null, fqdn = '', targets = [], onSave, onClose } = $props();
 
@@ -42,9 +43,6 @@
 
   let saving = $state(false);
   let removeTlsCert = $state(false);
-  let showInsecureTooltip = $state(false);
-  let showCertTooltip = $state(false);
-  let showTrustedProxiesTooltip = $state(false);
 
   // HTTP relay toggle (controls whether HTTP-only fields are shown)
   let httpRelay = $state(initialState.httpRelay);
@@ -214,15 +212,7 @@
 
   function handleKeydown(e) {
     if (e.key === 'Escape') {
-      if (showInsecureTooltip) {
-        showInsecureTooltip = false;
-      } else if (showCertTooltip) {
-        showCertTooltip = false;
-      } else if (showTrustedProxiesTooltip) {
-        showTrustedProxiesTooltip = false;
-      } else {
-        onClose();
-      }
+      onClose();
     }
   }
 </script>
@@ -345,22 +335,12 @@
             >
               <span class="flex items-center justify-center gap-1">
                 HTTPS target (insecure)
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <span
-                  class="relative inline-flex"
-                  onmouseenter={() => (showInsecureTooltip = true)}
-                  onmouseleave={() => (showInsecureTooltip = false)}
-                  onclick={(e) => { e.stopPropagation(); showInsecureTooltip = !showInsecureTooltip; }}
-                  onkeydown={() => {}}
-                >
-                  <Info size={13} class={tlsMode === 'insecure' ? 'text-white/80' : 'text-gray-400'} />
-                  {#if showInsecureTooltip}
-                    <div class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 z-[100] rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg pointer-events-none">
-                      Turns off TLS handshake verification, making the connection insecure and vulnerable to man-in-the-middle attacks. Do not use in production.
-                      <div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900 dark:border-t-gray-700"></div>
-                    </div>
-                  {/if}
-                </span>
+                <Tooltip>
+                  {#snippet trigger()}
+                    <Info size={13} class={tlsMode === 'insecure' ? 'text-white/80' : 'text-gray-400'} />
+                  {/snippet}
+                  Turns off TLS handshake verification, making the connection insecure and vulnerable to man-in-the-middle attacks. Do not use in production.
+                </Tooltip>
               </span>
             </button>
 
@@ -375,22 +355,12 @@
             >
               <span class="flex items-center justify-center gap-1">
                 HTTPS target (custom CA cert)
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <span
-                  class="relative inline-flex"
-                  onmouseenter={() => (showCertTooltip = true)}
-                  onmouseleave={() => (showCertTooltip = false)}
-                  onclick={(e) => { e.stopPropagation(); showCertTooltip = !showCertTooltip; }}
-                  onkeydown={() => {}}
-                >
-                  <Info size={13} class={tlsMode === 'cert' ? 'text-white/80' : 'text-gray-400'} />
-                  {#if showCertTooltip}
-                    <div class="absolute right-0 bottom-full mb-2 w-72 z-[100] rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg pointer-events-none">
-                      Upload a CA certificate to trust when your upstream uses HTTPS with a self-signed or private CA certificate. Without this, Caddy uses the system trust pool to verify the upstream's TLS certificate.
-                      <div class="absolute right-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900 dark:border-t-gray-700"></div>
-                    </div>
-                  {/if}
-                </span>
+                <Tooltip>
+                  {#snippet trigger()}
+                    <Info size={13} class={tlsMode === 'cert' ? 'text-white/80' : 'text-gray-400'} />
+                  {/snippet}
+                  Upload a CA certificate to trust when your upstream uses HTTPS with a self-signed or private CA certificate. Without this, Caddy uses the system trust pool to verify the upstream's TLS certificate.
+                </Tooltip>
               </span>
             </button>
 
@@ -431,28 +401,18 @@
             />
             <div class="flex items-center gap-1">
               <label for="trusted-proxies" class="text-sm cursor-pointer select-none">Trusted proxies: private ranges</label>
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <span
-                class="relative inline-flex text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-help"
-                onmouseenter={() => (showTrustedProxiesTooltip = true)}
-                onmouseleave={() => (showTrustedProxiesTooltip = false)}
-                onclick={() => (showTrustedProxiesTooltip = !showTrustedProxiesTooltip)}
-                onkeydown={() => {}}
-              >
-                <Info size={14} />
-                {#if showTrustedProxiesTooltip}
-                  <div class="absolute right-0 bottom-full mb-2 w-80 z-[100] rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg pointer-events-none">
-                    Enable this if Caddy is behind another proxy (e.g. a CDN or load balancer). Caddy will then trust <span class="font-mono">X-Forwarded-For</span> and related headers from all private IP ranges, allowing it to identify the real client IP instead of the intermediate proxy's IP.
-                    <a
-                      href="https://caddyserver.com/docs/caddyfile/options#trusted-proxies"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="block mt-1.5 text-blue-300 hover:text-blue-200 pointer-events-auto"
-                    >Learn more →</a>
-                    <div class="absolute right-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900 dark:border-t-gray-700"></div>
-                  </div>
-                {/if}
-              </span>
+              <Tooltip width="w-80">
+                {#snippet trigger()}
+                  <Info size={14} class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
+                {/snippet}
+                Enable this if Caddy is behind another proxy (e.g. a CDN or load balancer). Caddy will then trust <span class="font-mono">X-Forwarded-For</span> and related headers from all private IP ranges, allowing it to identify the real client IP instead of the intermediate proxy's IP.
+                <a
+                  href="https://caddyserver.com/docs/caddyfile/options#trusted-proxies"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="block mt-1.5 text-blue-300 hover:text-blue-200"
+                >Learn more →</a>
+              </Tooltip>
             </div>
           </div>
 
