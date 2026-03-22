@@ -441,7 +441,7 @@
               >
                 <Info size={14} />
                 {#if showTrustedProxiesTooltip}
-                  <div class="absolute left-0 bottom-full mb-2 w-80 z-[100] rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg pointer-events-none">
+                  <div class="absolute right-0 bottom-full mb-2 w-80 z-[100] rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg pointer-events-none">
                     Enable this if Caddy is behind another proxy (e.g. a CDN or load balancer). Caddy will then trust <span class="font-mono">X-Forwarded-For</span> and related headers from all private IP ranges, allowing it to identify the real client IP instead of the intermediate proxy's IP.
                     <a
                       href="https://caddyserver.com/docs/caddyfile/options#trusted-proxies"
@@ -449,7 +449,7 @@
                       rel="noopener noreferrer"
                       class="block mt-1.5 text-blue-300 hover:text-blue-200 pointer-events-auto"
                     >Learn more →</a>
-                    <div class="absolute left-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900 dark:border-t-gray-700"></div>
+                    <div class="absolute right-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900 dark:border-t-gray-700"></div>
                   </div>
                 {/if}
               </span>
