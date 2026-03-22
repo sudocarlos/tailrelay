@@ -44,6 +44,7 @@
   let removeTlsCert = $state(false);
   let showInsecureTooltip = $state(false);
   let showCertTooltip = $state(false);
+  let showTrustedProxiesTooltip = $state(false);
 
   // HTTP relay toggle (controls whether HTTP-only fields are shown)
   let httpRelay = $state(initialState.httpRelay);
@@ -217,6 +218,8 @@
         showInsecureTooltip = false;
       } else if (showCertTooltip) {
         showCertTooltip = false;
+      } else if (showTrustedProxiesTooltip) {
+        showTrustedProxiesTooltip = false;
       } else {
         onClose();
       }
@@ -245,6 +248,30 @@
 
     <!-- Body -->
     <div class="px-5 py-4 space-y-4">
+
+      <!-- HTTP relay toggle (only when adding) — shown first -->
+      {#if !editing}
+        <div>
+          <label class="flex items-center justify-between cursor-pointer">
+            <span class="text-sm font-medium">HTTPS relay</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={httpRelay}
+              aria-label="Enable HTTPS relay"
+              onclick={() => (httpRelay = !httpRelay)}
+              class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 {httpRelay ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}"
+            >
+              <span
+                class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform {httpRelay ? 'translate-x-6' : 'translate-x-1'}"
+              ></span>
+            </button>
+          </label>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Enable to proxy HTTPS traffic through Caddy with TLS termination.
+          </p>
+        </div>
+      {/if}
 
       <!-- Preset Target (shared) -->
       {#if targets.length > 0}
@@ -288,112 +315,85 @@
         />
       </div>
 
-      <!-- HTTP relay toggle (only when adding) -->
-      {#if !editing}
-        <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-          <label class="flex items-center justify-between cursor-pointer">
-            <span class="text-sm font-medium">HTTPS relay</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={httpRelay}
-              aria-label="Enable HTTPS relay"
-              onclick={() => (httpRelay = !httpRelay)}
-              class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 {httpRelay ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}"
-            >
-              <span
-                class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform {httpRelay ? 'translate-x-6' : 'translate-x-1'}"
-              ></span>
-            </button>
-          </label>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Enable to proxy HTTPS traffic through Caddy with TLS termination.
-          </p>
-        </div>
-      {/if}
-
       <!-- HTTP-only fields (HTTPS target mode + trusted proxies) -->
       {#if httpRelay}
         <div class="space-y-4">
 
           <!-- HTTPS target — three-segment control -->
-          <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-            <span class="block text-sm font-medium mb-2">HTTPS target</span>
-            <div class="flex rounded-lg border border-gray-300 dark:border-gray-700 overflow-hidden text-sm">
+          <div class="flex rounded-lg border border-gray-300 dark:border-gray-700 text-sm overflow-visible">
 
-              <!-- HTTP target -->
-              <button
-                type="button"
-                onclick={() => setTlsMode('off')}
-                class="flex-1 px-3 py-2 text-center transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500
-                  {tlsMode === 'off'
-                    ? 'bg-blue-500 text-white font-medium'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}"
-              >
-                HTTP target
-              </button>
+            <!-- HTTP target -->
+            <button
+              type="button"
+              onclick={() => setTlsMode('off')}
+              class="flex-1 px-3 py-2 text-center rounded-l-lg transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500
+                {tlsMode === 'off'
+                  ? 'bg-blue-500 text-white font-medium'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}"
+            >
+              HTTP target
+            </button>
 
-              <!-- HTTPS target (insecure) -->
-              <button
-                type="button"
-                onclick={() => setTlsMode('insecure')}
-                class="flex-1 px-3 py-2 text-center border-l border-gray-300 dark:border-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500
-                  {tlsMode === 'insecure'
-                    ? 'bg-blue-500 text-white font-medium'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}"
-              >
-                <span class="flex items-center justify-center gap-1">
-                  HTTPS target (insecure)
-                  <!-- svelte-ignore a11y_no_static_element_interactions -->
-                  <span
-                    class="relative inline-flex"
-                    onmouseenter={() => (showInsecureTooltip = true)}
-                    onmouseleave={() => (showInsecureTooltip = false)}
-                    onclick={(e) => { e.stopPropagation(); showInsecureTooltip = !showInsecureTooltip; }}
-                    onkeydown={() => {}}
-                  >
-                    <Info size={13} class={tlsMode === 'insecure' ? 'text-white/80' : 'text-gray-400'} />
-                    {#if showInsecureTooltip}
-                      <div class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 z-20 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg pointer-events-none">
-                        Turns off TLS handshake verification, making the connection insecure and vulnerable to man-in-the-middle attacks. Do not use in production.
-                        <div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900 dark:border-t-gray-700"></div>
-                      </div>
-                    {/if}
-                  </span>
+            <!-- HTTPS target (insecure) -->
+            <button
+              type="button"
+              onclick={() => setTlsMode('insecure')}
+              class="flex-1 px-3 py-2 text-center border-l border-gray-300 dark:border-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500
+                {tlsMode === 'insecure'
+                  ? 'bg-blue-500 text-white font-medium'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}"
+            >
+              <span class="flex items-center justify-center gap-1">
+                HTTPS target (insecure)
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <span
+                  class="relative inline-flex"
+                  onmouseenter={() => (showInsecureTooltip = true)}
+                  onmouseleave={() => (showInsecureTooltip = false)}
+                  onclick={(e) => { e.stopPropagation(); showInsecureTooltip = !showInsecureTooltip; }}
+                  onkeydown={() => {}}
+                >
+                  <Info size={13} class={tlsMode === 'insecure' ? 'text-white/80' : 'text-gray-400'} />
+                  {#if showInsecureTooltip}
+                    <div class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 z-[100] rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg pointer-events-none">
+                      Turns off TLS handshake verification, making the connection insecure and vulnerable to man-in-the-middle attacks. Do not use in production.
+                      <div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900 dark:border-t-gray-700"></div>
+                    </div>
+                  {/if}
                 </span>
-              </button>
+              </span>
+            </button>
 
-              <!-- HTTPS target (custom CA cert) -->
-              <button
-                type="button"
-                onclick={() => setTlsMode('cert')}
-                class="flex-1 px-3 py-2 text-center border-l border-gray-300 dark:border-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500
-                  {tlsMode === 'cert'
-                    ? 'bg-blue-500 text-white font-medium'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}"
-              >
-                <span class="flex items-center justify-center gap-1">
-                  HTTPS target (custom CA cert)
-                  <!-- svelte-ignore a11y_no_static_element_interactions -->
-                  <span
-                    class="relative inline-flex"
-                    onmouseenter={() => (showCertTooltip = true)}
-                    onmouseleave={() => (showCertTooltip = false)}
-                    onclick={(e) => { e.stopPropagation(); showCertTooltip = !showCertTooltip; }}
-                    onkeydown={() => {}}
-                  >
-                    <Info size={13} class={tlsMode === 'cert' ? 'text-white/80' : 'text-gray-400'} />
-                    {#if showCertTooltip}
-                      <div class="absolute right-0 bottom-full mb-2 w-72 z-20 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg pointer-events-none">
-                        Upload a CA certificate to trust when your upstream uses HTTPS with a self-signed or private CA certificate. Without this, Caddy uses the system trust pool to verify the upstream's TLS certificate.
-                        <div class="absolute right-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900 dark:border-t-gray-700"></div>
-                      </div>
-                    {/if}
-                  </span>
+            <!-- HTTPS target (custom CA cert) -->
+            <button
+              type="button"
+              onclick={() => setTlsMode('cert')}
+              class="flex-1 px-3 py-2 text-center border-l border-gray-300 dark:border-gray-700 rounded-r-lg transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500
+                {tlsMode === 'cert'
+                  ? 'bg-blue-500 text-white font-medium'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}"
+            >
+              <span class="flex items-center justify-center gap-1">
+                HTTPS target (custom CA cert)
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <span
+                  class="relative inline-flex"
+                  onmouseenter={() => (showCertTooltip = true)}
+                  onmouseleave={() => (showCertTooltip = false)}
+                  onclick={(e) => { e.stopPropagation(); showCertTooltip = !showCertTooltip; }}
+                  onkeydown={() => {}}
+                >
+                  <Info size={13} class={tlsMode === 'cert' ? 'text-white/80' : 'text-gray-400'} />
+                  {#if showCertTooltip}
+                    <div class="absolute right-0 bottom-full mb-2 w-72 z-[100] rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg pointer-events-none">
+                      Upload a CA certificate to trust when your upstream uses HTTPS with a self-signed or private CA certificate. Without this, Caddy uses the system trust pool to verify the upstream's TLS certificate.
+                      <div class="absolute right-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900 dark:border-t-gray-700"></div>
+                    </div>
+                  {/if}
                 </span>
-              </button>
+              </span>
+            </button>
 
-            </div>
           </div>
 
           <!-- CA cert upload (only in cert mode) -->
@@ -421,15 +421,40 @@
             </div>
           {/if}
 
-          <!-- Trust proxy headers -->
-          <label class="flex items-center gap-2 cursor-pointer">
+          <!-- Trusted proxies: private ranges -->
+          <div class="flex items-start gap-2">
             <input
+              id="trusted-proxies"
               type="checkbox"
               bind:checked={trustedProxies}
-              class="rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800"
+              class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800"
             />
-            <span class="text-sm">Trust proxy headers</span>
-          </label>
+            <div class="flex items-center gap-1">
+              <label for="trusted-proxies" class="text-sm cursor-pointer select-none">Trusted proxies: private ranges</label>
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <span
+                class="relative inline-flex text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-help"
+                onmouseenter={() => (showTrustedProxiesTooltip = true)}
+                onmouseleave={() => (showTrustedProxiesTooltip = false)}
+                onclick={() => (showTrustedProxiesTooltip = !showTrustedProxiesTooltip)}
+                onkeydown={() => {}}
+              >
+                <Info size={14} />
+                {#if showTrustedProxiesTooltip}
+                  <div class="absolute left-0 bottom-full mb-2 w-80 z-[100] rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg pointer-events-none">
+                    Enable this if Caddy is behind another proxy (e.g. a CDN or load balancer). Caddy will then trust <span class="font-mono">X-Forwarded-For</span> and related headers from all private IP ranges, allowing it to identify the real client IP instead of the intermediate proxy's IP.
+                    <a
+                      href="https://caddyserver.com/docs/caddyfile/options#trusted-proxies"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="block mt-1.5 text-blue-300 hover:text-blue-200 pointer-events-auto"
+                    >Learn more →</a>
+                    <div class="absolute left-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900 dark:border-t-gray-700"></div>
+                  </div>
+                {/if}
+              </span>
+            </div>
+          </div>
 
         </div>
       {/if}
