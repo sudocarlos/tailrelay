@@ -404,16 +404,25 @@ func (pm *ProxyManager) buildRoute(proxy config.CaddyProxy) (*Route, error) {
 		}
 	}
 
-	// Configure TLS transport only when a CA file is provided (srv0-like config)
-	if proxy.TLSCertFile != "" {
+	// Configure TLS transport for HTTPS upstreams.
+	// Two mutually exclusive modes (set by the UI):
+	//   - proxy.TLS == true:           insecure — skip certificate verification
+	//   - proxy.TLSCertFile != "":     custom CA — verify using the uploaded cert
+	if proxy.TLS || proxy.TLSCertFile != "" {
 		transport := HTTPTransport{
 			Protocol: "http",
 			TLS:      &TLSConfig{},
 		}
 
-		transport.TLS.CA = &TLSCAConfig{
-			Provider: "file",
-			PEMFiles: []string{proxy.TLSCertFile},
+		if proxy.TLS {
+			transport.TLS.InsecureSkipVerify = true
+		}
+
+		if proxy.TLSCertFile != "" {
+			transport.TLS.CA = &TLSCAConfig{
+				Provider: "file",
+				PEMFiles: []string{proxy.TLSCertFile},
+			}
 		}
 
 		reverseProxyHandler["transport"] = transport
@@ -512,10 +521,14 @@ func (pm *ProxyManager) routeToProxyWithListen(route Route, listenAddrs []string
 		}
 	}
 
-	// Check for TLS transport
+	// Check for TLS transport and restore the UI mode:
+	//   insecure_skip_verify == true  → proxy.TLS = true  (insecure mode)
+	//   ca.pem_files present          → proxy.TLSCertFile  (custom CA mode, TLS stays false)
 	if transport, ok := reverseProxyHandler["transport"].(map[string]interface{}); ok {
 		if tlsConfig, hasTLS := transport["tls"].(map[string]interface{}); hasTLS {
-			proxy.TLS = true
+			if skip, ok := tlsConfig["insecure_skip_verify"].(bool); ok && skip {
+				proxy.TLS = true
+			}
 			if caCfg, ok := tlsConfig["ca"].(map[string]interface{}); ok {
 				if pemFiles, ok := caCfg["pem_files"].([]interface{}); ok && len(pemFiles) > 0 {
 					if pemFile, ok := pemFiles[0].(string); ok {

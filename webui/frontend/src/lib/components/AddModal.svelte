@@ -3,6 +3,7 @@
   import { X, Info } from '@lucide/svelte';
   import { fetchJSON, postFormData } from '../api.js';
   import { showToast } from '../stores/toast.js';
+  import Tooltip from './Tooltip.svelte';
 
   let { type: initType = 'proxy', item: initItem = null, fqdn = '', targets = [], onSave, onClose } = $props();
 
@@ -13,6 +14,15 @@
     const i = initItem;
     const isEditing = i !== null;
     const isProxy = t === 'proxy';
+    // Derive tlsMode from stored proxy fields:
+    //   tls == true && no cert file  → insecure mode
+    //   cert file present            → custom CA mode
+    //   otherwise                   → plain HTTP target
+    let tlsMode = 'off';
+    if (i && t === 'proxy') {
+      if (i.tls) tlsMode = 'insecure';
+      else if (i.tls_cert_file) tlsMode = 'cert';
+    }
     return {
       editing: isEditing,
       // When editing, httpRelay reflects the item type; when adding, always start with HTTP relay on
@@ -27,12 +37,12 @@
       trustedProxies: i && t === 'proxy' ? (i.trusted_proxies ?? false) : false,
       autostart: i ? (i.autostart ?? true) : true,
       existingCert: i && t === 'proxy' ? i.tls_cert_file : null,
+      tlsMode,
     };
   });
 
   let saving = $state(false);
   let removeTlsCert = $state(false);
-  let showCertTooltip = $state(false);
 
   // HTTP relay toggle (controls whether HTTP-only fields are shown)
   let httpRelay = $state(initialState.httpRelay);
@@ -49,17 +59,44 @@
 
   // HTTP-only fields
   let trustedProxies = $state(initialState.trustedProxies);
+  // tlsMode: 'off' | 'insecure' | 'cert'
+  let tlsMode = $state(initialState.tlsMode);
   let tlsCertFile = $state(null);
   let existingCert = $state(initialState.existingCert);
 
   const editing = initialState.editing;
   const title = initialState.title;
 
+  // Switch the HTTPS target mode. Clears any uploaded/existing cert when moving away from cert mode.
+  function setTlsMode(mode) {
+    if (mode !== 'cert' && (existingCert || tlsCertFile)) {
+      removeTlsCert = true;
+      existingCert = null;
+      tlsCertFile = null;
+    }
+    if (mode === 'cert') removeTlsCert = false;
+    tlsMode = mode;
+  }
+
   function handlePreset(e) {
     const idx = e.target.value;
     if (idx === '') return;
     const t = targets[parseInt(idx)];
     target = t.host ? (t.port ? `${t.host}:${t.port}` : t.host) : '';
+
+    // Apply type + protocol from the target definition to set form mode.
+    // type aliases: relay/tcp/socat → socat; proxy/https/caddy → Caddy
+    // protocol: 'https' → insecure TLS by default (user can switch to cert);
+    //           'http'  → plain HTTP target; 'tcp' → relay (no TLS concept)
+    const isRelay = ['relay', 'tcp', 'socat'].includes(t.type);
+    const isProxy = ['proxy', 'https', 'caddy'].includes(t.type);
+    if (isRelay) {
+      httpRelay = false;
+    } else if (isProxy) {
+      httpRelay = true;
+      if (t.protocol === 'https') setTlsMode('insecure');
+      else setTlsMode('off');
+    }
   }
 
   // Parse "host:port" → { host, port } or null on failure.
@@ -138,7 +175,7 @@
       return;
     }
 
-    if (tlsCertFile) {
+    if (tlsMode === 'cert' && tlsCertFile) {
       const validExts = ['.pem', '.crt', '.cer'];
       const name = tlsCertFile.name.toLowerCase();
       if (!validExts.some((ext) => name.endsWith(ext))) {
@@ -154,13 +191,14 @@
     const formData = new FormData();
     formData.append('hostname', hostname);
     formData.append('target', target.trim());
+    formData.append('tls', (tlsMode === 'insecure').toString());
     formData.append('trusted_proxies', trustedProxies.toString());
     formData.append('autostart', autostart.toString());
     formData.append('enabled', 'true');
     formData.append('port', listenPort);
 
     if (proxyId) formData.append('id', proxyId);
-    if (tlsCertFile) formData.append('tls_cert_upload', tlsCertFile);
+    if (tlsMode === 'cert' && tlsCertFile) formData.append('tls_cert_upload', tlsCertFile);
     if (removeTlsCert) formData.append('remove_tls_cert', 'true');
 
     saving = true;
@@ -183,16 +221,12 @@
   function handleRemoveCert() {
     removeTlsCert = true;
     existingCert = null;
-    showToast('info', 'Certificate will be removed when you save.');
+    tlsCertFile = null;
   }
 
   function handleKeydown(e) {
     if (e.key === 'Escape') {
-      if (showCertTooltip) {
-        showCertTooltip = false;
-      } else {
-        onClose();
-      }
+      onClose();
     }
   }
 </script>
@@ -218,6 +252,30 @@
 
     <!-- Body -->
     <div class="px-5 py-4 space-y-4">
+
+      <!-- HTTP relay toggle (only when adding) — shown first -->
+      {#if !editing}
+        <div>
+          <label class="flex items-center justify-between cursor-pointer">
+            <span class="text-sm font-medium">HTTPS relay</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={httpRelay}
+              aria-label="Enable HTTPS relay"
+              onclick={() => (httpRelay = !httpRelay)}
+              class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 {httpRelay ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}"
+            >
+              <span
+                class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform {httpRelay ? 'translate-x-6' : 'translate-x-1'}"
+              ></span>
+            </button>
+          </label>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Enable to proxy HTTPS traffic through Caddy with TLS termination.
+          </p>
+        </div>
+      {/if}
 
       <!-- Preset Target (shared) -->
       {#if targets.length > 0}
@@ -261,86 +319,116 @@
         />
       </div>
 
-      <!-- HTTP relay toggle (only when adding) -->
-      {#if !editing}
-        <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-          <label class="flex items-center justify-between cursor-pointer">
-            <span class="text-sm font-medium">HTTPS relay</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={httpRelay}
-              aria-label="Enable HTTPS relay"
-              onclick={() => (httpRelay = !httpRelay)}
-              class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 {httpRelay ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}"
-            >
-              <span
-                class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform {httpRelay ? 'translate-x-6' : 'translate-x-1'}"
-              ></span>
-            </button>
-          </label>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Enable to proxy HTTPS traffic through Caddy with TLS termination.
-          </p>
-        </div>
-      {/if}
-
-      <!-- HTTP-only fields (CA cert + trusted proxies) -->
+      <!-- HTTP-only fields (HTTPS target mode + trusted proxies) -->
       {#if httpRelay}
         <div class="space-y-4">
 
-          <!-- CA Certificate -->
-          <div>
-            <div class="flex items-center gap-1.5 mb-1">
-              <label for="tls-cert-file" class="block text-sm font-medium">CA Certificate (optional)</label>
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <div class="relative">
-                <span
-                  class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-help"
-                  onmouseenter={() => (showCertTooltip = true)}
-                  onmouseleave={() => (showCertTooltip = false)}
-                  onclick={() => (showCertTooltip = !showCertTooltip)}
-                  onkeydown={() => {}}
-                >
-                  <Info size={14} />
-                </span>
-                {#if showCertTooltip}
-                  <div class="absolute left-0 bottom-full mb-2 w-72 z-10 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg">
-                    Upload a CA certificate to trust when your upstream uses HTTPS with a self-signed or private CA certificate. Without this, Caddy uses the system trust pool to verify the upstream's TLS certificate.
-                    <div class="absolute left-2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900 dark:border-t-gray-700"></div>
-                  </div>
-                {/if}
-              </div>
-            </div>
-            {#if existingCert}
-              <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-2">
-                <span class="truncate">{existingCert.split('/').pop()}</span>
-                <button
-                  class="text-red-500 hover:text-red-600 text-xs font-medium"
-                  onclick={handleRemoveCert}
-                >
-                  Remove
-                </button>
-              </div>
-            {/if}
-            <input
-              id="tls-cert-file"
-              type="file"
-              accept=".pem,.crt,.cer"
-              onchange={handleFileChange}
-              class="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-gray-100 dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-200 dark:hover:file:bg-gray-700"
-            />
+          <!-- HTTPS target — three-segment control -->
+          <div class="flex rounded-lg border border-gray-300 dark:border-gray-700 text-sm overflow-visible">
+
+            <!-- HTTP target -->
+            <button
+              type="button"
+              onclick={() => setTlsMode('off')}
+              class="flex-1 px-3 py-2 text-center rounded-l-lg transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500
+                {tlsMode === 'off'
+                  ? 'bg-blue-500 text-white font-medium'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}"
+            >
+              HTTP target
+            </button>
+
+            <!-- HTTPS target (insecure) -->
+            <button
+              type="button"
+              onclick={() => setTlsMode('insecure')}
+              class="flex-1 px-3 py-2 text-center border-l border-gray-300 dark:border-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500
+                {tlsMode === 'insecure'
+                  ? 'bg-blue-500 text-white font-medium'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}"
+            >
+              <span class="flex items-center justify-center gap-1">
+                HTTPS target (insecure)
+                <Tooltip>
+                  {#snippet trigger()}
+                    <Info size={13} class={tlsMode === 'insecure' ? 'text-white/80' : 'text-gray-400'} />
+                  {/snippet}
+                  Turns off TLS handshake verification, making the connection insecure and vulnerable to man-in-the-middle attacks. Do not use in production.
+                </Tooltip>
+              </span>
+            </button>
+
+            <!-- HTTPS target (custom CA cert) -->
+            <button
+              type="button"
+              onclick={() => setTlsMode('cert')}
+              class="flex-1 px-3 py-2 text-center border-l border-gray-300 dark:border-gray-700 rounded-r-lg transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500
+                {tlsMode === 'cert'
+                  ? 'bg-blue-500 text-white font-medium'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}"
+            >
+              <span class="flex items-center justify-center gap-1">
+                HTTPS target (custom CA cert)
+                <Tooltip>
+                  {#snippet trigger()}
+                    <Info size={13} class={tlsMode === 'cert' ? 'text-white/80' : 'text-gray-400'} />
+                  {/snippet}
+                  Upload a CA certificate to trust when your upstream uses HTTPS with a self-signed or private CA certificate. Without this, Caddy uses the system trust pool to verify the upstream's TLS certificate.
+                </Tooltip>
+              </span>
+            </button>
+
           </div>
 
-          <!-- Trust proxy headers -->
-          <label class="flex items-center gap-2 cursor-pointer">
+          <!-- CA cert upload (only in cert mode) -->
+          {#if tlsMode === 'cert'}
+            <div>
+              {#if existingCert}
+                <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-2">
+                  <span class="truncate">{existingCert.split('/').pop()}</span>
+                  <button
+                    type="button"
+                    class="text-red-500 hover:text-red-600 text-xs font-medium"
+                    onclick={handleRemoveCert}
+                  >
+                    Remove
+                  </button>
+                </div>
+              {/if}
+              <input
+                id="tls-cert-file"
+                type="file"
+                accept=".pem,.crt,.cer"
+                onchange={handleFileChange}
+                class="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-gray-100 dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-200 dark:hover:file:bg-gray-700"
+              />
+            </div>
+          {/if}
+
+          <!-- Trusted proxies: private ranges -->
+          <div class="flex items-start gap-2">
             <input
+              id="trusted-proxies"
               type="checkbox"
               bind:checked={trustedProxies}
-              class="rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800"
+              class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800"
             />
-            <span class="text-sm">Trust proxy headers</span>
-          </label>
+            <div class="flex items-center gap-1">
+              <label for="trusted-proxies" class="text-sm cursor-pointer select-none">Trusted proxies: private ranges</label>
+              <Tooltip width="w-80">
+                {#snippet trigger()}
+                  <Info size={14} class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
+                {/snippet}
+                Enable this if Caddy is behind another proxy (e.g. a CDN or load balancer). Caddy will then trust <span class="font-mono">X-Forwarded-For</span> and related headers from all private IP ranges, allowing it to identify the real client IP instead of the intermediate proxy's IP.
+                <a
+                  href="https://caddyserver.com/docs/caddyfile/options#trusted-proxies"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="block mt-1.5 text-blue-300 hover:text-blue-200"
+                >Learn more →</a>
+              </Tooltip>
+            </div>
+          </div>
 
         </div>
       {/if}
