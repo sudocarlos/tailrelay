@@ -1,7 +1,7 @@
 ---
 name: webui-development
 description: Go Web UI application development — handlers, authentication, backup, frontend SPA, build workflow, and testing. Use when working with the webui/ directory, Go code, frontend assets, HTML templates, the SPA build system, or any Web UI feature development.
-reviewed_at: 7288840
+reviewed_at: dd99801
 ---
 
 # Web UI Development
@@ -22,6 +22,9 @@ webui/
 │   ├── auth/               # Authentication middleware
 │   ├── backup/             # Backup & restore (tar.gz)
 │   ├── caddy/              # Caddy API integration (see caddy skill)
+│   │   ├── manager.go          # Proxy/metrics lifecycle, StartMetricsPoller, FlushMetrics
+│   │   ├── metrics_store.go    # MetricsStore — ring buffer snapshots, Query, RecordPause, Flush
+│   │   └── metrics_parser.go   # Prometheus scrape parser, server-keyed HostMetrics
 │   ├── config/             # YAML config parsing
 │   ├── handlers/           # HTTP request handlers
 │   ├── logger/             # Structured logging
@@ -35,7 +38,13 @@ webui/
 │   ├── src/
 │   │   ├── App.svelte      # Root Svelte component
 │   │   ├── main.js         # SPA entry point
-│   │   └── lib/            # Svelte components
+│   │   └── lib/
+│   │       ├── components/
+│   │       │   ├── Metrics.svelte      # Traffic metrics panel (window selector, relay filter, reset)
+│   │       │   ├── AddModal.svelte     # Add proxy modal (tlsMode three-segment control)
+│   │       │   └── Tooltip.svelte      # Portal-based tooltip component
+│   │       └── stores/
+│   │           └── metrics.js          # metricsWindow, metricsResetting stores; fetchMetrics(window), resetMetrics
 │   ├── vite.config.js
 │   ├── svelte.config.js
 │   └── package.json        # Build config (Vite, Svelte, Tailwind)
@@ -169,6 +178,7 @@ Built with **Vite + Svelte 5 + Tailwind CSS 4** via npm:
 | `paths.token_file` | `.webui_token` | Auth token file |
 | `paths.relays_file` | `relays.json` | Socat relay config |
 | `paths.backup_dir` | `backups/` | Backup storage |
+| `paths.metrics_history_file` | `metrics_history.json` | Persisted metrics ring buffer |
 
 ## Testing
 

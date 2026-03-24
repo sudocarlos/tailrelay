@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3] - 2026-03-23
+
+### Added
+- **Metrics history** — `MetricsStore` samples Caddy's cumulative counters every 15 s and persists timestamped snapshots to `$STATE_DIR/metrics_history.json` (31-day rolling window); history survives proxy pause/resume cycles and container restarts
+- **Metrics time-window filter** — `GET /api/caddy/metrics?window=1h|1d|1w|1m` returns traffic deltas within the requested period; the Metrics page adds an All / 1h / 1d / 1w / 1m button group that restarts the 15 s poll on selection
+- **Metrics relay filter** — dropdown above the charts lets users narrow the view to a single relay; resets automatically if the selected relay disappears from the data
+- **Metrics reset** — `POST /api/caddy/metrics/reset` clears all stored history and baselines; UI exposes a "Reset counters" button with a confirmation prompt
+- **HTTPS target transport** — three-mode control when adding or editing a proxy: HTTP target (plain), HTTPS target (insecure, skips certificate verification), or HTTPS target (custom CA cert); insecure mode emits `tls:{insecure_skip_verify:true}` to Caddy; switching modes auto-removes any queued cert
+- **Portal-based `Tooltip` component** — `Tooltip.svelte` mounts directly on `document.body` via a Svelte action and positions with `position:fixed`, preventing clipping by overflow containers
+- **Preset target auto-apply** — selecting a preset in the Add/Edit modal now automatically sets the relay type and TLS mode from the target's `type`/`protocol` metadata
+
+### Changed
+- Metrics chart labels and table rows now always show `:port → target` (compact form) instead of the raw Tailscale FQDN; section headings updated from "per Host" to "per Relay"
+- Prometheus metrics parser now keys accumulators on the Caddy `server` label (e.g. `srv0`) rather than the `host` label, so multiple proxies sharing the same FQDN are tracked as separate series
+- `GET /api/caddy/metrics` now accepts an optional `?window=` query parameter; callers that omit the parameter continue to receive all-time cumulative totals
+
+### Fixed
+- Metrics counters preserved across proxy pause/resume cycles — when a proxy is disabled its Caddy server is deleted and counters reset; the store captures the last-known totals as a baseline so they reappear correctly after re-enable
+- Caddy-wide counter reset detection — adding or removing any server resets all Prometheus counters; the poller detects this and saves baselines for all surviving relays to prevent counter regression
+
+### Docker
+
+```
+docker pull sudocarlos/tailrelay:v0.8.3
+```
+
 ## [0.8.2] - 2026-03-14
 
 ### Fixed
