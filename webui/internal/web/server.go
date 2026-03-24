@@ -40,6 +40,7 @@ type Server struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 	tsCache    *tailscale.StatusCache
+	caddyMgr   *caddy.Manager
 }
 
 // NewServer creates a new HTTP server
@@ -104,6 +105,7 @@ func NewServer(cfg *config.Config, authToken, version string, distFS, staticFS, 
 		ctx:        ctx,
 		cancel:     cancel,
 		tsCache:    tsCache,
+		caddyMgr:   caddyMgr,
 	}, nil
 }
 
@@ -135,6 +137,10 @@ func (s *Server) Start() error {
 	if err := s.caddyH.InitializeAutostart(); err != nil {
 		log.Printf("Warning: failed to start autostart proxies: %v", err)
 	}
+
+	// Start metrics history poller (samples Caddy every 15s, persists to disk).
+	log.Printf("Starting metrics history poller...")
+	s.caddyMgr.StartMetricsPoller(s.ctx, s.cfg.Paths.MetricsHistoryFile)
 
 	mux := s.setupRoutes()
 
@@ -175,6 +181,9 @@ func (s *Server) Start() error {
 		if err := s.socatH.StopAllRelays(); err != nil {
 			log.Printf("Warning: failed to stop relays: %v", err)
 		}
+
+		// Flush metrics history to disk before shutdown.
+		s.caddyMgr.FlushMetrics()
 
 		// Graceful shutdown of HTTP server (30 second timeout)
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -271,6 +280,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.Handle("/api/caddy/proxies", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.APIList)))
 	mux.Handle("/api/caddy/proxy", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.APIGet)))
 	mux.Handle("/api/caddy/metrics", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.Metrics)))
+	mux.Handle("/api/caddy/metrics/reset", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.ResetMetrics)))
 
 	// Socat routes
 	mux.Handle("/socat", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPARedirect)))

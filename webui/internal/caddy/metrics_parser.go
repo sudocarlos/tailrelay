@@ -16,9 +16,21 @@ type MetricsData struct {
 // HostMetrics holds per-host request and bandwidth counters.
 // When per_host is enabled, Caddy adds a "host" label to HTTP middleware metrics.
 // Without per_host the single entry will have Host == "".
+//
+// Each Caddy HTTP server is named (e.g. "srv0") and that name appears as the
+// "server" Prometheus label on every metric line.  Because tailrelay gives each
+// proxy its own dedicated server, Server is a stable per-proxy identifier even
+// when multiple proxies share the same Tailscale FQDN.
+//
+// Paused is set to true by MetricsStore.Query for proxies whose Caddy server has
+// been deleted (i.e. the proxy is currently disabled).  Their counters are
+// synthesised from the stored baseline so history is preserved and visible in
+// the UI even while the proxy is inactive.
 type HostMetrics struct {
 	Host         string             `json:"host"`
-	Label        string             `json:"label"` // e.g. ":8888 → whoami-test:80"; empty when unknown
+	Server       string             `json:"server"`        // Caddy server name, e.g. "srv0"
+	Label        string             `json:"label"`         // e.g. ":8888 → whoami-test:80"; empty when unknown
+	Paused       bool               `json:"paused,omitempty"` // true when proxy is disabled / no active Caddy server
 	Requests     float64            `json:"requests"`
 	RequestsIn   float64            `json:"requests_in"`
 	ResponsesOut float64            `json:"responses_out"`
@@ -34,22 +46,44 @@ type UpstreamHealth struct {
 // ParseMetrics parses Prometheus text-format metrics from Caddy and returns
 // structured MetricsData. Only the metric families relevant to the dashboard
 // are extracted; all others are skipped.
+//
+// Accumulation key: Caddy emits a "server" label (e.g. "srv0") on every HTTP
+// metric.  Because tailrelay assigns each proxy its own dedicated server, this
+// is a stable per-proxy key even when multiple proxies share the same FQDN.
+// We key accumulators on server name and also track the "host" label so the
+// label-annotation step in Manager.liveFetch can fall back to hostname matching
+// when the server map is not yet available.
 func ParseMetrics(raw []byte) *MetricsData {
-	// Intermediate accumulators keyed by host label value.
-	type hostAcc struct {
+	type serverAcc struct {
+		host         string // value of the "host" Prometheus label for this server
 		requests     float64
 		requestsIn   float64
 		responsesOut float64
 		statusCodes  map[string]float64
 	}
-	hosts := map[string]*hostAcc{}
+	servers := map[string]*serverAcc{} // keyed by Caddy server name ("srv0", …)
 	upstreams := map[string]float64{}
 
-	getHost := func(h string) *hostAcc {
-		if _, ok := hosts[h]; !ok {
-			hosts[h] = &hostAcc{statusCodes: map[string]float64{}}
+	// serverKey returns the accumulator key for a metric line.
+	// Prefer the "server" label (stable per-proxy); fall back to "host" so the
+	// parser still works when server labels are absent.
+	serverKey := func(lbls map[string]string) string {
+		if s := lbls["server"]; s != "" {
+			return s
 		}
-		return hosts[h]
+		return lbls["host"]
+	}
+
+	getServer := func(key, host string) *serverAcc {
+		if _, ok := servers[key]; !ok {
+			servers[key] = &serverAcc{host: host, statusCodes: map[string]float64{}}
+		}
+		// Keep the most-recently-seen host value (they should all be identical
+		// for a given server, but take the last non-empty one just in case).
+		if host != "" {
+			servers[key].host = host
+		}
+		return servers[key]
 	}
 
 	scanner := bufio.NewScanner(bytes.NewReader(raw))
@@ -76,8 +110,8 @@ func ParseMetrics(raw []byte) *MetricsData {
 			if h != "reverse_proxy" && h != "subroute" {
 				continue
 			}
-			host := labels["host"] // empty string when per_host disabled
-			getHost(host).requests += value
+			key := serverKey(labels)
+			getServer(key, labels["host"]).requests += value
 
 		// caddy_http_request_size_bytes_sum — bytes received (request bodies)
 		case name == "caddy_http_request_size_bytes_sum":
@@ -85,8 +119,8 @@ func ParseMetrics(raw []byte) *MetricsData {
 			if h != "reverse_proxy" && h != "subroute" {
 				continue
 			}
-			host := labels["host"]
-			getHost(host).requestsIn += value
+			key := serverKey(labels)
+			getServer(key, labels["host"]).requestsIn += value
 
 		// caddy_http_response_size_bytes_sum — bytes sent (response bodies)
 		case name == "caddy_http_response_size_bytes_sum":
@@ -94,21 +128,21 @@ func ParseMetrics(raw []byte) *MetricsData {
 			if h != "reverse_proxy" && h != "subroute" {
 				continue
 			}
-			host := labels["host"]
-			getHost(host).responsesOut += value
+			key := serverKey(labels)
+			getServer(key, labels["host"]).responsesOut += value
 
 		// caddy_http_request_duration_seconds_count — has code + host labels,
-		// use it to tally status-code class counts per host.
+		// use it to tally status-code class counts per server.
 		case name == "caddy_http_request_duration_seconds_count":
 			h := labels["handler"]
 			if h != "reverse_proxy" && h != "subroute" {
 				continue
 			}
-			host := labels["host"]
+			key := serverKey(labels)
 			code := labels["code"]
 			class := statusClass(code)
 			if class != "" {
-				getHost(host).statusCodes[class] += value
+				getServer(key, labels["host"]).statusCodes[class] += value
 			}
 
 		// caddy_reverse_proxy_upstreams_healthy — upstream health gauge
@@ -120,12 +154,14 @@ func ParseMetrics(raw []byte) *MetricsData {
 		}
 	}
 
-	// Build output slices.
+	// Build output slices.  The accumulator key is used as Server so that
+	// Manager.liveFetch can resolve it back to a proxy label via the server map.
 	data := &MetricsData{}
 
-	for host, acc := range hosts {
+	for key, acc := range servers {
 		data.Hosts = append(data.Hosts, HostMetrics{
-			Host:         host,
+			Server:       key,
+			Host:         acc.host,
 			Requests:     acc.requests,
 			RequestsIn:   acc.requestsIn,
 			ResponsesOut: acc.responsesOut,

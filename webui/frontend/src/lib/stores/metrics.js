@@ -4,6 +4,7 @@ import { fetchJSON } from '../api.js';
 /**
  * @typedef {Object} HostMetrics
  * @property {string} host
+ * @property {string} label    — compact ":port → target" form; may be empty
  * @property {number} requests
  * @property {number} requests_in
  * @property {number} responses_out
@@ -31,11 +32,25 @@ export const metricsError = writable(null);
 /** @type {import('svelte/store').Writable<boolean>} */
 export const metricsLoading = writable(false);
 
-export async function fetchMetrics() {
+/** @type {import('svelte/store').Writable<boolean>} */
+export const metricsResetting = writable(false);
+
+/**
+ * Active time window.  '' means all-time (no ?window= param sent).
+ * @type {import('svelte/store').Writable<''|'1h'|'1d'|'1w'|'1m'>}
+ */
+export const metricsWindow = writable('');
+
+/**
+ * Fetch metrics from the backend for the given window.
+ * @param {''|'1h'|'1d'|'1w'|'1m'} [window=''] - time window filter
+ */
+export async function fetchMetrics(window = '') {
   metricsLoading.set(true);
   metricsError.set(null);
   try {
-    const data = await fetchJSON('/api/caddy/metrics');
+    const url = window ? `/api/caddy/metrics?window=${window}` : '/api/caddy/metrics';
+    const data = await fetchJSON(url);
     metricsData.set(data);
   } catch (err) {
     metricsError.set(err.message);
@@ -43,3 +58,22 @@ export async function fetchMetrics() {
     metricsLoading.set(false);
   }
 }
+
+/**
+ * Reset all metric counters and baselines on the backend, then refresh the UI.
+ * @param {''|'1h'|'1d'|'1w'|'1m'} [window=''] - current window to re-fetch after reset
+ */
+export async function resetMetrics(window = '') {
+  metricsResetting.set(true);
+  metricsError.set(null);
+  try {
+    await fetchJSON('/api/caddy/metrics/reset', { method: 'POST' });
+    metricsData.set(null);
+    await fetchMetrics(window);
+  } catch (err) {
+    metricsError.set(err.message);
+  } finally {
+    metricsResetting.set(false);
+  }
+}
+

@@ -1,9 +1,11 @@
 package caddy
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/sudocarlos/tailrelay/internal/config"
 )
@@ -13,6 +15,7 @@ type Manager struct {
 	proxyManager *ProxyManager
 	apiURL       string
 	serverMap    string
+	store        *MetricsStore
 }
 
 // NewManager creates a new Caddy manager using the API
@@ -27,6 +30,23 @@ func NewManager(apiURL, serverMapPath string) *Manager {
 		proxyManager: proxyMgr,
 		apiURL:       apiURL,
 		serverMap:    serverMapPath,
+	}
+}
+
+// StartMetricsPoller initialises the MetricsStore with the given history file
+// and starts the background polling goroutine.  It should be called once during
+// server startup and the provided context should be cancelled on shutdown so
+// the goroutine flushes to disk before exiting.
+func (m *Manager) StartMetricsPoller(ctx context.Context, historyFile string) {
+	m.store = NewMetricsStore(historyFile)
+	m.store.Start(ctx, m.snapshotMetrics)
+}
+
+// FlushMetrics writes the current metrics history to disk.  Call this during
+// graceful shutdown if StartMetricsPoller was used.
+func (m *Manager) FlushMetrics() {
+	if m.store != nil {
+		m.store.Flush()
 	}
 }
 
@@ -68,8 +88,16 @@ func (m *Manager) ListProxies() ([]config.CaddyProxy, error) {
 	return m.proxyManager.ListProxies()
 }
 
-// ToggleProxy enables or disables a proxy
+// ToggleProxy enables or disables a proxy.
+// When disabling, the current Caddy counters are snapshotted into the metrics
+// baseline before the server is removed so history is not lost on resume.
 func (m *Manager) ToggleProxy(id string, enabled bool) error {
+	if !enabled && m.store != nil {
+		// Capture the current counters for this proxy before Caddy deletes the
+		// server and resets them to zero.
+		m.recordProxyPauseBaseline(id)
+	}
+
 	if err := m.proxyManager.ToggleProxy(id, enabled); err != nil {
 		return fmt.Errorf("failed to toggle proxy: %w", err)
 	}
@@ -79,6 +107,52 @@ func (m *Manager) ToggleProxy(id string, enabled bool) error {
 	}
 	log.Printf("Proxy %s: %s", status, id)
 	return nil
+}
+
+// recordProxyPauseBaseline captures the current Caddy counter values for proxy
+// id into the metrics store baseline so they survive the server deletion.
+func (m *Manager) recordProxyPauseBaseline(id string) {
+	// Find the server name for this proxy.
+	m.proxyManager.mapMu.Lock()
+	srvName := m.proxyManager.serverMap.ByProxyID[id]
+	m.proxyManager.mapMu.Unlock()
+	if srvName == "" {
+		return
+	}
+
+	// Find the label for this proxy so we can key the baseline correctly.
+	proxies, err := m.ListProxies()
+	if err != nil {
+		return
+	}
+	label := ""
+	for _, p := range proxies {
+		if p.ID == id {
+			label = fmt.Sprintf(":%d \u2192 %s", p.Port, p.Target)
+			break
+		}
+	}
+	if label == "" {
+		return
+	}
+
+	// Pull the latest value from the store for this server key.
+	m.store.mu.RLock()
+	var latest HostMetrics
+	found := false
+	if n := len(m.store.snapshots); n > 0 {
+		if hm, ok := m.store.snapshots[n-1].Hosts[srvName]; ok {
+			latest = hm
+			found = true
+		}
+	}
+	m.store.mu.RUnlock()
+
+	if found {
+		m.store.RecordPause(label, latest)
+		m.store.MarkPaused(label)
+		log.Printf("metrics_store: recorded pause baseline for %s (%s)", label, srvName)
+	}
 }
 
 // GetStatus checks if Caddy API is accessible
@@ -155,40 +229,228 @@ func (m *Manager) UpdateProxyHostnames(oldFQDN, newFQDN string) error {
 	return m.proxyManager.UpdateProxyHostnames(oldFQDN, newFQDN)
 }
 
-// GetMetrics fetches Prometheus metrics from Caddy and returns parsed data.
-// Each HostMetrics entry is annotated with a Label of the form ":port → target"
-// derived from the known proxy list, so the UI can display a compact identifier
-// instead of the full FQDN.
-func (m *Manager) GetMetrics() (*MetricsData, error) {
+// ResetMetrics clears all stored metric history and baselines for all proxies.
+// After this call Query returns empty data until new snapshots are collected.
+func (m *Manager) ResetMetrics() {
+	if m.store != nil {
+		m.store.ResetMetrics()
+		log.Printf("metrics_store: counters reset by user")
+	}
+}
+
+// GetMetrics returns metrics data for the requested time window.
+//
+// window == 0  →  latest snapshot values (cumulative totals, current behaviour)
+// window > 0   →  traffic delta within that window (e.g. last hour)
+//
+// When the MetricsStore is active (StartMetricsPoller was called) data is
+// served from the store, which preserves history for paused relays.
+// If the store is not yet initialised the method falls back to a live Caddy
+// fetch so the handler always has something to return.
+func (m *Manager) GetMetrics(window time.Duration) (*MetricsData, error) {
+	if m.store != nil {
+		data := m.store.Query(window)
+		return data, nil
+	}
+	// Fallback: live fetch (no store yet, e.g. very early startup).
+	return m.liveFetch()
+}
+
+// snapshotMetrics is the fetchFn supplied to MetricsStore.Start.  It fetches
+// the current Caddy metrics and stores a raw snapshot so that the accumulated
+// baseline history is applied at query time (in MetricsStore.Query).
+//
+// Counter-reset detection: Caddy resets the Prometheus counters of ALL HTTP
+// servers whenever the HTTP app config changes (adding or removing any srvN).
+// Two cases are detected:
+//
+//  1. Pause (server removed): a surviving server's raw counter drops below
+//     the previous snapshot value  →  newHM.Requests < prevHM.Requests.
+//
+//  2. Resume (new server added): surviving servers' counters were already 0
+//     from the pause-time reset, so they remain 0 after resume — the "< prev"
+//     test yields 0 < 0 = false.  Instead we detect a new server key appearing
+//     in newByKey that was absent from prev.Hosts.
+//
+// When a reset is detected, pre-reset baselines are saved for every server
+// that is still present in the new snapshot.  Servers that disappeared were
+// already covered by recordProxyPauseBaseline and are skipped to avoid
+// double-counting.
+func (m *Manager) snapshotMetrics() (*MetricsSnapshot, error) {
+	data, err := m.liveFetch()
+	if err != nil {
+		return nil, err
+	}
+
+	// Build a map of new raw values keyed by server name for fast lookup.
+	newByKey := make(map[string]HostMetrics, len(data.Hosts))
+	for _, hm := range data.Hosts {
+		key := hm.Server
+		if key == "" {
+			key = hm.Host
+		}
+		newByKey[key] = hm
+	}
+
+	// Compare against the previous snapshot to detect a Caddy-wide counter reset.
+	//
+	// Caddy resets ALL HTTP Prometheus counters whenever the HTTP app config
+	// changes (adding or removing any server).  Two cases must be caught:
+	//
+	//  1. Pause (server removed): a surviving server's raw counter drops below
+	//     the previous snapshot value  →  newHM.Requests < prevHM.Requests.
+	//
+	//  2. Resume (new server added): the surviving servers' counters were already
+	//     0 from the pause-time reset, so they remain 0 after resume — the
+	//     "< prev" test yields 0 < 0 = false.  Instead we detect a new server
+	//     key appearing in newByKey that was absent from prev.Hosts.
+	//
+	// When a reset is detected we save pre-reset baselines for every server that
+	// is STILL present in the new snapshot (servers that disappeared were already
+	// covered by recordProxyPauseBaseline and must not be double-saved here).
+	if m.store != nil {
+		prev := m.store.LastSnapshot()
+		if prev != nil {
+			resetDetected := false
+
+			// Case 1: any surviving server's counter decreased.
+			for key, prevHM := range prev.Hosts {
+				if newHM, ok := newByKey[key]; ok {
+					if newHM.Requests < prevHM.Requests {
+						resetDetected = true
+						break
+					}
+				}
+			}
+
+			// Case 2: a brand-new server key appeared (signals a Caddy config
+			// change → all counters were reset to 0 even if none decreased).
+			if !resetDetected {
+				for key := range newByKey {
+					if _, existed := prev.Hosts[key]; !existed {
+						resetDetected = true
+						break
+					}
+				}
+			}
+
+			if resetDetected {
+				// Save pre-reset values as baselines for servers that are still
+				// present in the new snapshot.  Servers that disappeared have
+				// already been captured by recordProxyPauseBaseline; re-saving
+				// them here would double-count their baseline.
+				log.Printf("metrics_store: Caddy counter reset detected — saving baselines for all surviving relays")
+				for key, prevHM := range prev.Hosts {
+					if _, stillPresent := newByKey[key]; stillPresent {
+						if prevHM.Label != "" {
+							m.store.RecordPause(prevHM.Label, prevHM)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Build the final snapshot with raw Caddy values only.
+	// Baselines are applied at query time (in MetricsStore.Query), not here.
+	// This prevents the double-accumulation bug that occurred when reset
+	// detection re-saved already-adjusted stored values back into baselines.
+	snap := &MetricsSnapshot{
+		At:    time.Now(),
+		Hosts: make(map[string]HostMetrics, len(newByKey)),
+	}
+	for key, hm := range newByKey {
+		snap.Hosts[key] = hm
+	}
+	return snap, nil
+}
+
+// liveFetch fetches metrics directly from Caddy and annotates labels.
+// This is used both by the fallback path in GetMetrics and by snapshotMetrics.
+//
+// Label resolution strategy:
+//  1. Primary — server-map lookup: each proxy owns a dedicated Caddy server
+//     (srv0, srv1, …).  We build a reverse map srvN → ":<port> → <target>"
+//     from the persisted ServerMap and the proxy metadata list.  This gives
+//     an exact per-proxy label even when multiple proxies share the same FQDN.
+//  2. Fallback — hostname lookup: used when the server label is absent from
+//     the Prometheus output or the server is not in the map.  In that case we
+//     match against the "host" Prometheus label as before.  If multiple proxies
+//     share the hostname we take the first one (alphabetically by port) rather
+//     than joining them all into an unreadable string.
+func (m *Manager) liveFetch() (*MetricsData, error) {
 	raw, err := m.proxyManager.client.GetMetricsRaw()
 	if err != nil {
 		return nil, fmt.Errorf("fetch metrics: %w", err)
 	}
 	data := ParseMetrics(raw)
 
-	// Build a hostname → label map from the current proxy list so we can
-	// replace the verbose FQDN with ":port → target" in the UI.
 	proxies, err := m.ListProxies()
-	if err == nil {
-		type labelEntry struct {
-			port   int
-			target string
+	if err != nil {
+		return data, nil
+	}
+
+	// Build proxyID → ":<port> → <target>" label.
+	labelByID := make(map[string]string, len(proxies))
+	for _, p := range proxies {
+		if p.ID != "" {
+			labelByID[p.ID] = fmt.Sprintf(":%d \u2192 %s", p.Port, p.Target)
 		}
-		// A hostname may map to multiple proxies; use all of them joined by ", ".
-		byHost := map[string][]labelEntry{}
-		for _, p := range proxies {
-			if p.Hostname != "" {
-				byHost[p.Hostname] = append(byHost[p.Hostname], labelEntry{p.Port, p.Target})
+	}
+
+	// Primary: srvN → label via server map (proxyID → srvN → label).
+	// Invert: srvN → proxyID first, then resolve to label.
+	bySrv := make(map[string]string) // srvN → label
+	m.proxyManager.mapMu.Lock()
+	for proxyID, srvName := range m.proxyManager.serverMap.ByProxyID {
+		if lbl, ok := labelByID[proxyID]; ok {
+			bySrv[srvName] = lbl
+		}
+	}
+	m.proxyManager.mapMu.Unlock()
+
+	// Fallback: host → label (for the case where server label is absent).
+	// When multiple proxies share a hostname, pick the one whose port matches
+	// the port suffix in the host label (e.g. "mynode.ts.net:8080" → :8080),
+	// or if no port suffix, just use the first proxy for that hostname.
+	type fallbackEntry struct {
+		port  int
+		label string
+	}
+	byHost := make(map[string][]fallbackEntry)
+	for _, p := range proxies {
+		if p.Hostname != "" {
+			h := NormalizeHostname(p.Hostname)
+			byHost[h] = append(byHost[h], fallbackEntry{p.Port, labelByID[p.ID]})
+		}
+	}
+
+	for i, hm := range data.Hosts {
+		// 1. Try exact server-name lookup.
+		if hm.Server != "" {
+			if lbl, ok := bySrv[hm.Server]; ok {
+				data.Hosts[i].Label = lbl
+				continue
 			}
 		}
-		for i, hm := range data.Hosts {
-			if entries, ok := byHost[hm.Host]; ok {
-				parts := make([]string, 0, len(entries))
-				for _, e := range entries {
-					parts = append(parts, fmt.Sprintf(":%d \u2192 %s", e.port, e.target))
+
+		// 2. Fallback: match on hostname, disambiguating by port when possible.
+		bare := hm.Host
+		portHint := 0
+		if h, portStr, splitErr := strings.Cut(hm.Host, ":"); splitErr {
+			// strings.Cut returns found=true when the sep exists
+			bare = h
+			fmt.Sscanf(portStr, "%d", &portHint)
+		}
+		if entries, ok := byHost[bare]; ok {
+			chosen := entries[0]
+			for _, e := range entries {
+				if portHint != 0 && e.port == portHint {
+					chosen = e
+					break
 				}
-				data.Hosts[i].Label = strings.Join(parts, ", ")
 			}
+			data.Hosts[i].Label = chosen.label
 		}
 	}
 

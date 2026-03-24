@@ -6,8 +6,9 @@ A lightweight web interface for managing Tailscale, Caddy reverse proxies, and s
 
 - **Dashboard**: System status overview
 - **Tailscale Management**: Login, status, device list
-- **Caddy Proxy Management**: Add/edit/delete HTTP/HTTPS reverse proxies via Caddy Admin API
+- **Caddy Proxy Management**: Add/edit/delete HTTP/HTTPS reverse proxies via Caddy Admin API; three-mode HTTPS target transport (plain, insecure, custom CA cert)
 - **Socat Relay Management**: Add/edit/delete TCP relays
+- **Traffic Metrics**: Per-relay request counts, bandwidth, and HTTP status codes; time-window filter (All / 1h / 1d / 1w / 1m); relay filter; persistent 31-day history
 - **Backup & Restore**: Full configuration and certificate backup
 - **Authentication**: Tailscale login link + token-based access for scripts
 
@@ -39,7 +40,8 @@ See `config/webui.yaml` for an example configuration file.
 - **server.port**: Web UI port (default: 8021)
 - **auth.enable_tailscale_auth**: Allow auth from Tailscale network IPs
 - **auth.enable_token_auth**: Require authentication token
-- **paths.**: File paths for configurations and state
+- **paths.metrics_history_file**: Path for persisted metrics snapshots (default: `/var/lib/tailscale/metrics_history.json`)
+- **paths.**: Other file paths for configurations and state
 
 ## Authentication
 
@@ -76,12 +78,14 @@ webui/
 │   ├── config/         # Configuration management
 │   ├── tailscale/      # Tailscale CLI integration
 │   ├── caddy/          # Caddy API integration
-│   │   ├── api_client.go      # HTTP client for Caddy Admin API
-│   │   ├── api_types.go       # Caddy JSON config structures
-│   │   ├── proxy_manager.go   # High-level proxy management
-│   │   ├── manager.go          # Simplified manager interface
-│   │   ├── migration.go        # Migration utilities
-│   │   └── caddyfile.go        # Legacy Caddyfile support
+│   │   ├── api_client.go        # HTTP client for Caddy Admin API
+│   │   ├── api_types.go         # Caddy JSON config structures
+│   │   ├── proxy_manager.go     # High-level proxy management
+│   │   ├── manager.go           # Simplified manager interface + metrics poller
+│   │   ├── metrics_store.go     # MetricsStore: snapshot ring buffer, persistence, Query
+│   │   ├── metrics_parser.go    # Prometheus text-format parser (server-label keyed)
+│   │   ├── migration.go         # Migration utilities
+│   │   └── caddyfile.go         # Legacy Caddyfile support
 │   ├── socat/          # Socat process management
 │   ├── auth/           # Authentication middleware
 │   ├── handlers/       # HTTP request handlers
@@ -119,8 +123,8 @@ See the main project README for Docker usage instructions.
 
 ## Review Status
 
-<!-- reviewed_at: 677c1d6 | paths: webui/ -->
-Last full review completed at commit `677c1d6`. To check what has changed since:
+<!-- reviewed_at: dd99801 | paths: webui/ -->
+Last full review completed at commit `dd99801`. To check what has changed since:
 ```bash
-git log --oneline 677c1d6..HEAD -- webui/
+git log --oneline dd99801..HEAD -- webui/
 ```
