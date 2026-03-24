@@ -280,6 +280,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.Handle("/api/caddy/proxies", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.APIList)))
 	mux.Handle("/api/caddy/proxy", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.APIGet)))
 	mux.Handle("/api/caddy/metrics", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.Metrics)))
+	mux.Handle("/api/caddy/metrics/reset", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.ResetMetrics)))
 
 	// Socat routes
 	mux.Handle("/socat", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPARedirect)))
