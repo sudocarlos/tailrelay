@@ -23,6 +23,10 @@ export async function fetchJSON(url, options = {}) {
     throw new Error(`[${response.status}] ${message || 'Request failed'}`);
   }
 
+  if (response.status === 204 || response.headers.get('Content-Length') === '0') {
+    return null;
+  }
+
   return response.json();
 }
 
@@ -46,6 +50,10 @@ export async function postFormData(url, formData) {
       message = await response.text();
     }
     throw new Error(`[${response.status}] ${message || 'Request failed'}`);
+  }
+
+  if (response.status === 204 || response.headers.get('Content-Length') === '0') {
+    return null;
   }
 
   return response.json();
