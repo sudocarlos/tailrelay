@@ -1,7 +1,7 @@
 ---
 name: testing-cicd
 description: Writing tests and CI/CD for tailrelay — Go unit tests, Python integration tests, CI pipeline jobs, and test infrastructure. Use when adding new tests, extending the integration suite, modifying ci.yml, or improving test coverage for any Go package or the container behaviour.
-reviewed_at: 7288840
+reviewed_at: dd99801
 ---
 
 # Tests & CI/CD
@@ -29,6 +29,8 @@ webui/
 │   │   └── backup_test.go              ✓ exists
 │   ├── caddy/
 │   │   ├── manager_test.go             ✓ exists
+│   │   ├── metrics_parser_test.go      ✓ exists
+│   │   ├── metrics_store_test.go       ✓ exists
 │   │   └── proxy_manager_test.go       ✓ exists
 │   ├── handlers/
 │   │   ├── auth_test.go                ✓ exists
@@ -345,7 +347,7 @@ Example security job:
 |---------|---------|----------|
 | `internal/auth` | ✓ `middleware_test.go` | Maintain |
 | `internal/backup` | ✓ `backup_test.go` | Maintain |
-| `internal/caddy` | ✓ `manager_test.go`, `proxy_manager_test.go` | Maintain |
+| `internal/caddy` | ✓ `manager_test.go`, `proxy_manager_test.go`, `metrics_parser_test.go`, `metrics_store_test.go` | Maintain |
 | `internal/handlers` | ✓ auth, backup, caddy, socat | Add: dashboard, tailscale handlers |
 | `internal/web` | ✓ `server_test.go` | Maintain |
 | `internal/socat` | ✗ none | **High** |

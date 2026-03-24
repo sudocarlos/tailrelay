@@ -12,6 +12,7 @@ A Docker container that exposes local services to your Tailscale network. Combin
 - **Automatic TLS** - Tailscale HTTPS certificates via Caddy
 - **HTTP/HTTPS Proxies** - Configure reverse proxies through the UI
 - **TCP Relays** - Forward non-HTTP protocols with socat
+- **Traffic Metrics** - Per-relay request counts, bandwidth, and status codes with time-window filtering and persistent history
 - **Backup & Restore** - Save and restore configurations
 - **Dual Authentication** - Token or Tailscale network authentication
 - **Multi-Platform** - Docker images for amd64 and arm64
@@ -87,8 +88,9 @@ The Web UI provides browser-based management on port 8021. The frontend is a sin
 
 - **Dashboard** - Real-time Tailscale connection status and system health
 - **Tailscale Management** - Connect/disconnect and view network peers
-- **Caddy Proxy Management** - Add, edit, delete, and toggle HTTP/HTTPS reverse proxies
+- **Caddy Proxy Management** - Add, edit, delete, and toggle HTTP/HTTPS reverse proxies; three-mode HTTPS target transport (plain, insecure, custom CA cert)
 - **Socat Relay Management** - Start, stop, and restart TCP relay processes
+- **Traffic Metrics** - Per-relay request counts, bandwidth, and HTTP status codes; time-window filter (All / 1h / 1d / 1w / 1m); relay filter dropdown; persistent 31-day history that survives restarts
 - **Backup & Restore** - Create and restore compressed tar.gz backups
 - **Live Log Viewer** - Collapsible log console with SSE streaming and runtime log level control
 - **Dark Mode** - System-aware theme toggle with localStorage persistence
@@ -323,6 +325,8 @@ The Web UI backend exposes a JSON API on port 8021. All endpoints under `/api/` 
 | `POST` | `/api/caddy/delete` | Yes | `?id=` | Delete proxy |
 | `POST` | `/api/caddy/toggle` | Yes | JSON `{id, enabled}` | Enable/disable proxy |
 | `POST` | `/api/caddy/reload` | Yes | -- | Verify Caddy API (no-op) |
+| `GET` | `/api/caddy/metrics` | Yes | `?window=1h\|1d\|1w\|1m` | Traffic metrics; omit `window` for all-time totals |
+| `POST` | `/api/caddy/metrics/reset` | Yes | -- | Clear all metrics history and baselines |
 | `GET` | `/api/socat/relays` | Yes | -- | List all relays with running state |
 | `GET` | `/api/socat/relay` | Yes | `?id=` | Get single relay |
 | `POST` | `/api/socat/create` | Yes | JSON | Create relay |
@@ -351,6 +355,7 @@ The Web UI backend exposes a JSON API on port 8021. All endpoints under `/api/` 
   "id": "abc123",
   "port": 8080,
   "target": "192.168.1.10:3000",
+  "tls": false,
   "tls_cert_file": "/data/cert.pem",
   "trusted_proxies": false,
   "enabled": true,
@@ -359,7 +364,7 @@ The Web UI backend exposes a JSON API on port 8021. All endpoints under `/api/` 
 }
 ```
 
-Create/update with multipart/form-data supports a `tls_cert_upload` file field (`.pem`, `.crt`, `.cer`) and a `remove_tls_cert` boolean field.
+Create/update with multipart/form-data supports a `tls` boolean field, a `tls_cert_upload` file field (`.pem`, `.crt`, `.cer`), and a `remove_tls_cert` boolean field.
 
 ### Socat Relay Object
 
