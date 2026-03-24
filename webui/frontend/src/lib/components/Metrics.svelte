@@ -5,19 +5,23 @@
     metricsData,
     metricsError,
     metricsLoading,
+    metricsResetting,
     metricsWindow,
     fetchMetrics,
+    resetMetrics,
   } from '../stores/metrics.js';
   import { theme } from '../stores/theme.js';
 
   let data = $state(null);
   let error = $state(null);
   let loading = $state(false);
+  let resetting = $state(false);
   let interval;
 
   metricsData.subscribe((v) => { data = v; });
   metricsError.subscribe((v) => (error = v));
   metricsLoading.subscribe((v) => (loading = v));
+  metricsResetting.subscribe((v) => (resetting = v));
 
   // ── Time window ────────────────────────────────────────────────────
   /** @type {''|'1h'|'1d'|'1w'|'1m'} */
@@ -36,6 +40,13 @@
     activeWindow = w;
     metricsWindow.set(w);
     fetchMetrics(w);
+    restartPoll();
+  }
+
+  async function handleReset() {
+    if (!confirm('Reset all metrics counters? This will clear all history and cannot be undone.')) return;
+    if (interval) clearInterval(interval);
+    await resetMetrics(activeWindow);
     restartPoll();
   }
 
@@ -98,11 +109,16 @@
     return h.label || h.host || '(all hosts)';
   }
 
+  /** Return the chart-axis label for a host entry (appends paused marker). */
+  function chartLabel(h) {
+    return h.paused ? `${hostLabel(h)} (paused)` : hostLabel(h);
+  }
+
   // ── Chart datasets ─────────────────────────────────────────────────
   function requestsChartData() {
     const hosts = sortedHosts();
     return {
-      labels: hosts.map(hostLabel),
+      labels: hosts.map(chartLabel),
       datasets: [
         {
           label: 'Requests',
@@ -118,7 +134,7 @@
   function bandwidthChartData() {
     const hosts = sortedHosts();
     return {
-      labels: hosts.map(hostLabel),
+      labels: hosts.map(chartLabel),
       datasets: [
         {
           label: 'Bytes In',
@@ -154,7 +170,7 @@
       '5xx': 'rgba(239,68,68,1)',
     };
     return {
-      labels: hosts.map(hostLabel),
+      labels: hosts.map(chartLabel),
       datasets: classes.map((cls) => ({
         label: cls,
         data: hosts.map((h) => (h.status_codes?.[cls] ?? 0)),
@@ -255,6 +271,16 @@
           {/each}
         </div>
       </div>
+
+      <!-- Reset counters -->
+      <button
+        onclick={handleReset}
+        disabled={resetting}
+        title="Clear all metric history and baselines"
+        class="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-red-700 dark:hover:bg-red-950 dark:hover:text-red-400"
+      >
+        {resetting ? 'Resetting…' : 'Reset counters'}
+      </button>
     </div>
   </div>
 
@@ -303,8 +329,11 @@
             </thead>
             <tbody>
               {#each sortedHosts() as h}
-                <tr class="border-b border-gray-100 dark:border-gray-800">
-                  <td class="py-1 pr-4 font-mono">{hostLabel(h)}</td>
+                <tr class="border-b border-gray-100 dark:border-gray-800 {h.paused ? 'opacity-50' : ''}">
+                  <td class="py-1 pr-4 font-mono">
+                    {hostLabel(h)}
+                    {#if h.paused}<span class="ml-1.5 text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">(paused)</span>{/if}
+                  </td>
                   <td class="py-1 pr-4">{formatBytes(h.requests_in)}</td>
                   <td class="py-1">{formatBytes(h.responses_out)}</td>
                 </tr>
@@ -333,8 +362,11 @@
             </thead>
             <tbody>
               {#each sortedHosts() as h}
-                <tr class="border-b border-gray-100 dark:border-gray-800">
-                  <td class="py-1 pr-4 font-mono">{hostLabel(h)}</td>
+                <tr class="border-b border-gray-100 dark:border-gray-800 {h.paused ? 'opacity-50' : ''}">
+                  <td class="py-1 pr-4 font-mono">
+                    {hostLabel(h)}
+                    {#if h.paused}<span class="ml-1.5 text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">(paused)</span>{/if}
+                  </td>
                   <td class="py-1 pr-4 text-emerald-700 dark:text-emerald-400">{h.status_codes?.['2xx'] ?? 0}</td>
                   <td class="py-1 pr-4 text-blue-700 dark:text-blue-400">{h.status_codes?.['3xx'] ?? 0}</td>
                   <td class="py-1 pr-4 text-amber-700 dark:text-amber-400">{h.status_codes?.['4xx'] ?? 0}</td>

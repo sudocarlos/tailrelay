@@ -21,10 +21,16 @@ type MetricsData struct {
 // "server" Prometheus label on every metric line.  Because tailrelay gives each
 // proxy its own dedicated server, Server is a stable per-proxy identifier even
 // when multiple proxies share the same Tailscale FQDN.
+//
+// Paused is set to true by MetricsStore.Query for proxies whose Caddy server has
+// been deleted (i.e. the proxy is currently disabled).  Their counters are
+// synthesised from the stored baseline so history is preserved and visible in
+// the UI even while the proxy is inactive.
 type HostMetrics struct {
 	Host         string             `json:"host"`
 	Server       string             `json:"server"`        // Caddy server name, e.g. "srv0"
 	Label        string             `json:"label"`         // e.g. ":8888 → whoami-test:80"; empty when unknown
+	Paused       bool               `json:"paused,omitempty"` // true when proxy is disabled / no active Caddy server
 	Requests     float64            `json:"requests"`
 	RequestsIn   float64            `json:"requests_in"`
 	ResponsesOut float64            `json:"responses_out"`

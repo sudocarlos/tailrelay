@@ -150,6 +150,7 @@ func (m *Manager) recordProxyPauseBaseline(id string) {
 
 	if found {
 		m.store.RecordPause(label, latest)
+		m.store.MarkPaused(label)
 		log.Printf("metrics_store: recorded pause baseline for %s (%s)", label, srvName)
 	}
 }
@@ -228,6 +229,15 @@ func (m *Manager) UpdateProxyHostnames(oldFQDN, newFQDN string) error {
 	return m.proxyManager.UpdateProxyHostnames(oldFQDN, newFQDN)
 }
 
+// ResetMetrics clears all stored metric history and baselines for all proxies.
+// After this call Query returns empty data until new snapshots are collected.
+func (m *Manager) ResetMetrics() {
+	if m.store != nil {
+		m.store.ResetMetrics()
+		log.Printf("metrics_store: counters reset by user")
+	}
+}
+
 // GetMetrics returns metrics data for the requested time window.
 //
 // window == 0  →  latest snapshot values (cumulative totals, current behaviour)
@@ -247,23 +257,25 @@ func (m *Manager) GetMetrics(window time.Duration) (*MetricsData, error) {
 }
 
 // snapshotMetrics is the fetchFn supplied to MetricsStore.Start.  It fetches
-// the current Caddy metrics and stores a baseline-adjusted snapshot so that
-// the stored counter sequence is monotonically increasing even across Caddy
-// config changes that reset all HTTP metrics counters.
+// the current Caddy metrics and stores a raw snapshot so that the accumulated
+// baseline history is applied at query time (in MetricsStore.Query).
 //
 // Counter-reset detection: Caddy resets the Prometheus counters of ALL HTTP
 // servers whenever the HTTP app config changes (adding or removing any srvN).
-// This means toggling any proxy causes every other proxy's counter to jump
-// back to 0 on the next scrape.  We detect this by comparing each server's
-// new raw value against the last stored value for that server key.  If any
-// server's request counter decreased, we treat it as a global reset:
-//   1. Save the pre-reset (last stored) value as a baseline for every server
-//      that was present in the previous snapshot.
-//   2. Apply all accumulated baselines to the new raw values before storing.
+// Two cases are detected:
 //
-// The ToggleProxy → recordProxyPauseBaseline path is an additional early save
-// that fires immediately at disable time (before Caddy's DELETE), catching the
-// case where the background poller hasn't run yet.
+//  1. Pause (server removed): a surviving server's raw counter drops below
+//     the previous snapshot value  →  newHM.Requests < prevHM.Requests.
+//
+//  2. Resume (new server added): surviving servers' counters were already 0
+//     from the pause-time reset, so they remain 0 after resume — the "< prev"
+//     test yields 0 < 0 = false.  Instead we detect a new server key appearing
+//     in newByKey that was absent from prev.Hosts.
+//
+// When a reset is detected, pre-reset baselines are saved for every server
+// that is still present in the new snapshot.  Servers that disappeared were
+// already covered by recordProxyPauseBaseline and are skipped to avoid
+// double-counting.
 func (m *Manager) snapshotMetrics() (*MetricsSnapshot, error) {
 	data, err := m.liveFetch()
 	if err != nil {
@@ -281,10 +293,27 @@ func (m *Manager) snapshotMetrics() (*MetricsSnapshot, error) {
 	}
 
 	// Compare against the previous snapshot to detect a Caddy-wide counter reset.
+	//
+	// Caddy resets ALL HTTP Prometheus counters whenever the HTTP app config
+	// changes (adding or removing any server).  Two cases must be caught:
+	//
+	//  1. Pause (server removed): a surviving server's raw counter drops below
+	//     the previous snapshot value  →  newHM.Requests < prevHM.Requests.
+	//
+	//  2. Resume (new server added): the surviving servers' counters were already
+	//     0 from the pause-time reset, so they remain 0 after resume — the
+	//     "< prev" test yields 0 < 0 = false.  Instead we detect a new server
+	//     key appearing in newByKey that was absent from prev.Hosts.
+	//
+	// When a reset is detected we save pre-reset baselines for every server that
+	// is STILL present in the new snapshot (servers that disappeared were already
+	// covered by recordProxyPauseBaseline and must not be double-saved here).
 	if m.store != nil {
 		prev := m.store.LastSnapshot()
 		if prev != nil {
 			resetDetected := false
+
+			// Case 1: any surviving server's counter decreased.
 			for key, prevHM := range prev.Hosts {
 				if newHM, ok := newByKey[key]; ok {
 					if newHM.Requests < prevHM.Requests {
@@ -293,29 +322,44 @@ func (m *Manager) snapshotMetrics() (*MetricsSnapshot, error) {
 					}
 				}
 			}
+
+			// Case 2: a brand-new server key appeared (signals a Caddy config
+			// change → all counters were reset to 0 even if none decreased).
+			if !resetDetected {
+				for key := range newByKey {
+					if _, existed := prev.Hosts[key]; !existed {
+						resetDetected = true
+						break
+					}
+				}
+			}
+
 			if resetDetected {
-				// Save all previous (pre-reset) values as baselines before the
-				// raw counter values hit storage.  This covers every active relay,
-				// not just the one whose toggle triggered the config change.
-				log.Printf("metrics_store: Caddy counter reset detected — saving baselines for all active relays")
-				for _, prevHM := range prev.Hosts {
-					if prevHM.Label != "" {
-						m.store.RecordPause(prevHM.Label, prevHM)
+				// Save pre-reset values as baselines for servers that are still
+				// present in the new snapshot.  Servers that disappeared have
+				// already been captured by recordProxyPauseBaseline; re-saving
+				// them here would double-count their baseline.
+				log.Printf("metrics_store: Caddy counter reset detected — saving baselines for all surviving relays")
+				for key, prevHM := range prev.Hosts {
+					if _, stillPresent := newByKey[key]; stillPresent {
+						if prevHM.Label != "" {
+							m.store.RecordPause(prevHM.Label, prevHM)
+						}
 					}
 				}
 			}
 		}
 	}
 
-	// Build the final snapshot with baselines applied.
+	// Build the final snapshot with raw Caddy values only.
+	// Baselines are applied at query time (in MetricsStore.Query), not here.
+	// This prevents the double-accumulation bug that occurred when reset
+	// detection re-saved already-adjusted stored values back into baselines.
 	snap := &MetricsSnapshot{
 		At:    time.Now(),
 		Hosts: make(map[string]HostMetrics, len(newByKey)),
 	}
 	for key, hm := range newByKey {
-		if hm.Label != "" && m.store != nil {
-			hm = m.store.ApplyBaseline(hm.Label, hm)
-		}
 		snap.Hosts[key] = hm
 	}
 	return snap, nil

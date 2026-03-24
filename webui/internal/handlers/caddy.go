@@ -563,6 +563,18 @@ func validateProxyTarget(target string) error {
 	return nil
 }
 
+// ResetMetrics clears all stored metric history and baselines for all proxies.
+//
+// POST /api/caddy/metrics/reset
+func (h *CaddyHandler) ResetMetrics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	h.manager.ResetMetrics()
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // Metrics returns parsed Caddy Prometheus metrics as JSON.
 //
 // Optional query parameter:
