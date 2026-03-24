@@ -29,13 +29,13 @@
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2">
           <Network size={16} class="text-blue-500 flex-shrink-0" />
-          <span class="font-medium text-sm truncate"><span class="text-xs font-normal text-gray-400 dark:text-gray-500">tcp://{fqdn || 'unknown'}</span><span class="text-xs">:{relay.listen_port}</span></span>
+          <span class="font-medium text-sm truncate"><span class="text-xs font-normal text-gray-400 dark:text-gray-500">tcp://{fqdn || 'unknown'}</span><span>:{relay.listen_port}</span></span>
           <span
             class="w-2 h-2 rounded-full flex-shrink-0 {toggling ? 'bg-amber-400 animate-pulse' : running ? 'bg-green-500 status-dot-running' : 'bg-gray-400 dark:bg-gray-600'}"
             title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
           ></span>
         </div>
-        <p class="mt-1 ml-6">
+        <p class="font-medium text-sm mt-1 ml-6">
           &rarr; {formatRelayTarget(relay)}
         </p>
       </div>
@@ -106,7 +106,7 @@
             target="_blank"
             rel="noopener"
             class="font-medium text-sm truncate hover:underline"
-          ><span class="text-xs font-normal text-gray-400 dark:text-gray-500">https://{proxy.hostname}</span><span class="text-xs">{proxy.port ? `:${proxy.port}` : ''}</span></a>
+          ><span class="text-xs font-normal text-gray-400 dark:text-gray-500">https://{proxy.hostname}</span><span>{proxy.port ? `:${proxy.port}` : ''}</span></a>
           <span
             class="w-2 h-2 rounded-full flex-shrink-0 {toggling ? 'bg-amber-400 animate-pulse' : running ? 'bg-green-500 status-dot-running' : 'bg-gray-400 dark:bg-gray-600'}"
             title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
@@ -117,7 +117,7 @@
             </span>
           {/if}
         </div>
-        <p class="mt-1 ml-6">
+        <p class="font-medium text-sm mt-1 ml-6">
           &rarr; {proxy.target}
         </p>
         {#if tlsError}
