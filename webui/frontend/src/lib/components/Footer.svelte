@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
 
   let version = $state('');
+  let commit = $state('');
 
   onMount(async () => {
     try {
@@ -9,6 +10,7 @@
       if (res.ok) {
         const data = await res.json();
         version = data.version ?? '';
+        commit = data.commit ?? '';
       }
     } catch {
       // silently ignore — footer version is non-critical
@@ -19,7 +21,7 @@
 <footer class="border-t border-gray-200 dark:border-gray-800 py-4 mt-auto">
   <div class="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-center gap-3 text-xs text-gray-400 dark:text-gray-500">
     {#if version}
-      <span>tailrelay {version}</span>
+      <span>tailrelay {version}{#if commit && commit !== 'none'} ({commit}){/if}</span>
       <span aria-hidden="true">&middot;</span>
     {/if}
     <a

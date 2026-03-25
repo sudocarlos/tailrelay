@@ -20,6 +20,7 @@ var embeddedFiles embed.FS
 var (
 	Version   = "dev"
 	BuildTime = "dev"
+	commit    = "none"
 )
 
 func main() {
@@ -97,7 +98,7 @@ func main() {
 	}
 
 	// Create and start web server
-	server, err := web.NewServer(cfg, authToken, Version, distFS, staticFS, templateFS)
+	server, err := web.NewServer(cfg, authToken, Version, commit, distFS, staticFS, templateFS)
 	if err != nil {
 		logger.Error("main", "Failed to create server: %v", err)
 		os.Exit(1)
