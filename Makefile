@@ -15,7 +15,7 @@ PLATFORMS ?= linux/amd64,linux/arm64
 # Go build flags with metadata
 LDFLAGS = -w -s \
 	-X github.com/sudocarlos/tailrelay/cmd/webui.Version=$(VERSION) \
-	-X github.com/sudocarlos/tailrelay/cmd/webui.commit=$(COMMIT) \
+	-X github.com/sudocarlos/tailrelay/cmd/webui.Commit=$(COMMIT) \
 	-X github.com/sudocarlos/tailrelay/cmd/webui.date=$(DATE) \
 	-X github.com/sudocarlos/tailrelay/cmd/webui.branch=$(BRANCH) \
 	-X github.com/sudocarlos/tailrelay/cmd/webui.builtBy=$(BUILDER)
