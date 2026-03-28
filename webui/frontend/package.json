@@ -1,7 +1,7 @@
 {
   "name": "tailrelay-webui-frontend",
   "private": true,
-  "version": "0.8.2",
+  "version": "0.8.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -20,5 +20,8 @@
   "dependencies": {
     "jsdom": "^28.1.0",
     "playwright": "^1.58.2"
+  },
+  "overrides": {
+    "picomatch": "^4.0.4"
   }
 }
