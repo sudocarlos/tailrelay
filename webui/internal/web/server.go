@@ -44,7 +44,7 @@ type Server struct {
 }
 
 // NewServer creates a new HTTP server
-func NewServer(cfg *config.Config, authToken, version string, distFS, staticFS, templateFS fs.FS) (*Server, error) {
+func NewServer(cfg *config.Config, authToken, version, commit string, distFS, staticFS, templateFS fs.FS) (*Server, error) {
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -84,7 +84,7 @@ func NewServer(cfg *config.Config, authToken, version string, distFS, staticFS, 
 	backupH := handlers.NewBackupHandler(cfg, tmpl)
 	targetsH := handlers.NewTargetsHandler(cfg)
 	logsH := handlers.NewHandler(tmpl)
-	infoH := handlers.NewInfoHandler(version)
+	infoH := handlers.NewInfoHandler(version, commit)
 
 	return &Server{
 		cfg:        cfg,
