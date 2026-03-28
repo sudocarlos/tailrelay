@@ -123,8 +123,8 @@ See the main project README for Docker usage instructions.
 
 ## Review Status
 
-<!-- reviewed_at: dd99801 | paths: webui/ -->
-Last full review completed at commit `dd99801`. To check what has changed since:
+<!-- reviewed_at: 89eabb1 | paths: webui/ -->
+Last full review completed at commit `89eabb1`. To check what has changed since:
 ```bash
-git log --oneline dd99801..HEAD -- webui/
+git log --oneline 89eabb1..HEAD -- webui/
 ```

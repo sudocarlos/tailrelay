@@ -630,8 +630,8 @@ Open source project. See repository for license details.
 
 ## Review Status
 
-<!-- reviewed_at: 677c1d6 | paths: README.md webui/internal/web/server.go -->
-Last full review completed at commit `677c1d6`. To check what has changed since:
+<!-- reviewed_at: 89eabb1 | paths: README.md webui/internal/web/server.go -->
+Last full review completed at commit `89eabb1`. To check what has changed since:
 ```bash
-git log --oneline 677c1d6..HEAD -- README.md webui/internal/web/server.go
+git log --oneline 89eabb1..HEAD -- README.md webui/internal/web/server.go
 ```
