@@ -35,7 +35,7 @@ tailrelay combines four networked services (Tailscale, Caddy, socat, Web UI) ins
 All versions are pinned as `ARG` values at the top of `Dockerfile`:
 
 ```
-ARG TAILSCALE_VERSION=v1.92.5
+ARG TAILSCALE_VERSION=v1.96.4
 ARG CADDY_VERSION=2.11.2
 ARG GO_VERSION=1.26.1
 ARG NODE_VERSION=24
