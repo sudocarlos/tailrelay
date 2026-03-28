@@ -1,7 +1,7 @@
 ---
 name: testing-cicd
 description: Writing tests and CI/CD for tailrelay — Go unit tests, Python integration tests, CI pipeline jobs, and test infrastructure. Use when adding new tests, extending the integration suite, modifying ci.yml, or improving test coverage for any Go package or the container behaviour.
-reviewed_at: dd99801
+reviewed_at: 89eabb1
 ---
 
 # Tests & CI/CD
@@ -275,7 +275,7 @@ STARTUP_WAIT=8                       # seconds to wait after start
 
 ## CI Pipeline (`.github/workflows/ci.yml`)
 
-Triggers: push to `main`, PR to `main`, published releases.
+Triggers: push to `main`, push of `v*.*.*` tags, PR to `main`, published releases.
 
 ### Current Jobs
 
@@ -284,6 +284,7 @@ Triggers: push to `main`, PR to `main`, published releases.
 | `frontend` | ubuntu-latest | `webui/frontend` | Node 20 → `npm install` → `npm run build` |
 | `backend` | ubuntu-latest | `webui` | Go 1.24 → `go vet ./...` → `go test -v ./...` → `go build -v ./...` |
 | `integration` | ubuntu-latest | repo root | Node 20 + Docker Buildx + Python 3.12 → `pytest tests/integration/ -v` |
+| `release` | ubuntu-latest | repo root | Runs only on `v*.*.*` tags after all three above pass; builds multi-platform image, pushes to Docker Hub + GHCR, creates GitHub Release |
 
 ### Adding a New CI Job
 

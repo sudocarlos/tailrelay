@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.5] - 2026-03-28
+
+### Changed
+- **Automated releases** — pushing a `v*.*.*` tag now triggers the CI pipeline; after `frontend`, `backend`, and `integration` jobs pass, a `release` job builds multi-platform images (`linux/amd64`, `linux/arm64`), pushes `vX.Y.Z` and `latest` tags to both Docker Hub and GHCR, and creates a GitHub Release with the matching CHANGELOG section as release notes
+
+### Docker
+
+```
+docker pull sudocarlos/tailrelay:v0.8.5
+```
+
 ## [0.8.4] - 2026-03-28
 
 ### Changed

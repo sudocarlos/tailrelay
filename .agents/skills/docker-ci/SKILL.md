@@ -1,7 +1,7 @@
 ---
 name: docker-ci-pipeline
 description: Docker image building, Compose development environments, CI/CD pipeline, and testing infrastructure. Use when working with Dockerfiles, docker-compose, GitHub Actions CI, Make targets, integration tests, or deployment workflows.
-reviewed_at: 7288840
+reviewed_at: 89eabb1
 ---
 
 # Docker & CI Pipeline
@@ -85,13 +85,14 @@ Copy `.env.example` to `.env` and edit before running tests.
 
 ## CI Pipeline (GitHub Actions)
 
-`.github/workflows/ci.yml` runs on push/PR to `main` and on published releases:
+`.github/workflows/ci.yml` runs on push/PR to `main`, on `v*.*.*` tag pushes, and on published releases:
 
 ### Jobs
 
 1. **frontend** — `npm install` + `npm run build` in `webui/frontend/` (Node.js 20 in CI)
 2. **backend** — `go vet`, `go test -v`, `go build` in `webui/` (Go 1.24 in CI)
 3. **integration** — Full Docker build + `pytest tests/integration/ -v`
+4. **release** — Runs only on `v*.*.*` tag pushes, after all three above pass; extracts changelog notes, logs in to Docker Hub + GHCR, builds multi-platform image (`linux/amd64`, `linux/arm64`), pushes `vX.Y.Z` + `latest` tags to both registries, and creates a GitHub Release
 
 ### Integration Test Flow
 
@@ -163,7 +164,7 @@ Handles `SIGTERM`/`SIGINT` for graceful shutdown.
 
 | Component | Version |
 |-----------|---------|
-| Container | `v0.8.0` (see `start.sh`) |
+| Container | `v0.8.5` (see `start.sh`) |
 | Tailscale | `v1.96.4` (built from source via `go install tailscale.com/cmd/...`) |
 | Caddy | `2.11.2` (built from source via `git clone caddyserver/caddy`) |
 | Go | `1.26.1` (Dockerfile ARG) |
