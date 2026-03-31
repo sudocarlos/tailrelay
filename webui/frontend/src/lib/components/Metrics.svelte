@@ -111,7 +111,7 @@
 
   /** Return the chart-axis label for a host entry (appends paused marker). */
   function chartLabel(h) {
-    return h.paused ? `${hostLabel(h)} (paused)` : hostLabel(h);
+    return h.paused ? `${shortLabel(h)} (paused)` : shortLabel(h);
   }
 
   // ── Chart datasets ─────────────────────────────────────────────────
@@ -229,6 +229,40 @@
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
     return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
   }
+
+  /**
+   * Truncate a target string (e.g. "hostname:port") that exceeds 30 characters.
+   * The port suffix is always preserved in full within the trailing segment so
+   * that the port number is never cut.  Both the leading host slice and the
+   * trailing host slice are 12 characters, producing:
+   *   "<first-12>...<last-12-of-host><port>"
+   *
+   * Example:
+   *   "sub.bkgrd2w7nrxr62qih5oxv25bs5musw6wh6np5td4boyepr6golkrowyd.onion:80"
+   *   → "sub.bkgrd2w7...krowyd.onion:80"
+   */
+  function truncateTarget(target) {
+    if (target.length <= 30) return target;
+    const lastColon = target.lastIndexOf(':');
+    const port = lastColon > 0 ? target.slice(lastColon) : '';
+    const host = lastColon > 0 ? target.slice(0, lastColon) : target;
+    return target.slice(0, 12) + '...' + host.slice(-12) + port;
+  }
+
+  /**
+   * Return a shortened display label for a host entry.
+   * The label format from the backend is ":port → target:port".
+   * Only the target portion is candidates for truncation; the ":port → " prefix
+   * is always shown in full.
+   */
+  function shortLabel(h) {
+    const full = hostLabel(h);
+    const sep = full.indexOf(' \u2192 ');   // ' → '
+    if (sep === -1) return truncateTarget(full);
+    const prefix = full.slice(0, sep + 4); // include ' → '
+    const target = full.slice(sep + 4);
+    return prefix + truncateTarget(target);
+  }
 </script>
 
 <div class="space-y-8">
@@ -248,7 +282,7 @@
           >
             <option value="">All relays</option>
             {#each relayOptions as opt}
-              <option value={opt}>{opt}</option>
+              <option value={opt}>{truncateTarget(opt)}</option>
             {/each}
           </select>
         </div>
@@ -330,8 +364,8 @@
             <tbody>
               {#each sortedHosts() as h}
                 <tr class="border-b border-gray-100 dark:border-gray-800 {h.paused ? 'opacity-50' : ''}">
-                  <td class="py-1 pr-4 font-mono">
-                    {hostLabel(h)}
+                  <td class="py-1 pr-4 font-mono" title={hostLabel(h)}>
+                    {shortLabel(h)}
                     {#if h.paused}<span class="ml-1.5 text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">(paused)</span>{/if}
                   </td>
                   <td class="py-1 pr-4">{formatBytes(h.requests_in)}</td>
@@ -363,8 +397,8 @@
             <tbody>
               {#each sortedHosts() as h}
                 <tr class="border-b border-gray-100 dark:border-gray-800 {h.paused ? 'opacity-50' : ''}">
-                  <td class="py-1 pr-4 font-mono">
-                    {hostLabel(h)}
+                  <td class="py-1 pr-4 font-mono" title={hostLabel(h)}>
+                    {shortLabel(h)}
                     {#if h.paused}<span class="ml-1.5 text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">(paused)</span>{/if}
                   </td>
                   <td class="py-1 pr-4 text-emerald-700 dark:text-emerald-400">{h.status_codes?.['2xx'] ?? 0}</td>
