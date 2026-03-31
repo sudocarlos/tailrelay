@@ -1,7 +1,7 @@
 ---
 name: socat-relay-management
 description: socat TCP relay management for forwarding non-HTTP protocols. Use when working with TCP relays, the RELAY_LIST environment variable, socat process management, or the relay management Go code in internal/socat/.
-reviewed_at: 7288840
+reviewed_at: b7ce114
 ---
 
 # socat Relay Management

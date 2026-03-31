@@ -358,13 +358,16 @@ The Web UI backend exposes a JSON API on port 8021. All endpoints under `/api/` 
   "tls": false,
   "tls_cert_file": "/data/cert.pem",
   "trusted_proxies": false,
+  "host_header": "",
   "enabled": true,
   "autostart": true,
   "running": true
 }
 ```
 
-Create/update with multipart/form-data supports a `tls` boolean field, a `tls_cert_upload` file field (`.pem`, `.crt`, `.cer`), and a `remove_tls_cert` boolean field.
+`host_header` (optional): when non-empty, overrides the `Host` header sent to the upstream backend. Useful for HTTPS backends that require a specific hostname for SNI or virtual hosting. Defaults to the upstream `host:port` when omitted.
+
+Create/update with multipart/form-data supports a `tls` boolean field, a `tls_cert_upload` file field (`.pem`, `.crt`, `.cer`), a `remove_tls_cert` boolean field, and a `host_header` string field.
 
 ### Socat Relay Object
 

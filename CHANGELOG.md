@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.6] - 2026-03-31
+
+### Added
+- **Custom Host header override** — `CaddyProxy` gains an optional `host_header` field; when set, the specified value replaces the default upstream `{http.reverse_proxy.upstream.hostport}` placeholder as the `Host` header sent to the backend; useful for HTTPS backends that require a specific SNI/hostname. Exposed in the Add/Edit modal under a new "Advanced" collapsible section alongside Trusted Proxies.
+
+### Changed
+- **Metrics relay labels truncated** — relay target hostnames longer than 30 characters are now shortened to `<first 12 chars>…<last 12 chars>:<port>` in charts, table rows, and the relay filter select; full target is still visible via the native `title` tooltip on table cells.
+
+### Fixed
+- **Log `component` field fallback** — the log console now resolves the component badge from the `source` or `Source` field with a `'main'` fallback, preventing blank component labels for log entries emitted by the Go server.
+- **Tooltip tap-target and gap** — tooltip trigger zones now have a `p-2 -m-2` padding/negative-margin expansion for easier touch interaction; an 8 px transparent gap bridges the tooltip popup so the mouse cursor can reach it without the popup disappearing; outside-click dismiss is now handled at document level.
+- **picomatch CVE-2026-33672** — bumped `picomatch` to `4.0.4` to address the reported vulnerability.
+
+### Removed
+- **`webui/cmd/webui/web/dist/` removed from version control** — compiled frontend assets are now gitignored; the CI `backend` job installs Node and runs `npm run build` before `go build` so the `//go:embed all:web/dist` directive always finds the required directory.
+
+### Docker
+
+```
+docker pull sudocarlos/tailrelay:v0.8.6
+```
+
 ## [0.8.5] - 2026-03-28
 
 ### Changed
