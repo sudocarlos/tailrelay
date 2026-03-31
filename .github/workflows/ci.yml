@@ -36,19 +36,28 @@ jobs:
         working-directory: webui
     steps:
       - uses: actions/checkout@v4
-      
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build Frontend
+        working-directory: webui/frontend
+        run: npm install && npm run build
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
           cache-dependency-path: webui/go.sum
-          
+
       - name: Vet
         run: go vet ./...
-        
+
       - name: Test
         run: go test -v ./...
-        
+
       - name: Build
         run: go build -v ./...
 
