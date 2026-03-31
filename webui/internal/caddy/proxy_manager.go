@@ -371,11 +371,18 @@ func (pm *ProxyManager) buildRoute(proxy config.CaddyProxy) (*Route, error) {
 	}
 	reverseProxyHandler["upstreams"] = upstreams
 
-	// Build headers configuration using map form expected by Caddy
+	// Build headers configuration using map form expected by Caddy.
+	// When a custom Host header override is provided, use it directly so
+	// the TLS ServerName matches the upstream; otherwise fall back to the
+	// Caddy placeholder which mirrors the upstream dial address.
+	hostHeaderValue := "{http.reverse_proxy.upstream.hostport}"
+	if proxy.HostHeader != "" {
+		hostHeaderValue = proxy.HostHeader
+	}
 	headers := HeaderConfig{
 		Request: &HeaderOps{
 			Set: map[string][]string{
-				"Host": []string{"{http.reverse_proxy.upstream.hostport}"},
+				"Host": {hostHeaderValue},
 			},
 		},
 	}
@@ -539,13 +546,20 @@ func (pm *ProxyManager) routeToProxyWithListen(route Route, listenAddrs []string
 		}
 	}
 
-	// Extract custom headers (excluding the default Host header)
+	// Extract custom headers (excluding the default Host header).
+	// If the Host header is present and set to something other than the
+	// upstream-hostport placeholder, restore it as the HostHeader override.
 	if headers, ok := reverseProxyHandler["headers"].(map[string]interface{}); ok {
 		if request, ok := headers["request"].(map[string]interface{}); ok {
 			if setMap, ok := request["set"].(map[string]interface{}); ok {
 				proxy.CustomHeaders = make(map[string]string)
 				for field, val := range setMap {
 					if strings.EqualFold(field, "Host") {
+						if values, ok := val.([]interface{}); ok && len(values) > 0 {
+							if value, ok := values[0].(string); ok && value != "{http.reverse_proxy.upstream.hostport}" {
+								proxy.HostHeader = value
+							}
+						}
 						continue
 					}
 					if values, ok := val.([]interface{}); ok && len(values) > 0 {

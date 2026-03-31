@@ -414,6 +414,7 @@ func (h *CaddyHandler) parseProxyFromMultipart(r *http.Request) (config.CaddyPro
 
 	proxy.Enabled = parseBool(r.FormValue("enabled"))
 	proxy.TrustedProxies = parseBool(r.FormValue("trusted_proxies"))
+	proxy.HostHeader = strings.TrimSpace(r.FormValue("host_header"))
 	proxy.TLS = parseBool(r.FormValue("tls"))
 	proxy.Autostart = parseBool(r.FormValue("autostart"))
 

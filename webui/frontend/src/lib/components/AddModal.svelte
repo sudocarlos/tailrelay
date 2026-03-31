@@ -23,6 +23,8 @@
       if (i.tls) tlsMode = 'insecure';
       else if (i.tls_cert_file) tlsMode = 'cert';
     }
+    const tp = i && t === 'proxy' ? (i.trusted_proxies ?? false) : false;
+    const hh = i && t === 'proxy' ? (i.host_header ?? '') : '';
     return {
       editing: isEditing,
       // When editing, httpRelay reflects the item type; when adding, always start with HTTP relay on
@@ -34,7 +36,10 @@
       listenPort: i ? (t === 'relay' ? String(i.listen_port) : String(i.port || '')) : '',
       // Unified target: relay combines host:port, proxy uses target verbatim
       target: i ? (t === 'relay' ? `${i.target_host}:${i.target_port}` : (i.target || '')) : '',
-      trustedProxies: i && t === 'proxy' ? (i.trusted_proxies ?? false) : false,
+      trustedProxies: tp,
+      hostHeader: hh,
+      // Auto-open the Advanced section when editing a proxy that already uses either option
+      advancedOpen: tp || hh !== '',
       autostart: i ? (i.autostart ?? true) : true,
       existingCert: i && t === 'proxy' ? i.tls_cert_file : null,
       tlsMode,
@@ -59,6 +64,8 @@
 
   // HTTP-only fields
   let trustedProxies = $state(initialState.trustedProxies);
+  let hostHeader = $state(initialState.hostHeader);
+  let advancedOpen = $state(initialState.advancedOpen);
   // tlsMode: 'off' | 'insecure' | 'cert'
   let tlsMode = $state(initialState.tlsMode);
   let tlsCertFile = $state(null);
@@ -193,6 +200,7 @@
     formData.append('target', target.trim());
     formData.append('tls', (tlsMode === 'insecure').toString());
     formData.append('trusted_proxies', trustedProxies.toString());
+    formData.append('host_header', hostHeader.trim());
     formData.append('autostart', autostart.toString());
     formData.append('enabled', 'true');
     formData.append('port', listenPort);
@@ -405,30 +413,78 @@
             </div>
           {/if}
 
-          <!-- Trusted proxies: private ranges -->
-          <div class="flex items-start gap-2">
-            <input
-              id="trusted-proxies"
-              type="checkbox"
-              bind:checked={trustedProxies}
-              class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800"
-            />
-            <div class="flex items-center gap-1">
-              <label for="trusted-proxies" class="text-sm cursor-pointer select-none">Trusted proxies: private ranges</label>
-              <Tooltip width="w-80">
-                {#snippet trigger()}
-                  <Info size={14} class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
-                {/snippet}
-                Enable this if Caddy is behind another proxy (e.g. a CDN or load balancer). Caddy will then trust <span class="font-mono">X-Forwarded-For</span> and related headers from all private IP ranges, allowing it to identify the real client IP instead of the intermediate proxy's IP.
-                <a
-                  href="https://caddyserver.com/docs/caddyfile/options#trusted-proxies"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="block mt-1.5 text-blue-300 hover:text-blue-200"
-                >Learn more →</a>
-              </Tooltip>
+          <!-- Advanced settings (collapsed by default) -->
+          <details bind:open={advancedOpen} class="group rounded-lg border border-gray-200 dark:border-gray-700">
+            <summary class="flex cursor-pointer items-center justify-between px-3 py-2 text-sm font-medium select-none list-none">
+              <span>Advanced</span>
+              <svg
+                class="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.085l3.71-3.855a.75.75 0 111.08 1.04l-4.25 4.42a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+              </svg>
+            </summary>
+
+            <div class="space-y-4 px-3 pb-3 pt-2">
+
+              <!-- Custom Host header override -->
+              <div>
+                <div class="flex items-center gap-1 mb-1">
+                  <label for="host-header" class="text-sm font-medium">Custom Host header</label>
+                  <Tooltip width="w-96">
+                    {#snippet trigger()}
+                      <Info size={14} class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
+                    {/snippet}
+                    Override the <span class="font-mono">Host</span> header sent to the upstream. Useful when proxying to HTTPS and the upstream's TLS certificate uses a specific hostname that differs from the dial address.
+                    <br /><br />
+                    Leave blank to use the upstream dial address (Caddy's default). Since Caddy v2.11.0 this override is applied automatically for HTTPS upstreams.
+                    <a
+                      href="https://caddyserver.com/docs/caddyfile/directives/reverse_proxy#https"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="block mt-1.5 text-blue-300 hover:text-blue-200"
+                    >Learn more →</a>
+                  </Tooltip>
+                </div>
+                <input
+                  id="host-header"
+                  type="text"
+                  bind:value={hostHeader}
+                  placeholder="e.g. my-target-hostname.com"
+                  class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <!-- Trusted proxies: private ranges -->
+              <div class="flex items-start gap-2">
+                <input
+                  id="trusted-proxies"
+                  type="checkbox"
+                  bind:checked={trustedProxies}
+                  class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800"
+                />
+                <div class="flex items-center gap-1">
+                  <label for="trusted-proxies" class="text-sm cursor-pointer select-none">Trusted proxies: private ranges</label>
+                  <Tooltip width="w-80">
+                    {#snippet trigger()}
+                      <Info size={14} class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
+                    {/snippet}
+                    Enable this if Caddy is behind another proxy (e.g. a CDN or load balancer). Caddy will then trust <span class="font-mono">X-Forwarded-For</span> and related headers from all private IP ranges, allowing it to identify the real client IP instead of the intermediate proxy's IP.
+                    <a
+                      href="https://caddyserver.com/docs/caddyfile/options#trusted-proxies"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="block mt-1.5 text-blue-300 hover:text-blue-200"
+                    >Learn more →</a>
+                  </Tooltip>
+                </div>
+              </div>
+
             </div>
-          </div>
+          </details>
 
         </div>
       {/if}
