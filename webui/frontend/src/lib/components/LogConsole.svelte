@@ -91,7 +91,7 @@
   function formatLogEntry(entry) {
     const ts = entry.timestamp || entry.Timestamp || '';
     const level = entry.level || entry.Level || '';
-    const component = entry.component || entry.Component || '';
+    const component = entry.source || entry.Source || entry.component || entry.Component || 'main';
     const message = entry.message || entry.Message || '';
     const time = ts ? new Date(ts).toLocaleTimeString() : '';
     return { time, level, component, message, raw: `${time} [${level}] [${component}] ${message}` };
