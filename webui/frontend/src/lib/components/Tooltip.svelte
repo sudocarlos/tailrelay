@@ -54,6 +54,19 @@
     }
   });
 
+  // Dismiss when the user clicks/taps outside both the trigger and the popup.
+  // This is the primary close mechanism on touch devices.
+  $effect(() => {
+    if (!visible) return;
+    function onDocClick(e) {
+      if (!triggerEl?.contains(e.target) && !tooltipEl?.contains(e.target)) {
+        hide();
+      }
+    }
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  });
+
   onDestroy(() => {
     window.removeEventListener('scroll', reposition, true);
     window.removeEventListener('resize', reposition);
@@ -70,11 +83,12 @@
   }
 </script>
 
-<!-- Trigger wrapper -->
+<!-- Trigger wrapper — p-2 / -m-2 expands the tap target to ~42×42 px
+     without affecting surrounding layout -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <span
   bind:this={triggerEl}
-  class="relative inline-flex cursor-help"
+  class="relative inline-flex cursor-help p-2 -m-2"
   onmouseenter={show}
   onmouseleave={hide}
   onclick={toggle}
@@ -88,7 +102,7 @@
   <div
     bind:this={tooltipEl}
     {style}
-    class="{width} rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-xl"
+    class="{width} rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-xl relative"
     use:portal
     onmouseenter={show}
     onmouseleave={hide}
@@ -96,5 +110,8 @@
     {@render children()}
     <!-- Downward-pointing caret -->
     <div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900 dark:border-t-gray-700"></div>
+    <!-- Transparent spacer that bridges the 8 px gap between the popup bottom
+         and the trigger icon, preventing mouseleave from firing mid-transit -->
+    <div class="absolute left-0 right-0 -bottom-2 h-2"></div>
   </div>
 {/if}
