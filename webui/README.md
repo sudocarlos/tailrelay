@@ -60,14 +60,6 @@ After migration, you can remove the `RELAY_LIST` environment variable and manage
 
 ## Development
 
-### Bootstrap Icons (SPA)
-
-The SPA uses a lightweight Bootstrap Icons SVG sprite stored at:
-
-- webui/cmd/webui/web/static/vendor/bootstrap-icons/bootstrap-icons.svg
-
-If you want to swap in the full Bootstrap Icons distribution, keep the sprite in the same path or update the template references accordingly.
-
 ### Project Structure
 
 ```
@@ -123,8 +115,8 @@ See the main project README for Docker usage instructions.
 
 ## Review Status
 
-<!-- reviewed_at: 89eabb1 | paths: webui/ -->
-Last full review completed at commit `89eabb1`. To check what has changed since:
+<!-- reviewed_at: b7ce114 | paths: webui/ -->
+Last full review completed at commit `b7ce114`. To check what has changed since:
 ```bash
-git log --oneline 89eabb1..HEAD -- webui/
+git log --oneline b7ce114..HEAD -- webui/
 ```

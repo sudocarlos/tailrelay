@@ -1,7 +1,7 @@
 ---
 name: webui-development
 description: Go Web UI application development — handlers, authentication, backup, frontend SPA, build workflow, and testing. Use when working with the webui/ directory, Go code, frontend assets, HTML templates, the SPA build system, or any Web UI feature development.
-reviewed_at: dd99801
+reviewed_at: b7ce114
 ---
 
 # Web UI Development
@@ -40,9 +40,9 @@ webui/
 │   │   ├── main.js         # SPA entry point
 │   │   └── lib/
 │   │       ├── components/
-│   │       │   ├── Metrics.svelte      # Traffic metrics panel (window selector, relay filter, reset)
-│   │       │   ├── AddModal.svelte     # Add proxy modal (tlsMode three-segment control)
-│   │       │   └── Tooltip.svelte      # Portal-based tooltip component
+│   │       │   ├── Metrics.svelte      # Traffic metrics panel (window selector, relay filter, reset, truncateTarget)
+│   │       │   ├── AddModal.svelte     # Add proxy modal (tlsMode three-segment control, Advanced collapsible section)
+│   │       │   └── Tooltip.svelte      # Portal-based tooltip (p-2/-m-2 tap target, gap bridge, document-level dismiss)
 │   │       └── stores/
 │   │           └── metrics.js          # metricsWindow, metricsResetting stores; fetchMetrics(window), resetMetrics
 │   ├── vite.config.js
@@ -164,6 +164,8 @@ Built with **Vite + Svelte 5 + Tailwind CSS 4** via npm:
 - Output: `cmd/webui/web/dist/` (embedded via `//go:embed`)
 - Icons: Lucide Svelte (`@lucide/svelte`) — imported directly as Svelte components
 - Charts: Chart.js (`chart.js`)
+- `AddModal.svelte` exposes an **Advanced** collapsible section containing Trusted Proxies and a Host Header input field (`hostHeader` state maps to `CaddyProxy.HostHeader`)
+- `Metrics.svelte` truncates relay target hostnames >30 chars to `<first 12>…<last 12>:<port>` via `truncateTarget`; full target shown via native `title` tooltip
 
 > **Note:** Bootstrap Icons and the SVG sprite are no longer used. Icons are now Lucide Svelte components imported directly.
 
