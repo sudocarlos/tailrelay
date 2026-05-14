@@ -28,7 +28,7 @@ docker buildx build -t sudocarlos/tailrelay:latest --load .
 7. **main** (`alpine:{ALPINE_VERSION}`) — installs runtime deps (iptables, iproute2, socat, mailcap), copies all binaries from builder stages; restores legacy iptables symlinks for broad host compatibility
 
 Key build args:
-- `TAILSCALE_VERSION` (default: `v1.96.4`) — version tag passed to `go install tailscale.com/cmd/...@${TAILSCALE_VERSION}`
+- `TAILSCALE_VERSION` (default: `v1.96.5`) — version tag passed to `go install tailscale.com/cmd/...@${TAILSCALE_VERSION}`
 - `CADDY_VERSION` (default: `2.11.3`) — version tag used for `git clone --branch v${CADDY_VERSION} caddyserver/caddy`
 - `GO_VERSION` (default: `1.26.1`)
 - `NODE_VERSION` (default: `24`)
@@ -164,8 +164,8 @@ Handles `SIGTERM`/`SIGINT` for graceful shutdown.
 
 | Component | Version |
 |-----------|---------|
-| Container | `v0.8.7` (see `start.sh`) |
-| Tailscale | `v1.96.4` (built from source via `go install tailscale.com/cmd/...`) |
+| Container | `v0.8.8` (see `start.sh`) |
+| Tailscale | `v1.96.5` (built from source via `go install tailscale.com/cmd/...`) |
 | Caddy | `2.11.3` (built from source via `git clone caddyserver/caddy`) |
 | Go | `1.26.1` (Dockerfile ARG) |
 | Node.js (CI) | `20` (GitHub Actions) / `24` (Dockerfile ARG) |
