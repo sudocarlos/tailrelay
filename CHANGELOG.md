@@ -5,7 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.7] - 2026-05-14
+
+### Changed
+- **Caddy 2.11.3** — updated from 2.11.2
+
+### Docker
+
+```
+docker pull sudocarlos/tailrelay:v0.8.7
+```
+
 ## [0.8.6] - 2026-03-31
+
 
 ### Added
 - **Custom Host header override** — `CaddyProxy` gains an optional `host_header` field; when set, the specified value replaces the default upstream `{http.reverse_proxy.upstream.hostport}` placeholder as the `Host` header sent to the backend; useful for HTTPS backends that require a specific SNI/hostname. Exposed in the Add/Edit modal under a new "Advanced" collapsible section alongside Trusted Proxies.
