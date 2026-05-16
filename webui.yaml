@@ -12,6 +12,7 @@ paths:
   socat_relay_config: "/var/lib/tailscale/relays.json"
   caddy_proxy_config: "/var/lib/tailscale/proxies.json"
   caddy_server_map: "/var/lib/tailscale/caddy_servers.json"
+  serve_relay_config: "/var/lib/tailscale/serve_relays.json"
   state_dir: "/var/lib/tailscale"
   backup_dir: "/var/lib/tailscale/backups"
   certificates_dir: "/data"

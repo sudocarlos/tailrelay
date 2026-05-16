@@ -34,7 +34,6 @@ from tests.integration.helpers import (
 WEBUI_ADDR = "http://127.0.0.1:8021"
 HEALTHZ_ADDR = "http://127.0.0.1:9002/healthz"
 METRICS_ADDR = "http://127.0.0.1:9002/metrics"
-CADDY_ADMIN_ADDR = "http://127.0.0.1:2019"
 SOCAT_RELAY_PORT = 8089
 
 # Token file written by the Web UI on first start.
@@ -111,10 +110,6 @@ class TestContainerStartup:
         result = container_exec(running_container, "echo alive")
         assert result.returncode == 0, "Container should be reachable via docker exec"
 
-    def test_caddy_process_running(self, running_container: str) -> None:
-        result = container_exec(running_container, "pgrep -x caddy")
-        assert result.returncode == 0, "caddy process should be running"
-
     def test_webui_process_running(self, running_container: str) -> None:
         result = container_exec(running_container, "pgrep -f tailrelay-webui")
         assert result.returncode == 0, "tailrelay-webui process should be running"
@@ -122,15 +117,6 @@ class TestContainerStartup:
     def test_tailscaled_process_running(self, running_container: str) -> None:
         result = container_exec(running_container, "pgrep -x tailscaled")
         assert result.returncode == 0, "tailscaled process should be running"
-
-    def test_listening_ports_include_caddy_admin(self, running_container: str) -> None:
-        """Caddy always opens its Admin API on :2019 regardless of routes."""
-        result = container_exec_check(
-            running_container, "netstat -tulnp 2>/dev/null || ss -tulnp"
-        )
-        assert ":2019" in result.stdout, (
-            f"Expected Caddy Admin API port :2019 in netstat output:\n{result.stdout}"
-        )
 
     def test_listening_ports_include_webui(self, running_container: str) -> None:
         result = container_exec_check(
@@ -168,36 +154,6 @@ class TestTailscaleEndpoints:
         assert "tailscale" in body.lower() or "go_" in body or "# HELP" in body, (
             f"Unexpected metrics response body (first 200 chars):\n{body[:200]}"
         )
-
-
-# ---------------------------------------------------------------------------
-# Caddy admin API
-# ---------------------------------------------------------------------------
-
-
-class TestCaddyAdminAPI:
-    """Verify Caddy's Admin API is reachable and well-formed.
-
-    Caddy only opens proxy listener ports (8080/8081/8443) when at least one
-    route is configured. The Admin API port (:2019) is always available and is
-    the correct thing to probe in a freshly-started, route-free container.
-    """
-
-    def test_caddy_admin_responds(self, running_container: str) -> None:
-        """GET /config/ returns the current Caddy config as JSON."""
-        code, output = wget(running_container, f"{CADDY_ADMIN_ADDR}/config/")
-        assert code == 0, (
-            f"Caddy Admin API at {CADDY_ADMIN_ADDR}/config/ did not respond "
-            f"(exit {code}):\n{output}"
-        )
-
-    def test_caddy_admin_config_is_json(self, running_container: str) -> None:
-        """The Admin API /config/ endpoint must return valid JSON."""
-        body = wget_ok(running_container, f"{CADDY_ADMIN_ADDR}/config/")
-        try:
-            json.loads(body)
-        except json.JSONDecodeError:
-            pytest.fail(f"Caddy Admin API /config/ returned non-JSON:\n{body[:400]}")
 
 
 # ---------------------------------------------------------------------------
@@ -304,29 +260,13 @@ class TestSocatRelay:
             f"stdout: {create_result.stdout}\nstderr: {create_result.stderr}"
         )
 
-        # Give socat a moment to bind.
+        # Give tailscale serve reconcile a moment.
         time.sleep(2)
 
-        # Verify socat is listening on the configured port.
-        net_result = container_exec(
-            running_container, "netstat -tulnp 2>/dev/null || ss -tulnp"
+        # Verify relay appears in API list after creation.
+        body = wget_authed_ok(
+            running_container, f"{WEBUI_ADDR}/api/socat/relays", token
         )
-        assert f":{SOCAT_RELAY_PORT}" in net_result.stdout, (
-            f"Expected socat to be listening on port {SOCAT_RELAY_PORT}:\n{net_result.stdout}"
-        )
-
-    def test_socat_relay_responds_to_http(self, running_container: str) -> None:
-        # The relay should already be running from test_socat_relay_forwards_http.
-        # whoami returns a small HTTP response containing the request headers.
-        result = container_exec(
-            running_container,
-            f"wget -qO- --timeout=5 --tries=1 http://127.0.0.1:{SOCAT_RELAY_PORT}",
-        )
-        assert result.returncode == 0, (
-            f"wget through socat relay failed (exit {result.returncode}):\n"
-            f"stdout: {result.stdout}\nstderr: {result.stderr}"
-        )
-        # whoami echoes request headers; the Host line should mention our relay port.
-        assert "Host" in result.stdout or "GET" in result.stdout, (
-            f"Unexpected whoami response through socat relay:\n{result.stdout}"
-        )
+        data = parse_json_body(body, "/api/socat/relays")
+        ids = [item.get("Relay", {}).get("id") for item in data]
+        assert self.RELAY_ID in ids, f"Created relay {self.RELAY_ID} not found in API list"

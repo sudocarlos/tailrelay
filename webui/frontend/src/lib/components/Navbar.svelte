@@ -85,9 +85,6 @@
             {/if}
           </span>
         </button>
-        <button class={navBtnClass('metrics')} onclick={() => switchView('metrics')}>
-          Metrics
-        </button>
         <button class={navBtnClass('backups')} onclick={() => switchView('backups')}>
           Backups
         </button>
@@ -165,9 +162,6 @@
             {/if}
           </span>
         </button>
-        <button class={mobileNavBtnClass('metrics')} onclick={() => switchView('metrics')}>
-          Metrics
-        </button>
         <button class={mobileNavBtnClass('backups')} onclick={() => switchView('backups')}>
           Backups
         </button>
@@ -180,7 +174,7 @@
     <div class="border-t border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 sm:px-6 py-2">
       <p class="max-w-6xl mx-auto flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
         <AlertTriangle size={13} class="flex-shrink-0" />
-        Tailscale is not connected. Dashboard, Metrics, and Backups are unavailable until Tailscale is authenticated.
+        Tailscale is not connected. Dashboard and Backups are unavailable until Tailscale is authenticated.
       </p>
     </div>
   {/if}

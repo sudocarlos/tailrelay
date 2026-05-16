@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -83,4 +84,86 @@ func parseRelayList(relayList string) ([]SocatRelay, error) {
 	}
 
 	return relays, nil
+}
+
+// MigrateLegacyRelaysToServe migrates legacy socat/caddy relay metadata into the
+// new tailscale serve relay metadata format.
+func MigrateLegacyRelaysToServe(paths PathsConfig) error {
+	if _, err := os.Stat(paths.ServeRelayConfig); err == nil {
+		return nil
+	}
+
+	out := &ServeRelayList{Relays: []ServeRelay{}}
+	seen := map[string]struct{}{}
+
+	addRelay := func(r ServeRelay) {
+		if r.ID == "" {
+			r.ID = fmt.Sprintf("%s-%d", r.Type, r.ListenPort)
+		}
+		key := fmt.Sprintf("%s:%d", r.Type, r.ListenPort)
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		if !r.Enabled {
+			r.Enabled = true
+		}
+		out.Relays = append(out.Relays, r)
+	}
+
+	// Legacy socat relays.
+	if relays, err := LoadSocatRelays(paths.SocatRelayConfig); err == nil {
+		for _, r := range relays.Relays {
+			addRelay(ServeRelay{
+				ID:         r.ID,
+				Type:       "tcp",
+				ListenPort: r.ListenPort,
+				TargetHost: r.TargetHost,
+				TargetPort: r.TargetPort,
+				Enabled:    r.Enabled,
+				Autostart:  r.Autostart,
+			})
+		}
+	}
+
+	// Legacy caddy proxies metadata from proxies.json.
+	if data, err := os.ReadFile(paths.CaddyProxyConfig); err == nil {
+		var proxies CaddyProxyList
+		if err := json.Unmarshal(data, &proxies); err == nil {
+			for _, p := range proxies.Proxies {
+				host, port := splitHostPort(p.Target)
+				if host == "" || port == 0 {
+					continue
+				}
+				addRelay(ServeRelay{
+					ID:         p.ID,
+					Type:       "https",
+					Hostname:   p.Hostname,
+					ListenPort: p.Port,
+					TargetHost: host,
+					TargetPort: port,
+					Enabled:    p.Enabled,
+					Autostart:  p.Autostart,
+				})
+			}
+		}
+	}
+
+	return SaveServeRelays(paths.ServeRelayConfig, out)
+}
+
+func splitHostPort(value string) (string, int) {
+	v := strings.TrimSpace(value)
+	v = strings.TrimPrefix(v, "http://")
+	v = strings.TrimPrefix(v, "https://")
+	parts := strings.Split(v, ":")
+	if len(parts) < 2 {
+		return "", 0
+	}
+	port, err := strconv.Atoi(parts[len(parts)-1])
+	if err != nil {
+		return "", 0
+	}
+	host := strings.Join(parts[:len(parts)-1], ":")
+	return host, port
 }

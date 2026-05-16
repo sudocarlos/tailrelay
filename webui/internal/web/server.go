@@ -14,10 +14,8 @@ import (
 	"time"
 
 	"github.com/sudocarlos/tailrelay/internal/auth"
-	"github.com/sudocarlos/tailrelay/internal/caddy"
 	"github.com/sudocarlos/tailrelay/internal/config"
 	"github.com/sudocarlos/tailrelay/internal/handlers"
-	"github.com/sudocarlos/tailrelay/internal/tailscale"
 )
 
 // Server represents the HTTP server
@@ -28,8 +26,7 @@ type Server struct {
 	authH      *handlers.AuthHandler
 	dashboardH *handlers.DashboardHandler
 	tailscaleH *handlers.TailscaleHandler
-	caddyH     *handlers.CaddyHandler
-	socatH     *handlers.SocatHandler
+	serveH     *handlers.ServeHandler
 	backupH    *handlers.BackupHandler
 	targetsH   *handlers.TargetsHandler
 	logsH      *handlers.Handler
@@ -39,8 +36,6 @@ type Server struct {
 	templateFS fs.FS
 	ctx        context.Context
 	cancel     context.CancelFunc
-	tsCache    *tailscale.StatusCache
-	caddyMgr   *caddy.Manager
 }
 
 // NewServer creates a new HTTP server
@@ -68,19 +63,8 @@ func NewServer(cfg *config.Config, authToken, version, commit string, distFS, st
 	authH := handlers.NewAuthHandler(authMW, cfg.Auth.AdminHashFile)
 	dashboardH := handlers.NewDashboardHandler(cfg, tmpl)
 
-	// Create a shared Caddy manager so that TailscaleHandler can update proxy
-	// hostnames when the Tailscale device hostname changes.
-	caddyMgr := caddy.NewManager(caddy.DefaultAdminAPI, cfg.Paths.CaddyServerMap)
-
-	// StatusCache keeps a background-refreshed record of whether Tailscale is
-	// Running. It is passed into CaddyHandler so TLS cert probes are suppressed
-	// until Tailscale has fully authenticated and joined the tailnet — preventing
-	// Caddy's on-demand ACME from firing against *.ts.net names too early.
-	tsCache := tailscale.NewStatusCache(tailscale.NewClient())
-
-	tailscaleH := handlers.NewTailscaleHandlerWithCaddy(cfg, tmpl, authMW, caddyMgr)
-	caddyH := handlers.NewCaddyHandlerWithManager(cfg, tmpl, caddyMgr, tsCache.IsReady)
-	socatH := handlers.NewSocatHandler(cfg, tmpl)
+	tailscaleH := handlers.NewTailscaleHandler(cfg, tmpl, authMW)
+	serveH := handlers.NewServeHandler(cfg, tmpl)
 	backupH := handlers.NewBackupHandler(cfg, tmpl)
 	targetsH := handlers.NewTargetsHandler(cfg)
 	logsH := handlers.NewHandler(tmpl)
@@ -93,8 +77,7 @@ func NewServer(cfg *config.Config, authToken, version, commit string, distFS, st
 		templates:  tmpl,
 		dashboardH: dashboardH,
 		tailscaleH: tailscaleH,
-		caddyH:     caddyH,
-		socatH:     socatH,
+		serveH:     serveH,
 		backupH:    backupH,
 		targetsH:   targetsH,
 		logsH:      logsH,
@@ -104,43 +87,16 @@ func NewServer(cfg *config.Config, authToken, version, commit string, distFS, st
 		templateFS: templateFS,
 		ctx:        ctx,
 		cancel:     cancel,
-		tsCache:    tsCache,
-		caddyMgr:   caddyMgr,
 	}, nil
 }
 
 // Start starts the HTTP server
 func (s *Server) Start() error {
-	// Start the Tailscale status cache. This polls tailscaled every 15 seconds
-	// and exposes IsReady() to gates that must not fire before Tailscale is up
-	// (e.g. TLS cert probes that would otherwise trigger Caddy's ACME flow).
-	s.tsCache.Start(s.ctx)
-
-	// Migrate existing Caddy proxies to metadata storage
-	log.Printf("Migrating existing Caddy proxies to metadata storage...")
-	if err := s.caddyH.MigrateExistingProxies(); err != nil {
-		log.Printf("Warning: failed to migrate existing proxies: %v", err)
+	// Initialize tailscale serve relay state.
+	log.Printf("Reconciling tailscale serve relays...")
+	if err := s.serveH.InitializeAutostart(); err != nil {
+		log.Printf("Warning: failed to reconcile tailscale serve relays: %v", err)
 	}
-
-	// Initialize autostart relays
-	log.Printf("Initializing autostart relays...")
-	if err := s.socatH.InitializeAutostart(); err != nil {
-		log.Printf("Warning: failed to start autostart relays: %v", err)
-	}
-
-	// Start socat process monitor (checks every 10 seconds)
-	log.Printf("Starting socat process monitor...")
-	go s.socatH.StartProcessMonitor(s.ctx, 10*time.Second)
-
-	// Initialize autostart proxies
-	log.Printf("Initializing autostart proxies...")
-	if err := s.caddyH.InitializeAutostart(); err != nil {
-		log.Printf("Warning: failed to start autostart proxies: %v", err)
-	}
-
-	// Start metrics history poller (samples Caddy every 15s, persists to disk).
-	log.Printf("Starting metrics history poller...")
-	s.caddyMgr.StartMetricsPoller(s.ctx, s.cfg.Paths.MetricsHistoryFile)
 
 	mux := s.setupRoutes()
 
@@ -175,15 +131,6 @@ func (s *Server) Start() error {
 
 		// Cancel context to stop monitor goroutines
 		s.cancel()
-
-		// Stop all socat relays
-		log.Printf("Stopping all socat relays...")
-		if err := s.socatH.StopAllRelays(); err != nil {
-			log.Printf("Warning: failed to stop relays: %v", err)
-		}
-
-		// Flush metrics history to disk before shutdown.
-		s.caddyMgr.FlushMetrics()
 
 		// Graceful shutdown of HTTP server (30 second timeout)
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -270,30 +217,28 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.Handle("/api/tailscale/peers", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.APIPeers)))
 	mux.Handle("/api/tailscale/poll", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.PollStatus)))
 
-	// Caddy routes
+	// HTTPS relay routes (legacy caddy endpoint compatibility)
 	mux.Handle("/caddy", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPARedirect)))
-	mux.Handle("/api/caddy/create", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.Create)))
-	mux.Handle("/api/caddy/update", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.Update)))
-	mux.Handle("/api/caddy/delete", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.Delete)))
-	mux.Handle("/api/caddy/toggle", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.Toggle)))
-	mux.Handle("/api/caddy/reload", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.Reload)))
-	mux.Handle("/api/caddy/proxies", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.APIList)))
-	mux.Handle("/api/caddy/proxy", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.APIGet)))
-	mux.Handle("/api/caddy/metrics", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.Metrics)))
-	mux.Handle("/api/caddy/metrics/reset", s.authMW.RequireAuth(http.HandlerFunc(s.caddyH.ResetMetrics)))
+	mux.Handle("/api/caddy/create", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.CreateCaddy)))
+	mux.Handle("/api/caddy/update", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.UpdateCaddy)))
+	mux.Handle("/api/caddy/delete", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.DeleteCaddy)))
+	mux.Handle("/api/caddy/toggle", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.ToggleCaddy)))
+	mux.Handle("/api/caddy/reload", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.ReloadCaddy)))
+	mux.Handle("/api/caddy/proxies", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.APIListCaddy)))
+	mux.Handle("/api/caddy/proxy", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.APIGetCaddy)))
 
-	// Socat routes
+	// TCP relay routes (legacy socat endpoint compatibility)
 	mux.Handle("/socat", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPARedirect)))
-	mux.Handle("/api/socat/create", s.authMW.RequireAuth(http.HandlerFunc(s.socatH.Create)))
-	mux.Handle("/api/socat/update", s.authMW.RequireAuth(http.HandlerFunc(s.socatH.Update)))
-	mux.Handle("/api/socat/delete", s.authMW.RequireAuth(http.HandlerFunc(s.socatH.Delete)))
-	mux.Handle("/api/socat/toggle", s.authMW.RequireAuth(http.HandlerFunc(s.socatH.Toggle)))
-	mux.Handle("/api/socat/start", s.authMW.RequireAuth(http.HandlerFunc(s.socatH.Start)))
-	mux.Handle("/api/socat/stop", s.authMW.RequireAuth(http.HandlerFunc(s.socatH.Stop)))
-	mux.Handle("/api/socat/restart", s.authMW.RequireAuth(http.HandlerFunc(s.socatH.Restart)))
-	mux.Handle("/api/socat/restart-all", s.authMW.RequireAuth(http.HandlerFunc(s.socatH.RestartAll)))
-	mux.Handle("/api/socat/relays", s.authMW.RequireAuth(http.HandlerFunc(s.socatH.APIList)))
-	mux.Handle("/api/socat/relay", s.authMW.RequireAuth(http.HandlerFunc(s.socatH.APIGet)))
+	mux.Handle("/api/socat/create", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.CreateSocat)))
+	mux.Handle("/api/socat/update", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.UpdateSocat)))
+	mux.Handle("/api/socat/delete", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.DeleteSocat)))
+	mux.Handle("/api/socat/toggle", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.ToggleSocat)))
+	mux.Handle("/api/socat/start", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.StartSocat)))
+	mux.Handle("/api/socat/stop", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.StopSocat)))
+	mux.Handle("/api/socat/restart", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.RestartSocat)))
+	mux.Handle("/api/socat/restart-all", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.RestartAllSocat)))
+	mux.Handle("/api/socat/relays", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.APIListSocat)))
+	mux.Handle("/api/socat/relay", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.APIGetSocat)))
 
 	// Backup routes
 	mux.Handle("/backup", s.authMW.RequireAuth(http.HandlerFunc(s.backupH.List)))

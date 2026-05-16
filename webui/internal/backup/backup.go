@@ -75,10 +75,10 @@ func (m *Manager) Create(backupType string) (string, error) {
 
 	// Add configuration files
 	filesToBackup := []string{
-		m.cfg.Paths.CaddyConfig,
-		m.cfg.Paths.SocatRelayConfig,
-		m.cfg.Paths.CaddyProxyConfig,
-		m.cfg.Paths.CaddyServerMap,
+		m.cfg.Paths.ServeRelayConfig,
+		m.cfg.Paths.SocatRelayConfig, // legacy compatibility
+		m.cfg.Paths.CaddyProxyConfig, // legacy compatibility
+		m.cfg.Paths.CaddyServerMap,   // legacy compatibility
 		m.cfg.ConfigFile,
 	}
 
@@ -169,6 +169,8 @@ func (m *Manager) Restore(backupPath string) error {
 			targetPath = candidate
 		case strings.HasSuffix(header.Name, "Caddyfile"):
 			targetPath = m.cfg.Paths.CaddyConfig
+		case strings.HasSuffix(header.Name, "serve_relays.json"):
+			targetPath = m.cfg.Paths.ServeRelayConfig
 		case strings.HasSuffix(header.Name, "relays.json"):
 			targetPath = m.cfg.Paths.SocatRelayConfig
 		case strings.HasSuffix(header.Name, "proxies.json"):

@@ -31,6 +31,7 @@ type PathsConfig struct {
 	SocatRelayConfig   string `yaml:"socat_relay_config"`
 	CaddyProxyConfig   string `yaml:"caddy_proxy_config"`
 	CaddyServerMap     string `yaml:"caddy_server_map"`
+	ServeRelayConfig   string `yaml:"serve_relay_config"`
 	StateDir           string `yaml:"state_dir"`
 	BackupDir          string `yaml:"backup_dir"`
 	CertificatesDir    string `yaml:"certificates_dir"`
@@ -85,6 +86,23 @@ type SocatRelay struct {
 // SocatRelayList represents the list of socat relays
 type SocatRelayList struct {
 	Relays []SocatRelay `json:"relays"`
+}
+
+// ServeRelay represents a relay backed by `tailscale serve`.
+type ServeRelay struct {
+	ID         string `json:"id"`
+	Type       string `json:"type"` // "https" or "tcp"
+	Hostname   string `json:"hostname,omitempty"`
+	ListenPort int    `json:"listen_port"`
+	TargetHost string `json:"target_host"`
+	TargetPort int    `json:"target_port"`
+	Enabled    bool   `json:"enabled"`
+	Autostart  bool   `json:"autostart"`
+}
+
+// ServeRelayList represents the list of tailscale serve relay definitions.
+type ServeRelayList struct {
+	Relays []ServeRelay `json:"relays"`
 }
 
 // BackupMetadata contains information about a backup
