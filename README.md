@@ -1,6 +1,6 @@
 # tailrelay
 
-A Docker container that exposes local services to your Tailscale network. Combines **Tailscale VPN**, **Caddy reverse proxy**, **socat TCP relays**, and a **Web UI** for browser-based management.
+A Docker container that exposes local services to your Tailscale network. Combines **Tailscale VPN**, **Tailscale Serve** (HTTPS + TCP relays), and a **Web UI** for browser-based management.
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/sudocarlos/tailrelay)](https://hub.docker.com/r/sudocarlos/tailrelay)
 [![GitHub Release](https://img.shields.io/github/v/release/sudocarlos/tailrelay)](https://github.com/sudocarlos/tailrelay/releases)
@@ -9,10 +9,9 @@ A Docker container that exposes local services to your Tailscale network. Combin
 ## Features
 
 - **Web UI** - Browser-based management on port 8021
-- **Automatic TLS** - Tailscale HTTPS certificates via Caddy
-- **HTTP/HTTPS Proxies** - Configure reverse proxies through the UI
-- **TCP Relays** - Forward non-HTTP protocols with socat
-- **Traffic Metrics** - Per-relay request counts, bandwidth, and status codes with time-window filtering and persistent history
+- **Automatic TLS** - Tailscale Serve HTTPS relays with MagicDNS hostnames
+- **HTTPS Relays** - Configure HTTPS reverse relays through the UI
+- **TCP Relays** - Forward non-HTTP protocols through Tailscale Serve
 - **Backup & Restore** - Save and restore configurations
 - **Dual Authentication** - Token or Tailscale network authentication
 - **Multi-Platform** - Docker images for amd64 and arm64
@@ -44,7 +43,7 @@ tailrelay provides secure remote access to self-hosted services:
 
 - **Secure Access**: Tailscale's VPN eliminates port forwarding requirements
 - **Easy Configuration**: Web UI handles setup without manual config files
-- **Automatic TLS**: Caddy obtains and renews certificates via Tailscale HTTPS
+- **Automatic TLS**: Tailscale Serve terminates TLS for HTTPS relays
 - **Protocol Support**: HTTP/HTTPS proxies and TCP relays for any service
 - **Backup & Restore**: Save and restore configurations
 
@@ -56,8 +55,7 @@ Useful for accessing Start9 services like BTCPayServer, LND, electrs, and Mempoo
 | Component | Purpose | Documentation |
 |-----------|---------|---------------|
 | **Tailscale** | VPN, MagicDNS, device authentication | [Tailscale docs](https://tailscale.com/kb) |
-| **Caddy** | HTTP/2 reverse proxy, automatic HTTPS | [Caddy docs](https://caddyserver.com/docs) |
-| **socat** | TCP relay for non-HTTP services | [socat manual](https://linux.die.net/man/1/socat) |
+| **Tailscale Serve** | HTTPS reverse relays and TCP forwarding | [Serve docs](https://tailscale.com/kb/1312/serve) |
 | **Web UI** | Browser-based management (Go backend, Svelte 5 + Tailwind CSS frontend) | See [Web UI](#web-ui) section |
 
 
@@ -88,9 +86,8 @@ The Web UI provides browser-based management on port 8021. The frontend is a sin
 
 - **Dashboard** - Real-time Tailscale connection status and system health
 - **Tailscale Management** - Connect/disconnect and view network peers
-- **Caddy Proxy Management** - Add, edit, delete, and toggle HTTP/HTTPS reverse proxies; three-mode HTTPS target transport (plain, insecure, custom CA cert)
-- **Socat Relay Management** - Start, stop, and restart TCP relay processes
-- **Traffic Metrics** - Per-relay request counts, bandwidth, and HTTP status codes; time-window filter (All / 1h / 1d / 1w / 1m); relay filter dropdown; persistent 31-day history that survives restarts
+- **HTTPS Relay Management** - Add, edit, delete, and toggle HTTPS relays backed by `tailscale serve`
+- **TCP Relay Management** - Add, edit, delete, and toggle TCP relays backed by `tailscale serve`
 - **Backup & Restore** - Create and restore compressed tar.gz backups
 - **Live Log Viewer** - Collapsible log console with SSE streaming and runtime log level control
 - **Dark Mode** - System-aware theme toggle with localStorage persistence
@@ -318,16 +315,14 @@ The Web UI backend exposes a JSON API on port 8021. All endpoints under `/api/` 
 | `POST` | `/api/tailscale/logout` | Yes | -- | Deauthorize Tailscale node |
 | `POST` | `/api/tailscale/connect` | Yes | -- | Bring Tailscale up |
 | `POST` | `/api/tailscale/disconnect` | Yes | -- | Bring Tailscale down |
-| `GET` | `/api/caddy/proxies` | Yes | -- | List all proxies with running state |
+| `GET` | `/api/caddy/proxies` | Yes | -- | List all HTTPS relays (legacy endpoint, serve-backed) |
 | `GET` | `/api/caddy/proxy` | Yes | `?id=` | Get single proxy |
 | `POST` | `/api/caddy/create` | Yes | JSON or multipart | Create proxy |
 | `POST` | `/api/caddy/update` | Yes | JSON or multipart | Update proxy (`id` required) |
 | `POST` | `/api/caddy/delete` | Yes | `?id=` | Delete proxy |
 | `POST` | `/api/caddy/toggle` | Yes | JSON `{id, enabled}` | Enable/disable proxy |
-| `POST` | `/api/caddy/reload` | Yes | -- | Verify Caddy API (no-op) |
-| `GET` | `/api/caddy/metrics` | Yes | `?window=1h\|1d\|1w\|1m` | Traffic metrics; omit `window` for all-time totals |
-| `POST` | `/api/caddy/metrics/reset` | Yes | -- | Clear all metrics history and baselines |
-| `GET` | `/api/socat/relays` | Yes | -- | List all relays with running state |
+| `POST` | `/api/caddy/reload` | Yes | -- | Reconcile tailscale serve state |
+| `GET` | `/api/socat/relays` | Yes | -- | List all TCP relays (legacy endpoint, serve-backed) |
 | `GET` | `/api/socat/relay` | Yes | `?id=` | Get single relay |
 | `POST` | `/api/socat/create` | Yes | JSON | Create relay |
 | `POST` | `/api/socat/update` | Yes | JSON | Update relay (`id` required) |
@@ -336,7 +331,7 @@ The Web UI backend exposes a JSON API on port 8021. All endpoints under `/api/` 
 | `POST` | `/api/socat/start` | Yes | `?id=` | Start relay |
 | `POST` | `/api/socat/stop` | Yes | `?id=` | Stop relay |
 | `POST` | `/api/socat/restart` | Yes | `?id=` | Restart relay |
-| `POST` | `/api/socat/restart-all` | Yes | -- | Restart all enabled relays |
+| `POST` | `/api/socat/restart-all` | Yes | -- | Reconcile all enabled relays |
 | `GET` | `/api/backup/list` | Yes | -- | List backups with metadata |
 | `POST` | `/api/backup/create` | Yes | JSON `{backup_type}` | Create backup (`full` or `config-only`) |
 | `POST` | `/api/backup/restore` | Yes | JSON `{filename}` | Restore from backup |
@@ -348,26 +343,20 @@ The Web UI backend exposes a JSON API on port 8021. All endpoints under `/api/` 
 | `GET` | `/api/logs/level` | Yes | -- | Get current log level |
 | `POST` | `/api/logs/level` | Yes | JSON `{level}` | Set log level (`debug`, `info`, `warn`, `error`) |
 
-### Caddy Proxy Object
+### HTTPS Relay Object (legacy `/api/caddy/*` shape)
 
 ```json
 {
   "id": "abc123",
   "port": 8080,
   "target": "192.168.1.10:3000",
-  "tls": false,
-  "tls_cert_file": "/data/cert.pem",
-  "trusted_proxies": false,
-  "host_header": "",
   "enabled": true,
   "autostart": true,
   "running": true
 }
 ```
 
-`host_header` (optional): when non-empty, overrides the `Host` header sent to the upstream backend. Useful for HTTPS backends that require a specific hostname for SNI or virtual hosting. Defaults to the upstream `host:port` when omitted.
-
-Create/update with multipart/form-data supports a `tls` boolean field, a `tls_cert_upload` file field (`.pem`, `.crt`, `.cer`), a `remove_tls_cert` boolean field, and a `host_header` string field.
+`tls`, `tls_cert_file`, `trusted_proxies`, and `host_header` are no longer applied by the backend after the move to `tailscale serve`.
 
 ### Socat Relay Object
 
@@ -444,28 +433,16 @@ docker exec tailrelay cat /var/lib/tailscale/.webui_token
 
 Ensure you're accessing from Tailscale network or clear browser cache.
 
-### Caddy Proxy Issues
+### Relay Issues (`tailscale serve`)
 
-Validate configuration:
+Check current serve status:
 ```bash
-docker exec tailrelay caddy validate --config /etc/caddy/Caddyfile
+docker exec tailrelay tailscale serve status
 ```
 
-Check Caddy logs:
+Force reconcile from saved UI configuration:
 ```bash
-docker logs tailrelay | grep -i caddy
-```
-
-### Socat Relay Issues
-
-Check relay status:
-```bash
-docker exec tailrelay ps aux | grep socat
-```
-
-Verify listening ports:
-```bash
-docker exec tailrelay netstat -tulnp | grep socat
+curl -X POST http://localhost:8021/api/caddy/reload
 ```
 
 Test target connectivity:

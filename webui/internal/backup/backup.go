@@ -75,6 +75,7 @@ func (m *Manager) Create(backupType string) (string, error) {
 
 	// Add configuration files
 	filesToBackup := []string{
+		m.cfg.Paths.CaddyConfig, // legacy compatibility
 		m.cfg.Paths.ServeRelayConfig,
 		m.cfg.Paths.SocatRelayConfig, // legacy compatibility
 		m.cfg.Paths.CaddyProxyConfig, // legacy compatibility

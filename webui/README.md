@@ -1,14 +1,13 @@
 # Tailrelay Web UI
 
-A lightweight web interface for managing Tailscale, Caddy reverse proxies, and socat TCP relays in the tailrelay container.
+A lightweight web interface for managing Tailscale and `tailscale serve` HTTPS/TCP relays in the tailrelay container.
 
 ## Features
 
 - **Dashboard**: System status overview
 - **Tailscale Management**: Login, status, device list
-- **Caddy Proxy Management**: Add/edit/delete HTTP/HTTPS reverse proxies via Caddy Admin API; three-mode HTTPS target transport (plain, insecure, custom CA cert)
-- **Socat Relay Management**: Add/edit/delete TCP relays
-- **Traffic Metrics**: Per-relay request counts, bandwidth, and HTTP status codes; time-window filter (All / 1h / 1d / 1w / 1m); relay filter; persistent 31-day history
+- **HTTPS Relay Management**: Add/edit/delete HTTPS relays via `tailscale serve`
+- **TCP Relay Management**: Add/edit/delete TCP relays via `tailscale serve`
 - **Backup & Restore**: Full configuration and certificate backup
 - **Authentication**: Tailscale login link + token-based access for scripts
 
@@ -40,7 +39,7 @@ See `config/webui.yaml` for an example configuration file.
 - **server.port**: Web UI port (default: 8021)
 - **auth.enable_tailscale_auth**: Allow auth from Tailscale network IPs
 - **auth.enable_token_auth**: Require authentication token
-- **paths.metrics_history_file**: Path for persisted metrics snapshots (default: `/var/lib/tailscale/metrics_history.json`)
+- **paths.serve_relay_config**: Path for persisted serve relay metadata (default: `/var/lib/tailscale/serve_relays.json`)
 - **paths.**: Other file paths for configurations and state
 
 ## Authentication
@@ -50,13 +49,9 @@ The Web UI supports two authentication methods:
 1. **Tailscale Network Authentication**: Automatic authentication from Tailscale IPs (100.x.y.z). If the device is not connected, the login page shows a Tailscale login link and polls until connected.
 2. **Token Authentication**: Token-based access for scripted or legacy flows (token generated on first run and saved to the configured token file).
 
-## Migration from RELAY_LIST
+## Legacy Migration
 
-On first startup, if the `RELAY_LIST` environment variable is set and `relays.json` doesn't exist, the Web UI will automatically migrate the relay configuration to JSON format.
-
-Format: `RELAY_LIST=port:host:port,port:host:port`
-
-After migration, you can remove the `RELAY_LIST` environment variable and manage relays through the Web UI.
+On first startup, the Web UI migrates legacy `relays.json` and `proxies.json` metadata into `serve_relays.json` and reconciles active relays through `tailscale serve`.
 
 ## Development
 
@@ -69,16 +64,7 @@ webui/
 ├── internal/
 │   ├── config/         # Configuration management
 │   ├── tailscale/      # Tailscale CLI integration
-│   ├── caddy/          # Caddy API integration
-│   │   ├── api_client.go        # HTTP client for Caddy Admin API
-│   │   ├── api_types.go         # Caddy JSON config structures
-│   │   ├── proxy_manager.go     # High-level proxy management
-│   │   ├── manager.go           # Simplified manager interface + metrics poller
-│   │   ├── metrics_store.go     # MetricsStore: snapshot ring buffer, persistence, Query
-│   │   ├── metrics_parser.go    # Prometheus text-format parser (server-label keyed)
-│   │   ├── migration.go         # Migration utilities
-│   │   └── caddyfile.go         # Legacy Caddyfile support
-│   ├── socat/          # Socat process management
+│   ├── serve/          # tailscale serve relay management
 │   ├── auth/           # Authentication middleware
 │   ├── handlers/       # HTTP request handlers
 │   └── web/            # HTTP server and routing

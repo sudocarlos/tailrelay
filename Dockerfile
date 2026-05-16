@@ -87,9 +87,7 @@ ENV TS_ENABLE_METRICS=true
 ENV TS_ENABLE_HEALTH_CHECK=true
 
 ARG MAILCAP_VERSION
-RUN apk update && \
-    apk upgrade --no-cache && \
-    apk add --no-cache \
+RUN apk add --no-cache \
       ca-certificates \
       iptables \
       iproute2 \

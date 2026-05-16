@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Tailscale Serve relay manager** — added a unified relay backend (`internal/serve`) for HTTPS and TCP relays with persisted desired state in `serve_relays.json`.
+- **Legacy API compatibility shims** — existing `/api/caddy/*` and `/api/socat/*` endpoints now map to the new serve backend for transition compatibility.
+
+### Changed
+- **Runtime architecture** — Web UI startup now reconciles relay state via `tailscale serve`; Caddy metrics polling and socat process monitoring were removed.
+- **Container image dependencies** — removed Caddy and socat runtime/build dependencies from `Dockerfile` and startup flow.
+- **Relay metadata migration** — Web UI now migrates legacy `relays.json` and `proxies.json` metadata into `serve_relays.json` on startup.
+
+### Removed
+- **Caddy metrics endpoints** — dropped `/api/caddy/metrics` and `/api/caddy/metrics/reset`.
+- **Metrics UI tab** — removed the Metrics navigation view from the SPA.
+
 ## [0.8.8] - 2026-05-14
 
 ### Changed
