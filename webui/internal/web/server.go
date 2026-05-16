@@ -92,11 +92,27 @@ func NewServer(cfg *config.Config, authToken, version, commit string, distFS, st
 
 // Start starts the HTTP server
 func (s *Server) Start() error {
-	// Initialize tailscale serve relay state.
-	log.Printf("Reconciling tailscale serve relays...")
-	if err := s.serveH.InitializeAutostart(); err != nil {
-		log.Printf("Warning: failed to reconcile tailscale serve relays: %v", err)
-	}
+	// Initialize tailscale serve relay state asynchronously, 
+	// retrying until the tailscaled netMap is fully loaded and ready.
+	go func() {
+		log.Printf("Waiting for tailscale to connect before reconciling relays...")
+		for i := 0; i < 15; i++ {
+			if s.serveH.IsTailscaleReady() {
+				if err := s.serveH.InitializeAutostart(); err == nil {
+					log.Printf("Successfully reconciled tailscale serve relays")
+					return
+				} else {
+					log.Printf("Warning: failed to reconcile tailscale serve relays on attempt %d: %v", i+1, err)
+				}
+			}
+			
+			if i < 14 {
+				time.Sleep(2 * time.Second)
+			} else {
+				log.Printf("Warning: tailscale failed to connect or reconcile relays after multiple attempts")
+			}
+		}
+	}()
 
 	mux := s.setupRoutes()
 

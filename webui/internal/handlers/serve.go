@@ -37,6 +37,12 @@ func (h *ServeHandler) InitializeAutostart() error {
 	return h.manager.Reconcile()
 }
 
+// IsTailscaleReady checks if the tailscale daemon is running and connected.
+func (h *ServeHandler) IsTailscaleReady() bool {
+	connected, _ := h.tsClient.IsConnected()
+	return connected
+}
+
 // APIListSocat returns TCP relays using the legacy socat API shape.
 func (h *ServeHandler) APIListSocat(w http.ResponseWriter, _ *http.Request) {
 	relays, err := h.manager.ListRelays()
@@ -44,6 +50,8 @@ func (h *ServeHandler) APIListSocat(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "Failed to load relays", http.StatusInternalServerError)
 		return
 	}
+
+	statusJSON, _ := h.manager.Status()
 
 	type socatStatus struct {
 		Relay   config.SocatRelay `json:"Relay"`
@@ -55,6 +63,16 @@ func (h *ServeHandler) APIListSocat(w http.ResponseWriter, _ *http.Request) {
 		if r.Type != "tcp" {
 			continue
 		}
+
+		running := false
+		if statusJSON != nil && statusJSON.TCP != nil {
+			if tcpInfo, ok := statusJSON.TCP[strconv.Itoa(r.ListenPort)]; ok {
+				if !tcpInfo.HTTPS {
+					running = true
+				}
+			}
+		}
+
 		out = append(out, socatStatus{
 			Relay: config.SocatRelay{
 				ID:         r.ID,
@@ -64,7 +82,7 @@ func (h *ServeHandler) APIListSocat(w http.ResponseWriter, _ *http.Request) {
 				Enabled:    r.Enabled,
 				Autostart:  r.Autostart,
 			},
-			Running: r.Enabled,
+			Running: running,
 		})
 	}
 
@@ -273,7 +291,14 @@ func (h *ServeHandler) APIListCaddy(w http.ResponseWriter, _ *http.Request) {
 		hostname = status.MagicDNSName
 	}
 
-	out := make([]config.CaddyProxy, 0, len(relays))
+	statusJSON, _ := h.manager.Status()
+
+	type caddyStatus struct {
+		config.CaddyProxy
+		Running bool `json:"running"`
+	}
+
+	out := make([]caddyStatus, 0, len(relays))
 	for _, relay := range relays {
 		if relay.Type != "https" {
 			continue
@@ -282,13 +307,27 @@ func (h *ServeHandler) APIListCaddy(w http.ResponseWriter, _ *http.Request) {
 		if hname == "" {
 			hname = hostname
 		}
-		out = append(out, config.CaddyProxy{
-			ID:        relay.ID,
-			Hostname:  hname,
-			Port:      relay.ListenPort,
-			Target:    fmt.Sprintf("%s:%d", relay.TargetHost, relay.TargetPort),
-			Enabled:   relay.Enabled,
-			Autostart: relay.Autostart,
+
+		running := false
+		if statusJSON != nil && statusJSON.TCP != nil {
+			if tcpInfo, ok := statusJSON.TCP[strconv.Itoa(relay.ListenPort)]; ok {
+				if tcpInfo.HTTPS {
+					running = true
+				}
+			}
+		}
+
+		out = append(out, caddyStatus{
+			CaddyProxy: config.CaddyProxy{
+				ID:        relay.ID,
+				Hostname:  hname,
+				Port:      relay.ListenPort,
+				Target:    fmt.Sprintf("%s:%d", relay.TargetHost, relay.TargetPort),
+				TLS:       relay.TargetHTTPS,
+				Enabled:   relay.Enabled,
+				Autostart: relay.Autostart,
+			},
+			Running: running,
 		})
 	}
 
@@ -314,6 +353,7 @@ func (h *ServeHandler) APIGetCaddy(w http.ResponseWriter, r *http.Request) {
 		Hostname:  relay.Hostname,
 		Port:      relay.ListenPort,
 		Target:    fmt.Sprintf("%s:%d", relay.TargetHost, relay.TargetPort),
+		TLS:       relay.TargetHTTPS,
 		Enabled:   relay.Enabled,
 		Autostart: relay.Autostart,
 	})
@@ -335,14 +375,15 @@ func (h *ServeHandler) CreateCaddy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.manager.UpsertRelay(config.ServeRelay{
-		ID:         proxy.ID,
-		Type:       "https",
-		Hostname:   proxy.Hostname,
-		ListenPort: proxy.Port,
-		TargetHost: targetHost,
-		TargetPort: targetPort,
-		Enabled:    proxy.Enabled,
-		Autostart:  proxy.Autostart,
+		ID:          proxy.ID,
+		Type:        "https",
+		Hostname:    proxy.Hostname,
+		ListenPort:  proxy.Port,
+		TargetHost:  targetHost,
+		TargetPort:  targetPort,
+		TargetHTTPS: proxy.TLS,
+		Enabled:     proxy.Enabled,
+		Autostart:   proxy.Autostart,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -368,14 +409,15 @@ func (h *ServeHandler) UpdateCaddy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.manager.UpsertRelay(config.ServeRelay{
-		ID:         proxy.ID,
-		Type:       "https",
-		Hostname:   proxy.Hostname,
-		ListenPort: proxy.Port,
-		TargetHost: targetHost,
-		TargetPort: targetPort,
-		Enabled:    proxy.Enabled,
-		Autostart:  proxy.Autostart,
+		ID:          proxy.ID,
+		Type:        "https",
+		Hostname:    proxy.Hostname,
+		ListenPort:  proxy.Port,
+		TargetHost:  targetHost,
+		TargetPort:  targetPort,
+		TargetHTTPS: proxy.TLS,
+		Enabled:     proxy.Enabled,
+		Autostart:   proxy.Autostart,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -446,6 +488,7 @@ func parseLegacyProxy(r *http.Request) (config.CaddyProxy, error) {
 			Hostname:  strings.TrimSpace(r.FormValue("hostname")),
 			Target:    strings.TrimSpace(r.FormValue("target")),
 			Port:      port,
+			TLS:       parseBool(r.FormValue("tls")),
 			Enabled:   parseBool(r.FormValue("enabled")),
 			Autostart: parseBool(r.FormValue("autostart")),
 		}, nil

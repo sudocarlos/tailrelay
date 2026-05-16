@@ -70,6 +70,15 @@ type Status struct {
 	MagicDNSSuffix string                `json:"MagicDNSSuffix"`
 	CurrentTailnet *CurrentTailnet       `json:"CurrentTailnet"`
 	Peer           map[string]PeerStatus `json:"Peer"`
+	User           map[string]UserProfile `json:"User"`
+}
+
+// UserProfile represents a Tailscale user
+type UserProfile struct {
+	ID            int64  `json:"ID"`
+	LoginName     string `json:"LoginName"`
+	DisplayName   string `json:"DisplayName"`
+	ProfilePicURL string `json:"ProfilePicURL"`
 }
 
 // PeerStatus represents a peer device

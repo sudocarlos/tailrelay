@@ -94,10 +94,11 @@ type ServeRelay struct {
 	Type       string `json:"type"` // "https" or "tcp"
 	Hostname   string `json:"hostname,omitempty"`
 	ListenPort int    `json:"listen_port"`
-	TargetHost string `json:"target_host"`
-	TargetPort int    `json:"target_port"`
-	Enabled    bool   `json:"enabled"`
-	Autostart  bool   `json:"autostart"`
+	TargetHost  string `json:"target_host"`
+	TargetPort  int    `json:"target_port"`
+	TargetHTTPS bool   `json:"target_https"`
+	Enabled     bool   `json:"enabled"`
+	Autostart   bool   `json:"autostart"`
 }
 
 // ServeRelayList represents the list of tailscale serve relay definitions.

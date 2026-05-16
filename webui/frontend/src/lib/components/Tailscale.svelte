@@ -69,13 +69,15 @@
   }
 
   function formatLastSeen(ts) {
-    if (!ts) return 'never';
+    if (!ts || ts.startsWith('0001-01-01')) return 'never';
     const d = new Date(ts);
     const diff = Date.now() - d.getTime();
     if (diff < 60000) return 'just now';
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-    return `${Math.floor(diff / 86400000)}d ago`;
+    if (diff < 7 * 86400000) return `${Math.floor(diff / 86400000)}d ago`;
+    
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   // ── Actions ───────────────────────────────────────────────────────
@@ -218,7 +220,23 @@
   onDestroy(() => {
     stopLoginPoll();
   });
+
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text);
+    showToast('success', 'Copied to clipboard');
+  }
+
+  function handleWindowClick(e) {
+    const clickedDetails = e.target.closest('details.address-dropdown');
+    document.querySelectorAll('details.address-dropdown').forEach(d => {
+      if (d !== clickedDetails) {
+        d.removeAttribute('open');
+      }
+    });
+  }
 </script>
+
+<svelte:window onclick={handleWindowClick} />
 
 <div class="space-y-6">
   <!-- Page header -->
@@ -250,8 +268,29 @@
       <dl class="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 text-sm">
         {#if status.Hostname}
           <div>
-            <dt class="text-xs text-gray-500 dark:text-gray-400">Hostname</dt>
-            <dd class="font-mono text-gray-900 dark:text-gray-100 truncate">{status.Hostname}</dd>
+            <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Machine name</dt>
+            <dd class="flex gap-2">
+              <input
+                type="text"
+                class="flex-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-transparent px-2 py-1 text-xs font-mono text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 transition-colors"
+                bind:value={hostnameInput}
+                onkeydown={(e) => e.key === 'Enter' && hostnameInput !== status.Hostname && handleChangeHostname()}
+              />
+              {#if hostnameInput !== status.Hostname}
+                <button
+                  class="inline-flex items-center gap-1 px-2 py-1 text-[10px] uppercase tracking-wider font-semibold rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  onclick={handleChangeHostname}
+                  disabled={hostnameLoading || !hostnameInput.trim()}
+                >
+                  {#if hostnameLoading}
+                    <RefreshCw size={12} class="animate-spin" />
+                  {:else}
+                    <Check size={12} />
+                  {/if}
+                  Apply
+                </button>
+              {/if}
+            </dd>
           </div>
         {/if}
         {#if status.IPv4}
@@ -279,7 +318,7 @@
           </div>
         {/if}
         <div>
-          <dt class="text-xs text-gray-500 dark:text-gray-400">Peers</dt>
+          <dt class="text-xs text-gray-500 dark:text-gray-400">Machines</dt>
           <dd class="text-gray-900 dark:text-gray-100">{status.PeerCount ?? 0} ({status.ActivePeers ?? 0} active)</dd>
         </div>
       </dl>
@@ -444,49 +483,14 @@
     </div>
   {/if}
 
-  <!-- Hostname change -->
-  <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 space-y-3">
-    <div class="flex items-center gap-2">
-      <Server size={18} class="text-gray-500" />
-      <h2 class="font-medium text-gray-900 dark:text-gray-100">Hostname</h2>
-    </div>
 
-    <div class="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 flex items-start gap-2">
-      <AlertTriangle size={14} class="mt-0.5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
-      <p class="text-xs text-amber-700 dark:text-amber-300">
-        Changing the hostname updates the device name in your tailnet. Any Caddy reverse proxy routes that use the current MagicDNS hostname will need to be updated manually.
-      </p>
-    </div>
 
-    <div class="flex gap-2">
-      <input
-        type="text"
-        class="flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-mono text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
-        placeholder="my-device-name"
-        bind:value={hostnameInput}
-        onkeydown={(e) => e.key === 'Enter' && handleChangeHostname()}
-      />
-      <button
-        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-        onclick={handleChangeHostname}
-        disabled={hostnameLoading || !hostnameInput.trim()}
-      >
-        {#if hostnameLoading}
-          <RefreshCw size={14} class="animate-spin" />
-        {:else}
-          <Check size={14} />
-        {/if}
-        Apply
-      </button>
-    </div>
-  </div>
-
-  <!-- Peers -->
+  <!-- Machines -->
   <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 space-y-3">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2">
         <Users size={18} class="text-gray-500" />
-        <h2 class="font-medium text-gray-900 dark:text-gray-100">Peers</h2>
+        <h2 class="font-medium text-gray-900 dark:text-gray-100">Machines</h2>
         {#if peers.length > 0}
           <span class="text-xs text-gray-400">({peers.length})</span>
         {/if}
@@ -494,50 +498,99 @@
       <button
         class="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 transition-colors"
         onclick={fetchPeers}
-        title="Refresh peers"
+        title="Refresh machines"
       >
         <RefreshCw size={14} class={peersLoading ? 'animate-spin' : ''} />
       </button>
     </div>
 
     {#if peersLoading && peers.length === 0}
-      <p class="text-sm text-gray-400">Loading peers…</p>
+      <p class="text-sm text-gray-400">Loading machines…</p>
     {:else if peers.length === 0}
       <p class="text-sm text-gray-400">
-        {status?.BackendState === 'Running' ? 'No peers found in this tailnet.' : 'Connect to Tailscale to see peers.'}
+        {status?.BackendState === 'Running' ? 'No machines found in this tailnet.' : 'Connect to Tailscale to see machines.'}
       </p>
     {:else}
       <div class="overflow-x-auto">
-        <table class="w-full text-xs text-left">
+        <table class="w-full text-xs text-left whitespace-nowrap">
           <thead>
-            <tr class="border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400">
-              <th class="pb-2 pr-4 font-medium">Hostname</th>
-              <th class="pb-2 pr-4 font-medium">IPv4</th>
-              <th class="pb-2 pr-4 font-medium hidden sm:table-cell">OS</th>
-              <th class="pb-2 pr-4 font-medium">Status</th>
-              <th class="pb-2 font-medium hidden sm:table-cell">Last Seen</th>
+            <tr class="border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 uppercase tracking-wider text-[11px]">
+              <th class="pb-3 pr-4 font-semibold">Machine</th>
+              <th class="pb-3 pr-4 font-semibold">Addresses</th>
+              <th class="pb-3 pr-4 font-semibold">Version</th>
+              <th class="pb-3 font-semibold">Last Seen</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
             {#each peers as peer}
               <tr>
-                <td class="py-2 pr-4 font-mono text-gray-900 dark:text-gray-100 truncate max-w-[140px]">
-                  {peer.DNSName ? peer.DNSName.split('.')[0] : (peer.Hostname || '—')}
+                <!-- MACHINE -->
+                <td class="py-3 pr-4 align-top">
+                  <div class="flex flex-col gap-1">
+                    <a 
+                      href="https://login.tailscale.com/admin/machines/{peer.IPv4 || peer.IPv6 || ''}"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="font-bold text-gray-900 dark:text-gray-100 text-[13px] hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors"
+                    >
+                      {peer.Hostname || '—'}
+                    </a>
+                    {#if peer.UserEmail}
+                      <span class="text-gray-500 dark:text-gray-400 text-xs">
+                        {peer.UserEmail}
+                      </span>
+                    {/if}
+                    <div class="flex gap-1.5 mt-0.5">
+                      {#if peer.ExitNode}
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                          Exit Node
+                        </span>
+                      {/if}
+                    </div>
+                  </div>
                 </td>
-                <td class="py-2 pr-4 font-mono text-gray-600 dark:text-gray-300">
-                  {peer.IPv4 || '—'}
+                
+                <!-- ADDRESSES -->
+                <td class="py-3 pr-4 align-top font-mono text-gray-700 dark:text-gray-300">
+                  <details class="relative group cursor-pointer address-dropdown">
+                    <summary class="list-none outline-none flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
+                      {peer.IPv4 || peer.IPv6 || '—'}
+                      <svg class="w-3 h-3 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </summary>
+                    <div class="absolute left-0 mt-1 w-max min-w-[200px] z-10 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1 hidden group-open:block">
+                      {#if peer.DNSName}
+                        <div class="flex items-center justify-between px-3 py-2 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors">
+                          <span class="truncate">{peer.DNSName}</span>
+                          <button class="ml-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" onclick={() => copyToClipboard(peer.DNSName)} title="Copy"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                        </div>
+                      {/if}
+                      {#if peer.TailscaleIPs && peer.TailscaleIPs.length > 0}
+                        {#each peer.TailscaleIPs as ip}
+                          <div class="flex items-center justify-between px-3 py-2 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors border-t border-gray-100 dark:border-gray-700/50">
+                            <span>{ip}</span>
+                            <button class="ml-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" onclick={() => copyToClipboard(ip)} title="Copy"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                          </div>
+                        {/each}
+                      {/if}
+                    </div>
+                  </details>
                 </td>
-                <td class="py-2 pr-4 text-gray-500 dark:text-gray-400 hidden sm:table-cell">
-                  {peer.OS || '—'}
+                
+                <!-- VERSION -->
+                <td class="py-3 pr-4 align-top">
+                  <div class="flex flex-col gap-0.5">
+                    <span class="text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+                      {peer.OS || '—'}
+                    </span>
+                  </div>
                 </td>
-                <td class="py-2 pr-4">
-                  <span class="inline-flex items-center gap-1 {peer.Online ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}">
-                    <span class="h-1.5 w-1.5 rounded-full {peer.Online ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'}"></span>
-                    {peer.Online ? (peer.Active ? 'Active' : 'Online') : 'Offline'}
+                
+                <!-- LAST SEEN -->
+                <td class="py-3 align-top">
+                  <span class="inline-flex items-center gap-1.5 {peer.Online ? 'text-gray-900 dark:text-gray-100' : 'text-gray-500'}">
+                    <span class="h-1.5 w-1.5 rounded-full {peer.Online ? 'bg-emerald-500' : 'bg-gray-400'}"></span>
+                    {peer.Online ? 'Connected' : formatLastSeen(peer.LastSeen)}
                   </span>
-                </td>
-                <td class="py-2 text-gray-400 dark:text-gray-500 hidden sm:table-cell">
-                  {peer.Online ? 'just now' : formatLastSeen(peer.LastSeen)}
                 </td>
               </tr>
             {/each}

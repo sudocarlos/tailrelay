@@ -1,12 +1,14 @@
 package serve
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"sort"
 	"strings"
 
 	"github.com/sudocarlos/tailrelay/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/logger"
 )
 
 // Manager manages relay rules backed by `tailscale serve`.
@@ -21,6 +23,33 @@ func NewManager(relayFile string) *Manager {
 		binaryPath: "tailscale",
 		relayFile:  relayFile,
 	}
+}
+
+// ServeStatusJSON is the structure returned by `tailscale serve status --json`
+type ServeStatusJSON struct {
+	TCP map[string]struct {
+		HTTPS      bool   `json:"HTTPS,omitempty"`
+		TCPForward string `json:"TCPForward,omitempty"`
+	} `json:"TCP"`
+	Web map[string]struct {
+		Handlers map[string]struct {
+			Proxy string `json:"Proxy,omitempty"`
+		} `json:"Handlers"`
+	} `json:"Web"`
+}
+
+// Status returns the parsed output of `tailscale serve status --json`
+func (m *Manager) Status() (*ServeStatusJSON, error) {
+	cmd := exec.Command(m.binaryPath, "serve", "status", "--json")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("tailscale serve status failed: %w", err)
+	}
+	var status ServeStatusJSON
+	if err := json.Unmarshal(output, &status); err != nil {
+		return nil, err
+	}
+	return &status, nil
 }
 
 // RelayStatus is a UI status shape similar to legacy relay status APIs.
@@ -148,12 +177,16 @@ func (m *Manager) ToggleRelay(id string, enabled bool) error {
 
 // Reconcile resets tailscale serve config and reapplies all enabled relays.
 func (m *Manager) Reconcile() error {
+	logger.Debug("serve", "Starting serve reconcile process")
 	list, err := config.LoadServeRelays(m.relayFile)
 	if err != nil {
+		logger.Error("serve", "Failed to load serve relays: %v", err)
 		return err
 	}
 
+	logger.Debug("serve", "Resetting tailscale serve config")
 	if err := m.run("serve", "reset"); err != nil {
+		logger.Error("serve", "tailscale serve reset failed: %v", err)
 		return err
 	}
 
@@ -171,10 +204,13 @@ func (m *Manager) Reconcile() error {
 	})
 
 	for _, relay := range enabled {
+		logger.Debug("serve", "Applying relay %s (type: %s, port: %d)", relay.ID, relay.Type, relay.ListenPort)
 		if err := m.applyRelay(relay); err != nil {
+			logger.Error("serve", "Failed to apply relay %s: %v", relay.ID, err)
 			return err
 		}
 	}
+	logger.Debug("serve", "Finished serve reconcile process")
 	return nil
 }
 
@@ -182,7 +218,11 @@ func (m *Manager) applyRelay(relay config.ServeRelay) error {
 	target := ""
 	switch relay.Type {
 	case "https":
-		target = fmt.Sprintf("http://%s:%d", relay.TargetHost, relay.TargetPort)
+		protocol := "http"
+		if relay.TargetHTTPS {
+			protocol = "https+insecure"
+		}
+		target = fmt.Sprintf("%s://%s:%d", protocol, relay.TargetHost, relay.TargetPort)
 		return m.run("serve", "--bg", "--https", fmt.Sprintf("%d", relay.ListenPort), target)
 	case "tcp":
 		target = fmt.Sprintf("tcp://%s:%d", relay.TargetHost, relay.TargetPort)
@@ -193,10 +233,20 @@ func (m *Manager) applyRelay(relay config.ServeRelay) error {
 }
 
 func (m *Manager) run(args ...string) error {
+	cmdStr := fmt.Sprintf("%s %s", m.binaryPath, strings.Join(args, " "))
+	logger.Debug("serve", "Executing: %s", cmdStr)
+	
 	cmd := exec.Command(m.binaryPath, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("tailscale %s failed: %w (output: %s)", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
+		errStr := fmt.Sprintf("tailscale %s failed: %w (output: %s)", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
+		if strings.Contains(errStr, "netMap is nil") {
+			logger.Debug("serve", "Tailscale not fully ready yet: %v", errStr)
+		} else {
+			logger.Error("serve", "%s", errStr)
+		}
+		return fmt.Errorf("%s", errStr)
 	}
+	logger.Debug("serve", "Execution successful: %s", cmdStr)
 	return nil
 }

@@ -14,14 +14,10 @@
     const i = initItem;
     const isEditing = i !== null;
     const isProxy = t === 'proxy';
-    // Derive tlsMode from stored proxy fields:
-    //   tls == true && no cert file  → insecure mode
-    //   cert file present            → custom CA mode
-    //   otherwise                   → plain HTTP target
-    let tlsMode = 'off';
+    // Derive isHttpsTarget from stored proxy fields:
+    let isHttpsTarget = false;
     if (i && t === 'proxy') {
-      if (i.tls) tlsMode = 'insecure';
-      else if (i.tls_cert_file) tlsMode = 'cert';
+      if (i.tls) isHttpsTarget = true;
     }
     const tp = i && t === 'proxy' ? (i.trusted_proxies ?? false) : false;
     const hh = i && t === 'proxy' ? (i.host_header ?? '') : '';
@@ -41,13 +37,11 @@
       // Auto-open the Advanced section when editing a proxy that already uses either option
       advancedOpen: tp || hh !== '',
       autostart: i ? (i.autostart ?? true) : true,
-      existingCert: i && t === 'proxy' ? i.tls_cert_file : null,
-      tlsMode,
+      isHttpsTarget,
     };
   });
 
   let saving = $state(false);
-  let removeTlsCert = $state(false);
 
   // HTTP relay toggle (controls whether HTTP-only fields are shown)
   let httpRelay = $state(initialState.httpRelay);
@@ -66,24 +60,13 @@
   let trustedProxies = $state(initialState.trustedProxies);
   let hostHeader = $state(initialState.hostHeader);
   let advancedOpen = $state(initialState.advancedOpen);
-  // tlsMode: 'off' | 'insecure' | 'cert'
-  let tlsMode = $state(initialState.tlsMode);
-  let tlsCertFile = $state(null);
-  let existingCert = $state(initialState.existingCert);
+  // isHttpsTarget: false for http, true for https
+  let isHttpsTarget = $state(initialState.isHttpsTarget);
 
   const editing = initialState.editing;
   const title = initialState.title;
 
-  // Switch the HTTPS target mode. Clears any uploaded/existing cert when moving away from cert mode.
-  function setTlsMode(mode) {
-    if (mode !== 'cert' && (existingCert || tlsCertFile)) {
-      removeTlsCert = true;
-      existingCert = null;
-      tlsCertFile = null;
-    }
-    if (mode === 'cert') removeTlsCert = false;
-    tlsMode = mode;
-  }
+
 
   function handlePreset(e) {
     const idx = e.target.value;
@@ -101,8 +84,8 @@
       httpRelay = false;
     } else if (isProxy) {
       httpRelay = true;
-      if (t.protocol === 'https') setTlsMode('insecure');
-      else setTlsMode('off');
+      if (t.protocol === 'https') isHttpsTarget = true;
+      else isHttpsTarget = false;
     }
   }
 
@@ -182,23 +165,12 @@
       return;
     }
 
-    if (tlsMode === 'cert' && tlsCertFile) {
-      const validExts = ['.pem', '.crt', '.cer'];
-      const name = tlsCertFile.name.toLowerCase();
-      if (!validExts.some((ext) => name.endsWith(ext))) {
-        showToast('danger', 'Invalid certificate file. Please upload a .pem, .crt, or .cer file.');
-        return;
-      }
-      if (tlsCertFile.size > 1024 * 1024) {
-        showToast('danger', 'Certificate file too large. Maximum size is 1MB.');
-        return;
-      }
-    }
+
 
     const formData = new FormData();
     formData.append('hostname', hostname);
     formData.append('target', target.trim());
-    formData.append('tls', (tlsMode === 'insecure').toString());
+    formData.append('tls', isHttpsTarget.toString());
     formData.append('trusted_proxies', trustedProxies.toString());
     formData.append('host_header', hostHeader.trim());
     formData.append('autostart', autostart.toString());
@@ -206,8 +178,6 @@
     formData.append('port', listenPort);
 
     if (proxyId) formData.append('id', proxyId);
-    if (tlsMode === 'cert' && tlsCertFile) formData.append('tls_cert_upload', tlsCertFile);
-    if (removeTlsCert) formData.append('remove_tls_cert', 'true');
 
     saving = true;
     try {
@@ -222,15 +192,7 @@
     }
   }
 
-  function handleFileChange(e) {
-    tlsCertFile = e.target.files?.[0] || null;
-  }
 
-  function handleRemoveCert() {
-    removeTlsCert = true;
-    existingCert = null;
-    tlsCertFile = null;
-  }
 
   function handleKeydown(e) {
     if (e.key === 'Escape') {
@@ -263,25 +225,21 @@
 
       <!-- HTTP relay toggle (only when adding) — shown first -->
       {#if !editing}
-        <div>
-          <label class="flex items-center justify-between cursor-pointer">
-            <span class="text-sm font-medium">HTTPS relay</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={httpRelay}
-              aria-label="Enable HTTPS relay"
-              onclick={() => (httpRelay = !httpRelay)}
-              class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 {httpRelay ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}"
-            >
-              <span
-                class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform {httpRelay ? 'translate-x-6' : 'translate-x-1'}"
-              ></span>
-            </button>
-          </label>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Enable to proxy HTTPS traffic through Caddy with TLS termination.
-          </p>
+        <div class="flex p-1 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm">
+          <button
+            type="button"
+            onclick={() => (httpRelay = true)}
+            class="flex-1 px-3 py-1.5 text-center rounded-md transition-colors {httpRelay ? 'bg-white dark:bg-gray-700 shadow-sm font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+          >
+            HTTPS
+          </button>
+          <button
+            type="button"
+            onclick={() => (httpRelay = false)}
+            class="flex-1 px-3 py-1.5 text-center rounded-md transition-colors {!httpRelay ? 'bg-white dark:bg-gray-700 shadow-sm font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+          >
+            TCP
+          </button>
         </div>
       {/if}
 
@@ -318,176 +276,34 @@
       <!-- Target (shared) -->
       <div>
         <label for="relay-target" class="block text-sm font-medium mb-1">Target</label>
-        <input
-          id="relay-target"
-          type="text"
-          bind:value={target}
-          placeholder="e.g. 192.168.1.10:3000 or server.local:8080"
-          class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-      </div>
-
-      <!-- HTTP-only fields (HTTPS target mode + trusted proxies) -->
-      {#if httpRelay}
-        <div class="space-y-4">
-
-          <!-- HTTPS target — three-segment control -->
-          <div class="flex rounded-lg border border-gray-300 dark:border-gray-700 text-sm overflow-visible">
-
-            <!-- HTTP target -->
-            <button
-              type="button"
-              onclick={() => setTlsMode('off')}
-              class="flex-1 px-3 py-2 text-center rounded-l-lg transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500
-                {tlsMode === 'off'
-                  ? 'bg-blue-500 text-white font-medium'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}"
-            >
-              HTTP target
-            </button>
-
-            <!-- HTTPS target (insecure) -->
-            <button
-              type="button"
-              onclick={() => setTlsMode('insecure')}
-              class="flex-1 px-3 py-2 text-center border-l border-gray-300 dark:border-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500
-                {tlsMode === 'insecure'
-                  ? 'bg-blue-500 text-white font-medium'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}"
-            >
-              <span class="flex items-center justify-center gap-1">
-                HTTPS target (insecure)
-                <Tooltip>
-                  {#snippet trigger()}
-                    <Info size={13} class={tlsMode === 'insecure' ? 'text-white/80' : 'text-gray-400'} />
-                  {/snippet}
-                  Turns off TLS handshake verification, making the connection insecure and vulnerable to man-in-the-middle attacks. Do not use in production.
-                </Tooltip>
-              </span>
-            </button>
-
-            <!-- HTTPS target (custom CA cert) -->
-            <button
-              type="button"
-              onclick={() => setTlsMode('cert')}
-              class="flex-1 px-3 py-2 text-center border-l border-gray-300 dark:border-gray-700 rounded-r-lg transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500
-                {tlsMode === 'cert'
-                  ? 'bg-blue-500 text-white font-medium'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}"
-            >
-              <span class="flex items-center justify-center gap-1">
-                HTTPS target (custom CA cert)
-                <Tooltip>
-                  {#snippet trigger()}
-                    <Info size={13} class={tlsMode === 'cert' ? 'text-white/80' : 'text-gray-400'} />
-                  {/snippet}
-                  Upload a CA certificate to trust when your upstream uses HTTPS with a self-signed or private CA certificate. Without this, Caddy uses the system trust pool to verify the upstream's TLS certificate.
-                </Tooltip>
-              </span>
-            </button>
-
-          </div>
-
-          <!-- CA cert upload (only in cert mode) -->
-          {#if tlsMode === 'cert'}
-            <div>
-              {#if existingCert}
-                <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-2">
-                  <span class="truncate">{existingCert.split('/').pop()}</span>
-                  <button
-                    type="button"
-                    class="text-red-500 hover:text-red-600 text-xs font-medium"
-                    onclick={handleRemoveCert}
-                  >
-                    Remove
-                  </button>
-                </div>
-              {/if}
-              <input
-                id="tls-cert-file"
-                type="file"
-                accept=".pem,.crt,.cer"
-                onchange={handleFileChange}
-                class="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-gray-100 dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-200 dark:hover:file:bg-gray-700"
-              />
+        <div class="flex gap-2">
+          {#if httpRelay}
+            <div class="flex p-0.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-xs items-center shrink-0 border border-gray-200 dark:border-gray-700">
+              <button
+                type="button"
+                onclick={() => (isHttpsTarget = false)}
+                class="px-2.5 py-1.5 rounded-md transition-colors {!isHttpsTarget ? 'bg-white dark:bg-gray-700 shadow-sm font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+              >
+                http://
+              </button>
+              <button
+                type="button"
+                onclick={() => (isHttpsTarget = true)}
+                class="px-2.5 py-1.5 rounded-md transition-colors {isHttpsTarget ? 'bg-white dark:bg-gray-700 shadow-sm font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+              >
+                https://
+              </button>
             </div>
           {/if}
-
-          <!-- Advanced settings (collapsed by default) -->
-          <details bind:open={advancedOpen} class="group rounded-lg border border-gray-200 dark:border-gray-700">
-            <summary class="flex cursor-pointer items-center justify-between px-3 py-2 text-sm font-medium select-none list-none">
-              <span>Advanced</span>
-              <svg
-                class="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                aria-hidden="true"
-              >
-                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.085l3.71-3.855a.75.75 0 111.08 1.04l-4.25 4.42a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
-              </svg>
-            </summary>
-
-            <div class="space-y-4 px-3 pb-3 pt-2">
-
-              <!-- Custom Host header override -->
-              <div>
-                <div class="flex items-center gap-1 mb-1">
-                  <label for="host-header" class="text-sm font-medium">Custom Host header</label>
-                  <Tooltip width="w-96">
-                    {#snippet trigger()}
-                      <Info size={14} class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
-                    {/snippet}
-                    Override the <span class="font-mono">Host</span> header sent to the upstream. Useful when proxying to HTTPS and the upstream's TLS certificate uses a specific hostname that differs from the dial address.
-                    <br /><br />
-                    Leave blank to use the upstream dial address (Caddy's default). Since Caddy v2.11.0 this override is applied automatically for HTTPS upstreams.
-                    <a
-                      href="https://caddyserver.com/docs/caddyfile/directives/reverse_proxy#https"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="block mt-1.5 text-blue-300 hover:text-blue-200"
-                    >Learn more →</a>
-                  </Tooltip>
-                </div>
-                <input
-                  id="host-header"
-                  type="text"
-                  bind:value={hostHeader}
-                  placeholder="e.g. my-target-hostname.com"
-                  class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <!-- Trusted proxies: private ranges -->
-              <div class="flex items-start gap-2">
-                <input
-                  id="trusted-proxies"
-                  type="checkbox"
-                  bind:checked={trustedProxies}
-                  class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800"
-                />
-                <div class="flex items-center gap-1">
-                  <label for="trusted-proxies" class="text-sm cursor-pointer select-none">Trusted proxies: private ranges</label>
-                  <Tooltip width="w-80">
-                    {#snippet trigger()}
-                      <Info size={14} class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
-                    {/snippet}
-                    Enable this if Caddy is behind another proxy (e.g. a CDN or load balancer). Caddy will then trust <span class="font-mono">X-Forwarded-For</span> and related headers from all private IP ranges, allowing it to identify the real client IP instead of the intermediate proxy's IP.
-                    <a
-                      href="https://caddyserver.com/docs/caddyfile/options#trusted-proxies"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="block mt-1.5 text-blue-300 hover:text-blue-200"
-                    >Learn more →</a>
-                  </Tooltip>
-                </div>
-              </div>
-
-            </div>
-          </details>
-
+          <input
+            id="relay-target"
+            type="text"
+            bind:value={target}
+            placeholder="e.g. 192.168.1.10:3000 or server.local:8080"
+            class="flex-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
         </div>
-      {/if}
+      </div>
 
       <!-- Autostart (shared) -->
       <label class="flex items-center gap-2 cursor-pointer">

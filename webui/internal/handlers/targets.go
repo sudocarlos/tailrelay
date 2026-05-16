@@ -50,11 +50,13 @@ func (h *TargetsHandler) APIList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var targets []interface{}
-	if err := json.Unmarshal(data, &targets); err != nil {
-		log.Printf("Error parsing targets json: %v", err)
-		w.Write([]byte("[]"))
-		return
+	targets := []interface{}{}
+	if len(data) > 0 {
+		if err := json.Unmarshal(data, &targets); err != nil {
+			log.Printf("Error parsing targets json: %v", err)
+			w.Write([]byte("[]"))
+			return
+		}
 	}
 
 	json.NewEncoder(w).Encode(targets)
