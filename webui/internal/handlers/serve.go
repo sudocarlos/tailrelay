@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -461,12 +462,11 @@ func splitTarget(target string) (string, int, error) {
 	value := strings.TrimSpace(target)
 	value = strings.TrimPrefix(value, "http://")
 	value = strings.TrimPrefix(value, "https://")
-	last := strings.LastIndex(value, ":")
-	if last <= 0 || last == len(value)-1 {
+	host, portStr, err := net.SplitHostPort(value)
+	if err != nil {
 		return "", 0, fmt.Errorf("target must be in host:port format")
 	}
-	host := value[:last]
-	port, err := strconv.Atoi(value[last+1:])
+	port, err := strconv.Atoi(portStr)
 	if err != nil {
 		return "", 0, fmt.Errorf("target port is invalid")
 	}

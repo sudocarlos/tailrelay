@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -90,6 +91,7 @@ func parseRelayList(relayList string) ([]SocatRelay, error) {
 // new tailscale serve relay metadata format.
 func MigrateLegacyRelaysToServe(paths PathsConfig) error {
 	if _, err := os.Stat(paths.ServeRelayConfig); err == nil {
+		fmt.Printf("serve relay migration skipped: %s already exists\n", paths.ServeRelayConfig)
 		return nil
 	}
 
@@ -105,9 +107,6 @@ func MigrateLegacyRelaysToServe(paths PathsConfig) error {
 			return
 		}
 		seen[key] = struct{}{}
-		if !r.Enabled {
-			r.Enabled = true
-		}
 		out.Relays = append(out.Relays, r)
 	}
 
@@ -156,14 +155,13 @@ func splitHostPort(value string) (string, int) {
 	v := strings.TrimSpace(value)
 	v = strings.TrimPrefix(v, "http://")
 	v = strings.TrimPrefix(v, "https://")
-	parts := strings.Split(v, ":")
-	if len(parts) < 2 {
-		return "", 0
-	}
-	port, err := strconv.Atoi(parts[len(parts)-1])
+	host, portStr, err := net.SplitHostPort(v)
 	if err != nil {
 		return "", 0
 	}
-	host := strings.Join(parts[:len(parts)-1], ":")
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return "", 0
+	}
 	return host, port
 }
