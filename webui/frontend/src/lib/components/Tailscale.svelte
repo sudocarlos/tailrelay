@@ -131,6 +131,8 @@
       showToast('success', 'Authenticated and connected via auth key!');
       await refreshData();
       await fetchPeers();
+      // Delayed refresh to pick up relays reconciled after Tailscale fully connects
+      setTimeout(async () => { await refreshData(); }, 3000);
     } catch (err) {
       authKeyError = err.message || 'Failed to authenticate with auth key';
     } finally {
@@ -149,6 +151,8 @@
           showToast('success', 'Tailscale connected!');
           await refreshData();
           await fetchPeers();
+          // Delayed refresh to pick up relays reconciled after Tailscale fully connects
+          setTimeout(async () => { await refreshData(); }, 3000);
         }
       } catch {
         // Ignore poll errors
@@ -170,6 +174,8 @@
       showToast('success', 'Tailscale connecting…');
       await refreshData();
       await fetchPeers();
+      // Delayed refresh to pick up relays reconciled after Tailscale fully connects
+      setTimeout(async () => { await refreshData(); }, 3000);
     } catch (err) {
       showToast('danger', err.message || 'Failed to connect');
     } finally {
@@ -186,6 +192,20 @@
       peers = [];
     } catch (err) {
       showToast('danger', err.message || 'Failed to disconnect');
+    } finally {
+      connectLoading = false;
+    }
+  }
+
+  async function handleLogout() {
+    connectLoading = true;
+    try {
+      await fetchJSON('/api/tailscale/logout', { method: 'POST' });
+      showToast('success', 'Logged out of Tailscale');
+      await refreshData();
+      peers = [];
+    } catch (err) {
+      showToast('danger', err.message || 'Failed to logout');
     } finally {
       connectLoading = false;
     }
@@ -324,7 +344,7 @@
       </dl>
 
       {#if status.Health && status.Health.length > 0}
-        <div class="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 space-y-1">
+        <div class="rounded-md border border-amber-200 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 space-y-1">
           {#each status.Health as msg}
             <p class="text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
               <AlertTriangle size={12} class="mt-0.5 flex-shrink-0" />
@@ -337,7 +357,7 @@
       <p class="text-sm text-gray-400">Waiting for status…</p>
     {/if}
 
-    <!-- Connect / Disconnect -->
+    <!-- Connect / Disconnect / Logout -->
     <div class="flex gap-2 pt-1">
       {#if status?.BackendState !== 'Running'}
         <button
@@ -366,12 +386,26 @@
           Disconnect
         </button>
       {/if}
+      {#if status?.BackendState === 'Running' || status?.BackendState === 'Stopped'}
+        <button
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors text-red-700 dark:text-red-400"
+          onclick={handleLogout}
+          disabled={connectLoading}
+        >
+          {#if connectLoading}
+            <RefreshCw size={14} class="animate-spin" />
+          {:else}
+            <LogOut size={14} />
+          {/if}
+          Logout
+        </button>
+      {/if}
     </div>
   </div>
 
   <!-- Login section — shown when Tailscale needs authentication -->
   {#if status?.BackendState === 'NeedsLogin' || status?.BackendState === 'NoState' || loginURL}
-    <div class="rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-5 space-y-3">
+    <div class="rounded-lg border border-amber-200 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 p-5 space-y-3">
       <div class="flex items-center gap-2">
         <LogIn size={18} class="text-amber-600 dark:text-amber-400" />
         <h2 class="font-medium text-amber-900 dark:text-amber-200">Authentication Required</h2>
@@ -437,14 +471,13 @@
       {:else}
         <!-- Auth key flow -->
         <p class="text-sm text-amber-800 dark:text-amber-300">
-          Paste a pre-generated auth key from
+          Provide a Tailscale auth key (tskey-auth-...) to authenticate headlessly. Generate an auth key at
           <a
-            href="https://login.tailscale.com/admin/machines/new-linux"
+            href="https://login.tailscale.com/admin/settings/keys"
             target="_blank"
             rel="noopener noreferrer"
             class="underline hover:text-amber-900 dark:hover:text-amber-100 inline-flex items-center gap-0.5"
-          >Tailscale Admin <ExternalLink size={11} /></a>
-          to authenticate without a browser.
+          >https://login.tailscale.com/admin/settings/keys <ExternalLink size={11} /></a>
         </p>
 
         <div class="space-y-2">

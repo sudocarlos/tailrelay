@@ -63,8 +63,8 @@ func NewServer(cfg *config.Config, authToken, version, commit string, distFS, st
 	authH := handlers.NewAuthHandler(authMW, cfg.Auth.AdminHashFile)
 	dashboardH := handlers.NewDashboardHandler(cfg, tmpl)
 
-	tailscaleH := handlers.NewTailscaleHandler(cfg, tmpl, authMW)
 	serveH := handlers.NewServeHandler(cfg, tmpl)
+	tailscaleH := handlers.NewTailscaleHandler(cfg, tmpl, authMW, serveH.Manager())
 	backupH := handlers.NewBackupHandler(cfg, tmpl, serveH.Manager())
 	targetsH := handlers.NewTargetsHandler(cfg)
 	logsH := handlers.NewHandler(tmpl)

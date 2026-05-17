@@ -10,6 +10,7 @@ import (
 
 	"github.com/sudocarlos/tailrelay/internal/auth"
 	"github.com/sudocarlos/tailrelay/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/serve"
 	"github.com/sudocarlos/tailrelay/internal/tailscale"
 )
 
@@ -19,15 +20,17 @@ type TailscaleHandler struct {
 	templates *template.Template
 	tsClient  *tailscale.Client
 	authMW    *auth.Middleware
+	serveMgr  *serve.Manager
 }
 
 // NewTailscaleHandler creates a new Tailscale handler
-func NewTailscaleHandler(cfg *config.Config, templates *template.Template, authMW *auth.Middleware) *TailscaleHandler {
+func NewTailscaleHandler(cfg *config.Config, templates *template.Template, authMW *auth.Middleware, serveMgr *serve.Manager) *TailscaleHandler {
 	return &TailscaleHandler{
 		cfg:       cfg,
 		templates: templates,
 		tsClient:  tailscale.NewClient(),
 		authMW:    authMW,
+		serveMgr:  serveMgr,
 	}
 }
 
@@ -45,6 +48,23 @@ func writeJSONError(w http.ResponseWriter, message string, status int) {
 		"status":  "error",
 		"message": message,
 	})
+}
+
+// reconcileRelaysAsync runs Reconcile in the background after a short delay,
+// allowing Tailscale to fully come up before restoring relay state.
+func (h *TailscaleHandler) reconcileRelaysAsync() {
+	if h.serveMgr == nil {
+		return
+	}
+	go func() {
+		// Wait for Tailscale to finish connecting before reconciling.
+		time.Sleep(2 * time.Second)
+		if err := h.serveMgr.Reconcile(); err != nil {
+			log.Printf("Warning: failed to reconcile relays after Tailscale connect: %v", err)
+		} else {
+			log.Printf("Relays reconciled after Tailscale connect")
+		}
+	}()
 }
 
 // LoginWithKey handles non-interactive Tailscale authentication using a pre-generated
@@ -80,6 +100,8 @@ func (h *TailscaleHandler) LoginWithKey(w http.ResponseWriter, r *http.Request) 
 		writeJSONError(w, "Failed to authenticate with auth key: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	h.reconcileRelaysAsync()
 
 	writeJSON(w, map[string]string{
 		"status":  "success",
@@ -140,6 +162,8 @@ func (h *TailscaleHandler) Connect(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "Failed to connect", http.StatusInternalServerError)
 		return
 	}
+
+	h.reconcileRelaysAsync()
 
 	writeJSON(w, map[string]string{
 		"status":  "success",
