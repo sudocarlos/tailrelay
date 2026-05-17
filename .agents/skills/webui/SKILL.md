@@ -1,14 +1,14 @@
 ---
 name: webui-development
 description: Go Web UI application development — handlers, authentication, backup, frontend SPA, build workflow, and testing. Use when working with the webui/ directory, Go code, frontend assets, HTML templates, the SPA build system, or any Web UI feature development.
-reviewed_at: b7ce114
+reviewed_at: f7df402
 ---
 
 # Web UI Development
 
 ## Overview
 
-The Web UI is a Go application serving a single-page application (SPA) on port 8021. It manages Tailscale, Caddy proxies, socat relays, and backups through a browser interface.
+The Web UI is a Go application serving a single-page application (SPA) on port 8021. It manages Tailscale, `tailscale serve` relays, and backups through a browser interface.
 
 ## Project Structure
 
@@ -21,14 +21,11 @@ webui/
 ├── internal/
 │   ├── auth/               # Authentication middleware
 │   ├── backup/             # Backup & restore (tar.gz)
-│   ├── caddy/              # Caddy API integration (see caddy skill)
-│   │   ├── manager.go          # Proxy/metrics lifecycle, StartMetricsPoller, FlushMetrics
-│   │   ├── metrics_store.go    # MetricsStore — ring buffer snapshots, Query, RecordPause, Flush
-│   │   └── metrics_parser.go   # Prometheus scrape parser, server-keyed HostMetrics
 │   ├── config/             # YAML config parsing
 │   ├── handlers/           # HTTP request handlers
 │   ├── logger/             # Structured logging
-│   ├── socat/              # Socat process management (see socat skill)
+│   ├── serve/              # tailscale serve relay management (see serve-relay-management skill)
+│   │   └── manager.go      # Manager: Reconcile, UpsertRelay, DeleteRelay, ToggleRelay
 │   ├── tailscale/          # Tailscale CLI wrapper (see tailscale skill)
 │   │   ├── client.go       # CLI wrapper (status, login, etc.)
 │   │   ├── status.go       # Status parsing structs
@@ -40,16 +37,10 @@ webui/
 │   │   ├── main.js         # SPA entry point
 │   │   └── lib/
 │   │       ├── components/
-│   │       │   ├── Metrics.svelte      # Traffic metrics panel (window selector, relay filter, reset, truncateTarget)
-│   │       │   ├── AddModal.svelte     # Add proxy modal (tlsMode three-segment control, Advanced collapsible section)
-│   │       │   └── Tooltip.svelte      # Portal-based tooltip (p-2/-m-2 tap target, gap bridge, document-level dismiss)
+│   │       │   ├── AddModal.svelte     # Add relay modal
+│   │       │   └── Tooltip.svelte      # Portal-based tooltip
 │   │       └── stores/
-│   │           └── metrics.js          # metricsWindow, metricsResetting stores; fetchMetrics(window), resetMetrics
-│   ├── vite.config.js
-│   ├── svelte.config.js
-│   └── package.json        # Build config (Vite, Svelte, Tailwind)
 ├── config/                 # Example webui.yaml
-├── examples/               # Usage examples (caddy_api_example.go)
 ├── go.mod / go.sum
 └── README.md
 ```
@@ -103,10 +94,17 @@ Access: `./tailrelay-webui --version`
 
 ## Internal Packages
 
+### `serve/` — Tailscale Serve Relay Manager
+
+- **`manager.go`**: Manages `tailscale serve` relays via the Tailscale CLI
+  - `ErrTailscaleNotReady` — exported sentinel; returned by `Reconcile()` and mutating ops when Tailscale is not yet connected
+  - `Reconcile()` — applies `serve_relays.json` state to running `tailscale serve` config; returns `ErrTailscaleNotReady` if Tailscale not up yet
+  - `UpsertRelay`, `DeleteRelay`, `ToggleRelay` — CRUD ops; callers check `errors.Is(err, serve.ErrTailscaleNotReady)`
+
 ### `tailscale/` — Tailscale CLI Wrapper
 
 - **`client.go`**: Wraps CLI commands (`tailscale status --json`, `tailscale up`, etc.)
-- **`status.go`**: Go structs for parsing status JSON
+- **`status.go`**: Go structs for parsing status JSON; peers sorted with `sort.Slice`
 - **`cache.go`**: `StatusCache` — background goroutine polls `IsConnected` every 15 seconds; provides a non-blocking `IsReady()` check used by TLS cert probes and auth middleware. Starts via `StatusCache.Start(ctx)`.
 
 ### `auth/` — Authentication Middleware
@@ -133,18 +131,24 @@ auth:
 paths:
   config_dir: /var/lib/tailscale
   token_file: /var/lib/tailscale/.webui_token
-  relays_file: /var/lib/tailscale/relays.json
+  serve_relay_config: /var/lib/tailscale/serve_relays.json
   backup_dir: /var/lib/tailscale/backups
 ```
 
 ### `handlers/` — HTTP Handlers
 
 Route handlers for all API endpoints:
-- `caddy.go` — Proxy CRUD
-- `socat.go` — Relay management
+- `serve.go` — Relay CRUD (`/api/serve/*`); uses `writeServeResult` helper for 200/202/500 responses
 - `tailscale.go` — Status, login
 - `backup.go` — Backup operations
 - `dashboard.go` — System overview
+
+**`writeServeResult` helper** (in `handlers/serve.go`): maps manager errors to HTTP status codes:
+- `nil` → 200 OK
+- `serve.ErrTailscaleNotReady` → 202 Accepted
+- other error → 500 Internal Server Error
+
+Legacy `/api/caddy/` and `/api/socat/` paths return **410 Gone** (registered without auth middleware in `web/server.go`).
 
 ### `web/` — HTTP Server
 
@@ -163,9 +167,6 @@ Built with **Vite + Svelte 5 + Tailwind CSS 4** via npm:
 - Entry: `frontend/src/main.js`
 - Output: `cmd/webui/web/dist/` (embedded via `//go:embed`)
 - Icons: Lucide Svelte (`@lucide/svelte`) — imported directly as Svelte components
-- Charts: Chart.js (`chart.js`)
-- `AddModal.svelte` exposes an **Advanced** collapsible section containing Trusted Proxies and a Host Header input field (`hostHeader` state maps to `CaddyProxy.HostHeader`)
-- `Metrics.svelte` truncates relay target hostnames >30 chars to `<first 12>…<last 12>:<port>` via `truncateTarget`; full target shown via native `title` tooltip
 
 > **Note:** Bootstrap Icons and the SVG sprite are no longer used. Icons are now Lucide Svelte components imported directly.
 
@@ -178,9 +179,8 @@ Built with **Vite + Svelte 5 + Tailwind CSS 4** via npm:
 | `auth.enable_token_auth` | `true` | Token-based authentication |
 | `paths.config_dir` | `/var/lib/tailscale` | Config directory |
 | `paths.token_file` | `.webui_token` | Auth token file |
-| `paths.relays_file` | `relays.json` | Socat relay config |
+| `paths.serve_relay_config` | `serve_relays.json` | tailscale serve relay config |
 | `paths.backup_dir` | `backups/` | Backup storage |
-| `paths.metrics_history_file` | `metrics_history.json` | Persisted metrics ring buffer |
 
 ## Testing
 

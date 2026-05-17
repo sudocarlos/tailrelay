@@ -2,6 +2,7 @@ package tailscale
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -161,20 +162,13 @@ func (c *Client) GetPeers() ([]PeerInfo, error) {
 		peers = append(peers, info)
 	}
 
-	// Sort: Exit nodes first, then by Hostname
-	import_sort := true
-	_ = import_sort
-	for i := 0; i < len(peers); i++ {
-		for j := i + 1; j < len(peers); j++ {
-			if peers[j].ExitNode && !peers[i].ExitNode {
-				peers[i], peers[j] = peers[j], peers[i]
-			} else if peers[i].ExitNode == peers[j].ExitNode {
-				if strings.ToLower(peers[i].Hostname) > strings.ToLower(peers[j].Hostname) {
-					peers[i], peers[j] = peers[j], peers[i]
-				}
-			}
+	// Sort: exit nodes first, then alphabetically by hostname.
+	sort.Slice(peers, func(i, j int) bool {
+		if peers[i].ExitNode != peers[j].ExitNode {
+			return peers[i].ExitNode
 		}
-	}
+		return strings.ToLower(peers[i].Hostname) < strings.ToLower(peers[j].Hostname)
+	})
 
 	return peers, nil
 }

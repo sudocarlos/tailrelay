@@ -143,7 +143,7 @@ func (m *Manager) DeleteRelay(id string) error {
 		filtered = append(filtered, r)
 	}
 	if !found {
-		return fmt.Errorf("relay not found")
+		return ErrRelayNotFound
 	}
 	list.Relays = filtered
 	if err := config.SaveServeRelays(m.relayFile, list); err != nil {
@@ -167,13 +167,22 @@ func (m *Manager) ToggleRelay(id string, enabled bool) error {
 		}
 	}
 	if !found {
-		return fmt.Errorf("relay not found")
+		return ErrRelayNotFound
 	}
 	if err := config.SaveServeRelays(m.relayFile, list); err != nil {
 		return err
 	}
 	return m.Reconcile()
 }
+
+// ErrTailscaleNotReady is returned by Reconcile when Tailscale is not yet
+// authenticated or connected. Callers can use errors.Is to distinguish a
+// deferred reconcile from a real failure.
+var ErrTailscaleNotReady = fmt.Errorf("tailscale not ready")
+
+// ErrRelayNotFound is returned by DeleteRelay and ToggleRelay when no relay
+// with the given ID exists in the config file.
+var ErrRelayNotFound = fmt.Errorf("relay not found")
 
 // isTailscaleNotReady reports whether err indicates Tailscale is not yet
 // authenticated or connected (e.g. during container startup in CI).
@@ -203,8 +212,8 @@ func (m *Manager) Reconcile() error {
 	logger.Debug("serve", "Resetting tailscale serve config")
 	if err := m.run("serve", "reset"); err != nil {
 		if isTailscaleNotReady(err) {
-			logger.Debug("serve", "Tailscale not ready, skipping reconcile: %v", err)
-			return nil
+			logger.Debug("serve", "Tailscale not ready, deferring reconcile: %v", err)
+			return ErrTailscaleNotReady
 		}
 		logger.Error("serve", "tailscale serve reset failed: %v", err)
 		return err

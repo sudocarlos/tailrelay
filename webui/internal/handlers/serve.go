@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
+	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -48,6 +50,33 @@ func (h *ServeHandler) IsTailscaleReady() bool {
 	return connected
 }
 
+// writeServeResult encodes a JSON success response.  If err is
+// ErrTailscaleNotReady it writes 202 Accepted so the UI can show a "pending"
+// state instead of an error.  ErrRelayNotFound produces 404.  Any other error
+// produces 500.
+func writeServeResult(w http.ResponseWriter, err error, msg string) {
+	if err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": msg})
+		return
+	}
+	if errors.Is(err, serve.ErrTailscaleNotReady) {
+		log.Printf("serve: tailscale not ready, returning 202 Accepted")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"status":  "pending",
+			"message": msg + " (tailscale not yet ready — relay config saved and will be applied when connected)",
+		})
+		return
+	}
+	if errors.Is(err, serve.ErrRelayNotFound) {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	http.Error(w, err.Error(), http.StatusInternalServerError)
+}
+
 // ── TCP relay handlers (/api/serve/tcp/*) ─────────────────────────────────────
 
 // APIListTCP returns all TCP relays as JSON.
@@ -58,7 +87,10 @@ func (h *ServeHandler) APIListTCP(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	statusJSON, _ := h.manager.Status()
+	statusJSON, statusErr := h.manager.Status()
+	if statusErr != nil {
+		log.Printf("serve: status check failed, running state may be inaccurate: %v", statusErr)
+	}
 
 	type relayStatus struct {
 		Relay   config.ServeRelay `json:"relay"`
@@ -122,12 +154,7 @@ func (h *ServeHandler) CreateTCP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "listen_port, target_host, and target_port are required", http.StatusBadRequest)
 		return
 	}
-	if err := h.manager.UpsertRelay(relay); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Relay created successfully"})
+	writeServeResult(w, h.manager.UpsertRelay(relay), "Relay created successfully")
 }
 
 // UpdateTCP updates a TCP relay.
@@ -146,12 +173,7 @@ func (h *ServeHandler) UpdateTCP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	relay.Type = "tcp"
-	if err := h.manager.UpsertRelay(relay); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Relay updated successfully"})
+	writeServeResult(w, h.manager.UpsertRelay(relay), "Relay updated successfully")
 }
 
 // DeleteTCP deletes a TCP relay.
@@ -165,12 +187,8 @@ func (h *ServeHandler) DeleteTCP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Relay ID is required", http.StatusBadRequest)
 		return
 	}
-	if err := h.manager.DeleteRelay(id); err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Relay deleted successfully"})
+	err := h.manager.DeleteRelay(id)
+	writeServeResult(w, err, "Relay deleted successfully")
 }
 
 // ToggleTCP enables/disables a TCP relay.
@@ -191,12 +209,8 @@ func (h *ServeHandler) ToggleTCP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Relay ID is required", http.StatusBadRequest)
 		return
 	}
-	if err := h.manager.ToggleRelay(req.ID, req.Enabled); err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Relay toggled successfully"})
+	err := h.manager.ToggleRelay(req.ID, req.Enabled)
+	writeServeResult(w, err, "Relay toggled successfully")
 }
 
 // ── HTTPS relay handlers (/api/serve/https/*) ─────────────────────────────────
@@ -214,7 +228,10 @@ func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
 		hostname = status.MagicDNSName
 	}
 
-	statusJSON, _ := h.manager.Status()
+	statusJSON, statusErr := h.manager.Status()
+	if statusErr != nil {
+		log.Printf("serve: status check failed, running state may be inaccurate: %v", statusErr)
+	}
 
 	type relayStatus struct {
 		config.ServeRelay
@@ -273,12 +290,7 @@ func (h *ServeHandler) CreateHTTPS(w http.ResponseWriter, r *http.Request) {
 	if relay.ID == "" {
 		relay.ID = fmt.Sprintf("https-%d", relay.ListenPort)
 	}
-	if err := h.manager.UpsertRelay(relay); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Proxy created successfully"})
+	writeServeResult(w, h.manager.UpsertRelay(relay), "Proxy created successfully")
 }
 
 // UpdateHTTPS updates an HTTPS relay.
@@ -297,12 +309,7 @@ func (h *ServeHandler) UpdateHTTPS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	relay.Type = "https"
-	if err := h.manager.UpsertRelay(relay); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Proxy updated successfully"})
+	writeServeResult(w, h.manager.UpsertRelay(relay), "Proxy updated successfully")
 }
 
 // DeleteHTTPS deletes an HTTPS relay.
@@ -316,12 +323,8 @@ func (h *ServeHandler) DeleteHTTPS(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Proxy ID is required", http.StatusBadRequest)
 		return
 	}
-	if err := h.manager.DeleteRelay(id); err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Proxy deleted successfully"})
+	err := h.manager.DeleteRelay(id)
+	writeServeResult(w, err, "Proxy deleted successfully")
 }
 
 // ToggleHTTPS enables/disables an HTTPS relay.
@@ -342,25 +345,13 @@ func (h *ServeHandler) ToggleHTTPS(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Proxy ID is required", http.StatusBadRequest)
 		return
 	}
-	if err := h.manager.ToggleRelay(req.ID, req.Enabled); err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Proxy toggled successfully"})
+	err := h.manager.ToggleRelay(req.ID, req.Enabled)
+	writeServeResult(w, err, "Proxy toggled successfully")
 }
 
 // ReloadServe reconciles all enabled relays.
 func (h *ServeHandler) ReloadServe(w http.ResponseWriter, r *http.Request) {
-	if err := h.manager.Reconcile(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"status":  "success",
-		"message": "tailscale serve configuration is up to date",
-	})
+	writeServeResult(w, h.manager.Reconcile(), "tailscale serve configuration is up to date")
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
