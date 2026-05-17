@@ -1,0 +1,42 @@
+name: Go Version Check
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get Dockerfile Go version
+        id: dockerfile
+        run: |
+          version=$(grep -oP 'ARG GO_VERSION=\K[\d.]+' Dockerfile)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Get latest Go version
+        id: latest
+        run: |
+          raw=$(curl -sSL "https://go.dev/VERSION?m=text" | head -1)
+          version=${raw#go}
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Create issue if outdated
+        if: steps.dockerfile.outputs.version != steps.latest.outputs.version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          title="chore: update Go from ${{ steps.dockerfile.outputs.version }} to ${{ steps.latest.outputs.version }}"
+          existing=$(gh issue list --state open --search "$title" --json title -q '.[].title' | head -1)
+          if [ -z "$existing" ]; then
+            gh issue create \
+              --title "$title" \
+              --body "The Dockerfile uses Go \`${{ steps.dockerfile.outputs.version }}\` but the latest stable release is \`${{ steps.latest.outputs.version }}\`." \
+              --assignee sudocarlos
+          fi
