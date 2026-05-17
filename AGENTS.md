@@ -4,7 +4,7 @@ Essential information for coding agents working with the tailrelay codebase.
 
 ## Project Overview
 
-**tailrelay** is a Docker container combining Tailscale, Caddy, socat, and a Go Web UI to expose local services to a Tailscale network. For detailed component knowledge, see the [Skills Directory](#skills-directory) below.
+**tailrelay** is a Docker container combining Tailscale and a Go Web UI to expose local services to a Tailscale network via `tailscale serve`. For detailed component knowledge, see the [Skills Directory](#skills-directory) below.
 
 ## LLM Operational Rules (Read First)
 
@@ -22,8 +22,6 @@ Detailed component knowledge is organized into Agent Skills at `.agents/skills/`
 | Skill | Path | When to Use |
 |-------|------|-------------|
 | **Tailscale** | `.agents/skills/tailscale/SKILL.md` | VPN daemon, CLI, authentication, MagicDNS, HTTPS certs |
-| **Caddy** | `.agents/skills/caddy/SKILL.md` | Reverse proxy Admin API, CRUD ops, @id tags, TLS |
-| **socat** | `.agents/skills/socat/SKILL.md` | TCP relays, RELAY_LIST, process management |
 | **Web UI** | `.agents/skills/webui/SKILL.md` | Go app, handlers, auth, backup, frontend SPA, build |
 | **Docker/CI** | `.agents/skills/docker-ci/SKILL.md` | Dockerfile, Compose, GitHub Actions, testing |
 | **Security Review** | `.agents/skills/security-review/SKILL.md` | CVE scanning, auth review, injection risks, privacy audit |
@@ -62,15 +60,14 @@ docker compose -f compose-test.yml down                       # Stop test env
 ### Health Checks
 
 ```bash
-curl -sSL http://${TAILRELAY_HOST}:8080   # HTTP proxy
 curl -sSL http://${TAILRELAY_HOST}:9002/healthz  # Tailscale health
-curl -sSL http://localhost:8021            # Web UI
+curl -sSL http://localhost:8021                   # Web UI
 ```
 
 ## Code Style Quick Reference
 
 | Language | Key Rules |
-|----------|-----------|
+|----------|-----------| 
 | **Go** | `gofmt`, handlers in `internal/handlers/`, explicit error handling, no panics |
 | **Shell** | `#!/usr/bin/env bash` (or `#!/bin/ash` for Alpine), 4-space indent, quote `"$VARS"` |
 | **Python** | Type hints, f-strings, handle subprocess timeouts, stdlib first |
@@ -79,10 +76,10 @@ curl -sSL http://localhost:8021            # Web UI
 ## Environment Variables
 
 | Variable | Default | Purpose |
-|----------|---------|---------|
+|----------|---------|---------| 
 | `TS_HOSTNAME` | *(required)* | Tailscale machine name |
 | `TS_STATE_DIR` | `/var/lib/tailscale/` | Tailscale state directory |
-| `RELAY_LIST` | *(empty)* | Legacy comma-separated relay definitions |
+| `RELAY_LIST` | *(empty)* | Legacy: comma-separated `listen:host:port` (migrated to serve_relays.json on first start) |
 | `TS_EXTRA_FLAGS` | *(empty)* | Additional Tailscale flags |
 | `TS_AUTH_ONCE` | `true` | Authenticate once |
 | `TS_ENABLE_METRICS` | `true` | Enable `:9002/metrics` |
@@ -112,15 +109,13 @@ curl -sSL http://localhost:8021            # Web UI
 
 | Document | `reviewed_at` | Paths Covered |
 |----------|---------------|---------------|
-| `AGENTS.md` | `b7ce114` | `AGENTS.md`, `Makefile`, `start.sh` |
-| `.agents/skills/caddy/SKILL.md` | `b7ce114` | `webui/internal/caddy/`, `webui/internal/handlers/caddy.go` |
-| `.agents/skills/socat/SKILL.md` | `b7ce114` | `webui/internal/socat/`, `webui/internal/handlers/socat.go` |
+| `AGENTS.md` | `HEAD` | `AGENTS.md`, `Makefile`, `start.sh` |
 | `.agents/skills/webui/SKILL.md` | `b7ce114` | `webui/`, `Makefile` |
 | `.agents/skills/docker-ci/SKILL.md` | `b7ce114` | `Dockerfile`, `.github/workflows/`, `compose-test.yml` |
 | `.agents/skills/tailscale/SKILL.md` | `b7ce114` | `webui/internal/tailscale/`, `start.sh` |
 | `webui/README.md` | `b7ce114` | `webui/` |
 | `README.md` | `b7ce114` | `README.md`, `webui/internal/web/server.go` |
-| `.agents/skills/security-review/SKILL.md` | `b7ce114` | `webui/internal/auth/`, `webui/internal/handlers/`, `webui/internal/caddy/`, `webui/internal/socat/`, `webui/internal/backup/`, `Dockerfile`, `start.sh` |
+| `.agents/skills/security-review/SKILL.md` | `b7ce114` | `webui/internal/auth/`, `webui/internal/handlers/`, `webui/internal/backup/`, `Dockerfile`, `start.sh` |
 | `.agents/skills/testing-cicd/SKILL.md` | `b7ce114` | `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml` |
 | `.agents/skills/documentation/SKILL.md` | `b7ce114` | `README.md`, `CHANGELOG.md`, `webui/README.md`, `AGENTS.md`, `.agents/skills/` |
 

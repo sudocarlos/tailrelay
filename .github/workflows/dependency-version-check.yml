@@ -1,0 +1,262 @@
+name: Dependency Version Check
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Go version and open issue if outdated
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const https = require('https');
+            const fs = require('fs');
+
+            function get(url) {
+              return new Promise((resolve, reject) => {
+                https.get(url, (res) => {
+                  let data = '';
+                  res.on('data', chunk => data += chunk);
+                  res.on('end', () => resolve(data));
+                }).on('error', reject);
+              });
+            }
+
+            const dockerfile = fs.readFileSync('Dockerfile', 'utf8');
+            const match = dockerfile.match(/ARG GO_VERSION=([\d.]+)/);
+            if (!match) { core.setFailed('Could not find GO_VERSION in Dockerfile'); return; }
+            const pinned = match[1];
+            core.info(`Pinned Go version: ${pinned}`);
+
+            const raw = await get('https://go.dev/VERSION?m=text');
+            const latest = raw.split('\n')[0].replace(/^go/, '');
+            core.info(`Latest Go version: ${latest}`);
+
+            if (pinned === latest) { core.info('Go is up to date.'); return; }
+
+            const title = `chore: update Go from ${pinned} to ${latest}`;
+            const { data: existing } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              per_page: 100,
+            });
+            if (existing.some(i => i.title === title)) { core.info('Issue already exists.'); return; }
+
+            const { data: issue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: `The Dockerfile uses Go \`${pinned}\` but the latest stable release is \`${latest}\`.`,
+              assignees: ['sudocarlos'],
+            });
+            core.info(`Created issue #${issue.number}: ${issue.html_url}`);
+
+  tailscale:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Tailscale version and open issue if outdated
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const https = require('https');
+            const fs = require('fs');
+
+            function get(url, headers = {}) {
+              return new Promise((resolve, reject) => {
+                https.get(url, { headers }, (res) => {
+                  let data = '';
+                  res.on('data', chunk => data += chunk);
+                  res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: data }));
+                }).on('error', reject);
+              });
+            }
+
+            function head(url, headers = {}) {
+              return new Promise((resolve, reject) => {
+                const opts = { method: 'HEAD', headers, ...require('url').parse(url) };
+                https.request(opts, (res) => {
+                  res.resume();
+                  resolve({ status: res.statusCode, headers: res.headers });
+                }).on('error', reject).end();
+              });
+            }
+
+            // 1. Read pinned version from Dockerfile
+            const dockerfile = fs.readFileSync('Dockerfile', 'utf8');
+            const match = dockerfile.match(/ARG TAILSCALE_VERSION=(v[\d.]+)/);
+            if (!match) { core.setFailed('Could not find TAILSCALE_VERSION in Dockerfile'); return; }
+            const pinnedVersion = match[1];
+            core.info(`Pinned version: ${pinnedVersion}`);
+
+            // 2. Obtain anonymous GHCR token
+            const tokenRes = await get(
+              'https://ghcr.io/token?scope=repository:tailscale/tailscale:pull&service=ghcr.io'
+            );
+            const { token } = JSON.parse(tokenRes.body);
+            const authHeader = `Bearer ${token}`;
+            const manifestAccept = [
+              'application/vnd.oci.image.index.v1+json',
+              'application/vnd.docker.distribution.manifest.list.v2+json',
+            ].join(',');
+
+            // 3. Get digest of the current "stable" tag
+            const stableHead = await head(
+              'https://ghcr.io/v2/tailscale/tailscale/manifests/stable',
+              { Authorization: authHeader, Accept: manifestAccept }
+            );
+            const stableDigest = stableHead.headers['docker-content-digest'];
+            if (!stableDigest) { core.setFailed('Could not retrieve digest for tailscale:stable'); return; }
+            core.info(`stable digest: ${stableDigest}`);
+
+            // 4. Fetch full tag list (paginated) and find versioned tag matching stable digest
+            let allTags = [];
+            let tagsUrl = 'https://ghcr.io/v2/tailscale/tailscale/tags/list';
+            while (tagsUrl) {
+              const tagsRes = await get(tagsUrl, { Authorization: authHeader });
+              const { tags } = JSON.parse(tagsRes.body);
+              allTags = allTags.concat(tags);
+              const link = tagsRes.headers['link'];
+              if (link) {
+                const m = link.match(/<([^>]+)>;\s*rel="next"/);
+                tagsUrl = m ? (m[1].startsWith('http') ? m[1] : `https://ghcr.io${m[1]}`) : null;
+              } else {
+                tagsUrl = null;
+              }
+            }
+            const versionTags = allTags
+              .filter(t => /^v\d+\.\d+\.\d+$/.test(t))
+              .sort((a, b) => {
+                const pa = a.slice(1).split('.').map(Number);
+                const pb = b.slice(1).split('.').map(Number);
+                for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return pb[i] - pa[i];
+                return 0;
+              });
+            core.info(`Checking ${versionTags.length} versioned tags from ${versionTags[0]}…`);
+
+            let stableVersion = null;
+            for (const tag of versionTags) {
+              const res = await head(
+                `https://ghcr.io/v2/tailscale/tailscale/manifests/${tag}`,
+                { Authorization: authHeader, Accept: manifestAccept }
+              );
+              if (res.headers['docker-content-digest'] === stableDigest) {
+                stableVersion = tag;
+                break;
+              }
+            }
+            if (!stableVersion) { core.setFailed('Could not match stable digest to any versioned tag'); return; }
+            core.info(`stable version resolved to: ${stableVersion}`);
+
+            if (pinnedVersion === stableVersion) { core.info('Dockerfile is up to date.'); return; }
+
+            // 5. Check if an issue already exists (open or closed) for this version pair
+            const issueTitle = `chore: update Tailscale from ${pinnedVersion} to ${stableVersion}`;
+            const { data: existing } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              per_page: 100,
+            });
+            if (existing.some(i => i.title === issueTitle)) {
+              core.info(`Issue already exists for ${stableVersion}, nothing to do.`);
+              return;
+            }
+
+            // 6. Create the issue
+            const { data: issue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: issueTitle,
+              body: [
+                `The Dockerfile pins \`ghcr.io/tailscale/tailscale:${pinnedVersion}\` but the current stable release is \`${stableVersion}\`.`,
+                ``,
+                `| Field | Value |`,
+                `|-------|-------|`,
+                `| Pinned | \`${pinnedVersion}\` |`,
+                `| Latest stable | \`${stableVersion}\` |`,
+                `| Digest | \`${stableDigest}\` |`,
+                ``,
+                `### Links`,
+                `- [GHCR package](https://github.com/tailscale/tailscale/pkgs/container/tailscale)`,
+                `- [GitHub Release](https://github.com/tailscale/tailscale/releases/tag/${stableVersion})`,
+                `- [Changelog](https://tailscale.com/changelog)`,
+              ].join('\n'),
+              assignees: ['sudocarlos'],
+            });
+            core.info(`Created issue #${issue.number}: ${issue.html_url}`);
+
+  node:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Node version and open issue if outdated
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const https = require('https');
+            const fs = require('fs');
+
+            function get(url) {
+              return new Promise((resolve, reject) => {
+                https.get(url, (res) => {
+                  let data = '';
+                  res.on('data', chunk => data += chunk);
+                  res.on('end', () => resolve(data));
+                }).on('error', reject);
+              });
+            }
+
+            const dockerfile = fs.readFileSync('Dockerfile', 'utf8');
+            const match = dockerfile.match(/ARG NODE_VERSION=([\d.]+)/);
+            if (!match) { core.setFailed('Could not find NODE_VERSION in Dockerfile'); return; }
+            const pinned = match[1];
+            core.info(`Pinned Node version: ${pinned}`);
+
+            const major = pinned.split('.')[0];
+            const listing = await get(`https://nodejs.org/download/release/latest-v${major}.x/`);
+            const vMatch = listing.match(new RegExp(`node-v(${major}\\.\\d+\\.\\d+)-`));
+            if (!vMatch) { core.setFailed('Could not parse Node version from release listing'); return; }
+            const latest = vMatch[1];
+            core.info(`Latest Node version: ${latest}`);
+
+            if (pinned === latest) { core.info('Node is up to date.'); return; }
+
+            const title = `chore: update Node from ${pinned} to ${latest}`;
+            const { data: existing } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              per_page: 100,
+            });
+            if (existing.some(i => i.title === title)) { core.info('Issue already exists.'); return; }
+
+            const { data: issue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: `The Dockerfile uses Node \`${pinned}\` but the latest release in the v${major}.x track is \`${latest}\`.`,
+              assignees: ['sudocarlos'],
+            });
+            core.info(`Created issue #${issue.number}: ${issue.html_url}`);

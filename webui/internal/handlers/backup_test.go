@@ -13,21 +13,29 @@ import (
 	"github.com/sudocarlos/tailrelay/internal/config"
 )
 
+// jsonBody marshals v to JSON and returns a reader for use as an HTTP request body.
+func jsonBody(t *testing.T, v interface{}) *bytes.Reader {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("jsonBody: marshal: %v", err)
+	}
+	return bytes.NewReader(b)
+}
+
 // newTestBackupHandler creates a BackupHandler backed by temp directories.
 func newTestBackupHandler(t *testing.T) *BackupHandler {
 	t.Helper()
 	dir := t.TempDir()
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
-			BackupDir:        filepath.Join(dir, "backups"),
-			CaddyServerMap:   filepath.Join(dir, "servers.json"),
-			SocatRelayConfig: filepath.Join(dir, "relays.json"),
+			BackupDir: filepath.Join(dir, "backups"),
 		},
 		Backup: config.BackupConfig{
 			RetentionCount: 5,
 		},
 	}
-	return NewBackupHandler(cfg, nil)
+	return NewBackupHandler(cfg, nil, nil)
 }
 
 // --- APIList ---

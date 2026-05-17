@@ -33,11 +33,8 @@ func Load(filename string) (*Config, error) {
 	if cfg.Backup.RetentionCount == 0 {
 		cfg.Backup.RetentionCount = 10
 	}
-	if cfg.Paths.CaddyServerMap == "" {
-		cfg.Paths.CaddyServerMap = "/var/lib/tailscale/caddy_servers.json"
-	}
-	if cfg.Paths.MetricsHistoryFile == "" {
-		cfg.Paths.MetricsHistoryFile = "/var/lib/tailscale/metrics_history.json"
+	if cfg.Paths.ServeRelayConfig == "" {
+		cfg.Paths.ServeRelayConfig = "/var/lib/tailscale/serve_relays.json"
 	}
 
 	cfg.ConfigFile = filename
@@ -98,15 +95,11 @@ func DefaultConfig() *Config {
 			AdminHashFile: "/var/lib/tailscale/.admin_hash",
 		},
 		Paths: PathsConfig{
-			CaddyConfig:        "/etc/caddy/Caddyfile",
-			SocatRelayConfig:   "/var/lib/tailscale/relays.json",
-			CaddyProxyConfig:   "/var/lib/tailscale/proxies.json",
-			CaddyServerMap:     "/var/lib/tailscale/caddy_servers.json",
-			StateDir:           "/var/lib/tailscale",
-			BackupDir:          "/var/lib/tailscale/backups",
-			CertificatesDir:    "/data",
-			TargetsFile:        "/targets.json",
-			MetricsHistoryFile: "/var/lib/tailscale/metrics_history.json",
+			ServeRelayConfig: "/var/lib/tailscale/serve_relays.json",
+			StateDir:         "/var/lib/tailscale",
+			BackupDir:        "/var/lib/tailscale/backups",
+			CertificatesDir:  "/data",
+			TargetsFile:      "/targets.json",
 		},
 		Backup: BackupConfig{
 			AutoBackupEnabled:  false,
@@ -120,30 +113,29 @@ func DefaultConfig() *Config {
 	}
 }
 
-// LoadSocatRelays loads socat relay configurations
-func LoadSocatRelays(filename string) (*SocatRelayList, error) {
-	// Check if file exists
+// LoadServeRelays loads tailscale serve relay definitions.
+func LoadServeRelays(filename string) (*ServeRelayList, error) {
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		// Return empty list
-		return &SocatRelayList{Relays: []SocatRelay{}}, nil
+		return &ServeRelayList{Relays: []ServeRelay{}}, nil
 	}
 
 	data, err := os.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read relays file: %w", err)
+		return nil, fmt.Errorf("failed to read serve relays file: %w", err)
 	}
 
-	var relays SocatRelayList
+	var relays ServeRelayList
 	if err := json.Unmarshal(data, &relays); err != nil {
-		return nil, fmt.Errorf("failed to parse relays file: %w", err)
+		return nil, fmt.Errorf("failed to parse serve relays file: %w", err)
 	}
-
+	if relays.Relays == nil {
+		relays.Relays = []ServeRelay{}
+	}
 	return &relays, nil
 }
 
-// SaveSocatRelays saves socat relay configurations
-func SaveSocatRelays(filename string, relays *SocatRelayList) error {
-	// Ensure directory exists
+// SaveServeRelays saves tailscale serve relay definitions.
+func SaveServeRelays(filename string, relays *ServeRelayList) error {
 	dir := filepath.Dir(filename)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
@@ -151,13 +143,12 @@ func SaveSocatRelays(filename string, relays *SocatRelayList) error {
 
 	data, err := json.MarshalIndent(relays, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal relays: %w", err)
+		return fmt.Errorf("failed to marshal serve relays: %w", err)
 	}
 
 	if err := os.WriteFile(filename, data, 0644); err != nil {
-		return fmt.Errorf("failed to write relays file: %w", err)
+		return fmt.Errorf("failed to write serve relays file: %w", err)
 	}
-
 	return nil
 }
 

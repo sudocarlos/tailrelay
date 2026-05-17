@@ -27,15 +27,11 @@ type AuthConfig struct {
 
 // PathsConfig contains file paths for various configurations
 type PathsConfig struct {
-	CaddyConfig        string `yaml:"caddy_config"`
-	SocatRelayConfig   string `yaml:"socat_relay_config"`
-	CaddyProxyConfig   string `yaml:"caddy_proxy_config"`
-	CaddyServerMap     string `yaml:"caddy_server_map"`
-	StateDir           string `yaml:"state_dir"`
-	BackupDir          string `yaml:"backup_dir"`
-	CertificatesDir    string `yaml:"certificates_dir"`
-	TargetsFile        string `yaml:"targets_file"`
-	MetricsHistoryFile string `yaml:"metrics_history_file"`
+	ServeRelayConfig string `yaml:"serve_relay_config"`
+	StateDir         string `yaml:"state_dir"`
+	BackupDir        string `yaml:"backup_dir"`
+	CertificatesDir  string `yaml:"certificates_dir"`
+	TargetsFile      string `yaml:"targets_file"`
 }
 
 // BackupConfig contains backup settings
@@ -51,40 +47,22 @@ type LoggingConfig struct {
 	Format string `yaml:"format"`
 }
 
-// CaddyProxy represents a Caddy reverse proxy configuration
-type CaddyProxy struct {
-	ID             string            `json:"id"`
-	Hostname       string            `json:"hostname"`
-	Port           int               `json:"port"`
-	Target         string            `json:"target"`
-	TLS            bool              `json:"tls"`
-	TLSCertFile    string            `json:"tls_cert_file,omitempty"`
-	TrustedProxies bool              `json:"trusted_proxies"`
-	HostHeader     string            `json:"host_header,omitempty"`
-	CustomHeaders  map[string]string `json:"custom_headers,omitempty"`
-	Enabled        bool              `json:"enabled"`
-	Autostart      bool              `json:"autostart"` // Start automatically on container boot
+// ServeRelay represents a relay backed by `tailscale serve`.
+type ServeRelay struct {
+	ID          string `json:"id"`
+	Type        string `json:"type"` // "https" or "tcp"
+	Hostname    string `json:"hostname,omitempty"`
+	ListenPort  int    `json:"listen_port"`
+	TargetHost  string `json:"target_host"`
+	TargetPort  int    `json:"target_port"`
+	TargetHTTPS bool   `json:"target_https"`
+	Enabled     bool   `json:"enabled"`
+	Autostart   bool   `json:"autostart"`
 }
 
-// CaddyProxyList represents the list of Caddy proxies
-type CaddyProxyList struct {
-	Proxies []CaddyProxy `json:"proxies"`
-}
-
-// SocatRelay represents a socat TCP relay configuration
-type SocatRelay struct {
-	ID         string `json:"id"`
-	ListenPort int    `json:"listen_port"`
-	TargetHost string `json:"target_host"`
-	TargetPort int    `json:"target_port"`
-	Enabled    bool   `json:"enabled"`
-	Autostart  bool   `json:"autostart"`     // Start automatically on container boot
-	PID        int    `json:"pid,omitempty"` // Runtime tracking
-}
-
-// SocatRelayList represents the list of socat relays
-type SocatRelayList struct {
-	Relays []SocatRelay `json:"relays"`
+// ServeRelayList represents the list of tailscale serve relay definitions.
+type ServeRelayList struct {
+	Relays []ServeRelay `json:"relays"`
 }
 
 // BackupMetadata contains information about a backup

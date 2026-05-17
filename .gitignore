@@ -249,6 +249,8 @@ pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python,macos,go,visualstudiocode
 
+.gopath/
+package-lock.json
 docker-compose.yml
 compose.yml
 Caddyfile

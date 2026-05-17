@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/sudocarlos/tailrelay/internal/caddy"
 	"github.com/sudocarlos/tailrelay/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/serve"
 	"github.com/sudocarlos/tailrelay/internal/tailscale"
 )
 
@@ -16,7 +16,7 @@ import (
 type DashboardHandler struct {
 	cfg       *config.Config
 	templates *template.Template
-	caddyMgr  *caddy.Manager
+	serveMgr  *serve.Manager
 	tsClient  *tailscale.Client
 }
 
@@ -25,7 +25,7 @@ func NewDashboardHandler(cfg *config.Config, templates *template.Template) *Dash
 	return &DashboardHandler{
 		cfg:       cfg,
 		templates: templates,
-		caddyMgr:  caddy.NewManager(caddy.DefaultAdminAPI, cfg.Paths.CaddyServerMap),
+		serveMgr:  serve.NewManager(cfg.Paths.ServeRelayConfig),
 		tsClient:  tailscale.NewClient(),
 	}
 }
@@ -43,26 +43,21 @@ func (h *DashboardHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Count relays and proxies
-	relays, _ := config.LoadSocatRelays(h.cfg.Paths.SocatRelayConfig)
-	proxies, err := h.caddyMgr.ListProxies()
+	serveRelays, err := h.serveMgr.ListRelays()
 	if err != nil {
-		log.Printf("Error loading proxies: %v", err)
-		proxies = []config.CaddyProxy{}
+		log.Printf("Error loading relays: %v", err)
+		serveRelays = []config.ServeRelay{}
 	}
 
 	relayCount := 0
-	if relays != nil {
-		for _, relay := range relays.Relays {
-			if relay.Enabled {
-				relayCount++
-			}
-		}
-	}
-
 	proxyCount := 0
-	for _, proxy := range proxies {
-		if proxy.Enabled {
-			proxyCount++
+	for _, relay := range serveRelays {
+		if relay.Enabled {
+			if relay.Type == "tcp" {
+				relayCount++
+			} else if relay.Type == "https" {
+				proxyCount++
+			}
 		}
 	}
 
@@ -85,19 +80,21 @@ func (h *DashboardHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
 func (h *DashboardHandler) APIStatus(w http.ResponseWriter, r *http.Request) {
 	tsSummary, _ := h.tsClient.GetStatusSummary()
 
-	relays, _ := config.LoadSocatRelays(h.cfg.Paths.SocatRelayConfig)
-	proxies, err := h.caddyMgr.ListProxies()
+	serveRelays, err := h.serveMgr.ListRelays()
 	if err != nil {
-		log.Printf("Error loading proxies: %v", err)
-		proxies = []config.CaddyProxy{}
+		log.Printf("Error loading relays: %v", err)
+		serveRelays = []config.ServeRelay{}
 	}
 
 	relayCount := 0
-	if relays != nil {
-		relayCount = len(relays.Relays)
+	proxyCount := 0
+	for _, relay := range serveRelays {
+		if relay.Type == "tcp" {
+			relayCount++
+		} else if relay.Type == "https" {
+			proxyCount++
+		}
 	}
-
-	proxyCount := len(proxies)
 
 	status := map[string]interface{}{
 		"timestamp": time.Now().Format(time.RFC3339),
@@ -108,11 +105,9 @@ func (h *DashboardHandler) APIStatus(w http.ResponseWriter, r *http.Request) {
 				"connected": tsSummary.Connected,
 				"state":     tsSummary.BackendState,
 			},
-			"caddy": map[string]interface{}{
-				"proxies": proxyCount,
-			},
-			"socat": map[string]interface{}{
-				"relays": relayCount,
+			"serve": map[string]interface{}{
+				"https_relays": proxyCount,
+				"tcp_relays":   relayCount,
 			},
 		},
 	}

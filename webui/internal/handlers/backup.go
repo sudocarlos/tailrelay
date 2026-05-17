@@ -12,6 +12,7 @@ import (
 
 	"github.com/sudocarlos/tailrelay/internal/backup"
 	"github.com/sudocarlos/tailrelay/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/serve"
 )
 
 // BackupHandler handles backup-related requests
@@ -19,16 +20,18 @@ type BackupHandler struct {
 	cfg       *config.Config
 	templates *template.Template
 	manager   *backup.Manager
+	serveMgr  *serve.Manager
 }
 
 // NewBackupHandler creates a new backup handler
-func NewBackupHandler(cfg *config.Config, templates *template.Template) *BackupHandler {
+func NewBackupHandler(cfg *config.Config, templates *template.Template, serveMgr *serve.Manager) *BackupHandler {
 	manager := backup.NewManager(cfg)
 
 	return &BackupHandler{
 		cfg:       cfg,
 		templates: templates,
 		manager:   manager,
+		serveMgr:  serveMgr,
 	}
 }
 
@@ -125,9 +128,18 @@ func (h *BackupHandler) Restore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Reconcile serve relays so they match the restored state
+	if h.serveMgr != nil {
+		if err := h.serveMgr.Reconcile(); err != nil {
+			log.Printf("Warning: failed to reconcile serve relays after restore: %v", err)
+		} else {
+			log.Printf("Successfully reconciled serve relays after restore")
+		}
+	}
+
 	response := map[string]string{
 		"status":  "success",
-		"message": "Backup restored successfully. Please restart services for changes to take effect.",
+		"message": "Backup restored successfully. Relays have been updated to match the restored state.",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -156,6 +168,48 @@ func (h *BackupHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	response := map[string]string{
 		"status":  "success",
 		"message": "Backup deleted successfully",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// Rename handles renaming a backup
+func (h *BackupHandler) Rename(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var request struct {
+		OldFilename string `json:"old_filename"`
+		NewFilename string `json:"new_filename"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if request.OldFilename == "" || request.NewFilename == "" {
+		http.Error(w, "Both old_filename and new_filename are required", http.StatusBadRequest)
+		return
+	}
+
+	// Make sure the new filename ends with .tar.gz
+	if !strings.HasSuffix(request.NewFilename, ".tar.gz") {
+		request.NewFilename += ".tar.gz"
+	}
+
+	if err := h.manager.Rename(request.OldFilename, request.NewFilename); err != nil {
+		log.Printf("Error renaming backup: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to rename backup: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]string{
+		"status":  "success",
+		"message": "Backup renamed successfully",
 	}
 
 	w.Header().Set("Content-Type", "application/json")

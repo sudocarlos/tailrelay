@@ -75,7 +75,7 @@
       <!-- Desktop nav -->
       <div class="hidden sm:flex items-center gap-1">
         <button class={navBtnClass('dashboard')} onclick={() => switchView('dashboard')}>
-          Dashboard
+          Relays
         </button>
         <button class={navBtnClass('tailscale')} onclick={() => switchView('tailscale')}>
           <span class="inline-flex items-center gap-1.5">
@@ -84,9 +84,6 @@
               <span class="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" title="Tailscale not connected"></span>
             {/if}
           </span>
-        </button>
-        <button class={navBtnClass('metrics')} onclick={() => switchView('metrics')}>
-          Metrics
         </button>
         <button class={navBtnClass('backups')} onclick={() => switchView('backups')}>
           Backups
@@ -155,7 +152,7 @@
     {#if menuOpen}
       <div class="sm:hidden pb-3 pt-1 flex flex-col gap-1 border-t border-gray-200 dark:border-gray-800">
         <button class={mobileNavBtnClass('dashboard')} onclick={() => switchView('dashboard')}>
-          Dashboard
+          Relays
         </button>
         <button class={mobileNavBtnClass('tailscale')} onclick={() => switchView('tailscale')}>
           <span class="inline-flex items-center gap-1.5">
@@ -164,9 +161,6 @@
               <span class="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0"></span>
             {/if}
           </span>
-        </button>
-        <button class={mobileNavBtnClass('metrics')} onclick={() => switchView('metrics')}>
-          Metrics
         </button>
         <button class={mobileNavBtnClass('backups')} onclick={() => switchView('backups')}>
           Backups
@@ -177,10 +171,10 @@
 
   <!-- Tailscale disconnected warning banner -->
   {#if !tsConnected}
-    <div class="border-t border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 sm:px-6 py-2">
+    <div class="border-t border-amber-200 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 px-4 sm:px-6 py-2">
       <p class="max-w-6xl mx-auto flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
         <AlertTriangle size={13} class="flex-shrink-0" />
-        Tailscale is not connected. Dashboard, Metrics, and Backups are unavailable until Tailscale is authenticated.
+        Tailscale is not connected. Relays and Backups are unavailable until Tailscale is authenticated.
       </p>
     </div>
   {/if}

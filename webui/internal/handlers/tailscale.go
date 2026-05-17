@@ -9,39 +9,28 @@ import (
 	"time"
 
 	"github.com/sudocarlos/tailrelay/internal/auth"
-	"github.com/sudocarlos/tailrelay/internal/caddy"
 	"github.com/sudocarlos/tailrelay/internal/config"
+	"github.com/sudocarlos/tailrelay/internal/serve"
 	"github.com/sudocarlos/tailrelay/internal/tailscale"
 )
 
 // TailscaleHandler handles Tailscale-related requests
 type TailscaleHandler struct {
-	cfg          *config.Config
-	templates    *template.Template
-	tsClient     *tailscale.Client
-	authMW       *auth.Middleware
-	caddyManager *caddy.Manager
+	cfg       *config.Config
+	templates *template.Template
+	tsClient  *tailscale.Client
+	authMW    *auth.Middleware
+	serveMgr  *serve.Manager
 }
 
 // NewTailscaleHandler creates a new Tailscale handler
-func NewTailscaleHandler(cfg *config.Config, templates *template.Template, authMW *auth.Middleware) *TailscaleHandler {
+func NewTailscaleHandler(cfg *config.Config, templates *template.Template, authMW *auth.Middleware, serveMgr *serve.Manager) *TailscaleHandler {
 	return &TailscaleHandler{
 		cfg:       cfg,
 		templates: templates,
 		tsClient:  tailscale.NewClient(),
 		authMW:    authMW,
-	}
-}
-
-// NewTailscaleHandlerWithCaddy creates a Tailscale handler that can update
-// Caddy proxy hostnames when the Tailscale hostname changes.
-func NewTailscaleHandlerWithCaddy(cfg *config.Config, templates *template.Template, authMW *auth.Middleware, caddyManager *caddy.Manager) *TailscaleHandler {
-	return &TailscaleHandler{
-		cfg:          cfg,
-		templates:    templates,
-		tsClient:     tailscale.NewClient(),
-		authMW:       authMW,
-		caddyManager: caddyManager,
+		serveMgr:  serveMgr,
 	}
 }
 
@@ -59,6 +48,23 @@ func writeJSONError(w http.ResponseWriter, message string, status int) {
 		"status":  "error",
 		"message": message,
 	})
+}
+
+// reconcileRelaysAsync runs Reconcile in the background after a short delay,
+// allowing Tailscale to fully come up before restoring relay state.
+func (h *TailscaleHandler) reconcileRelaysAsync() {
+	if h.serveMgr == nil {
+		return
+	}
+	go func() {
+		// Wait for Tailscale to finish connecting before reconciling.
+		time.Sleep(2 * time.Second)
+		if err := h.serveMgr.Reconcile(); err != nil {
+			log.Printf("Warning: failed to reconcile relays after Tailscale connect: %v", err)
+		} else {
+			log.Printf("Relays reconciled after Tailscale connect")
+		}
+	}()
 }
 
 // LoginWithKey handles non-interactive Tailscale authentication using a pre-generated
@@ -94,6 +100,8 @@ func (h *TailscaleHandler) LoginWithKey(w http.ResponseWriter, r *http.Request) 
 		writeJSONError(w, "Failed to authenticate with auth key: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	h.reconcileRelaysAsync()
 
 	writeJSON(w, map[string]string{
 		"status":  "success",
@@ -155,6 +163,8 @@ func (h *TailscaleHandler) Connect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.reconcileRelaysAsync()
+
 	writeJSON(w, map[string]string{
 		"status":  "success",
 		"message": "Connected successfully",
@@ -203,33 +213,10 @@ func (h *TailscaleHandler) ChangeHostname(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Capture current FQDN before changing the hostname so we can migrate
-	// existing Caddy proxy entries that reference the old name.
-	var oldFQDN string
-	if h.caddyManager != nil {
-		if status, err := h.tsClient.GetStatusSummary(); err == nil {
-			oldFQDN = status.MagicDNSName
-		}
-	}
-
 	if err := h.tsClient.UpWithHostname(body.Hostname); err != nil {
 		log.Printf("Error changing Tailscale hostname: %v", err)
 		writeJSONError(w, "Failed to change hostname: "+err.Error(), http.StatusInternalServerError)
 		return
-	}
-
-	// Update Caddy proxy hostnames if we have the manager and a valid old FQDN.
-	if h.caddyManager != nil && oldFQDN != "" {
-		// Derive new FQDN: replace the short hostname portion of the old FQDN.
-		// e.g. "oldname.tailnet.ts.net" → "newname.tailnet.ts.net"
-		newFQDN := oldFQDN
-		if dotIdx := strings.Index(oldFQDN, "."); dotIdx != -1 {
-			newFQDN = body.Hostname + oldFQDN[dotIdx:]
-		}
-		if err := h.caddyManager.UpdateProxyHostnames(oldFQDN, newFQDN); err != nil {
-			// Non-fatal: the hostname change succeeded; log and continue.
-			log.Printf("Warning: failed to update Caddy proxy hostnames after hostname change: %v", err)
-		}
 	}
 
 	writeJSON(w, map[string]string{

@@ -32,13 +32,10 @@ func TestBackupAndRestore(t *testing.T) {
 
 	// Create dummy files
 	files := map[string]string{
-		filepath.Join(configDir, "Caddyfile"):         "example.com",
-		filepath.Join(stateDir, "relays.json"):        `[{"id":"1"}]`,
-		filepath.Join(stateDir, "proxies.json"):       `[{"id":"proxy1"}]`,
-		filepath.Join(stateDir, "caddy_servers.json"): `{"server1":"1.2.3.4"}`,
-		filepath.Join(stateDir, "tailscaled.state"):   "some-state-data",
-		filepath.Join(stateDir, ".webui_token"):       "secret-token",
-		filepath.Join(configDir, "webui.yaml"):        "server:\n  port: 8080",
+		filepath.Join(stateDir, "serve_relays.json"): `[]`,
+		filepath.Join(stateDir, "tailscaled.state"):  "some-state-data",
+		filepath.Join(stateDir, ".webui_token"):      "secret-token",
+		filepath.Join(configDir, "webui.yaml"):       "server:\n  port: 8080",
 	}
 
 	for path, content := range files {
@@ -51,10 +48,7 @@ func TestBackupAndRestore(t *testing.T) {
 	cfg := &config.Config{
 		ConfigFile: filepath.Join(configDir, "webui.yaml"),
 		Paths: config.PathsConfig{
-			CaddyConfig:      filepath.Join(configDir, "Caddyfile"),
-			SocatRelayConfig: filepath.Join(stateDir, "relays.json"),
-			CaddyProxyConfig: filepath.Join(stateDir, "proxies.json"),
-			CaddyServerMap:   filepath.Join(stateDir, "caddy_servers.json"),
+			ServeRelayConfig: filepath.Join(stateDir, "serve_relays.json"),
 			StateDir:         stateDir,
 			BackupDir:        backupDir,
 			CertificatesDir:  dataDir,
@@ -87,10 +81,10 @@ func TestBackupAndRestore(t *testing.T) {
 
 	// Restore backup
 	if err := manager.Restore(backupPath); err != nil {
-		t.Fatalf("Restore backup failed: %v", err)
+		t.Fatalf("Restore backup failed: %v\n(Note: files in dummy map that are no longer backed up will not be restored)", err)
 	}
 
-	// Verify files restored
+	// Verify files restored (only those still backed up)
 	for path, expectedContent := range files {
 		content, err := os.ReadFile(path)
 		if err != nil {

@@ -13,8 +13,8 @@
   }
 
   function formatProxyUrl(proxy) {
-    const port = proxy.port ? `:${proxy.port}` : '';
-    return `https://${proxy.hostname}${port}`;
+    const port = proxy.listen_port && proxy.listen_port !== 443 ? `:${proxy.listen_port}` : '';
+    return `https://${proxy.hostname || fqdn}${port}`;
   }
 </script>
 
@@ -29,7 +29,7 @@
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2">
           <Network size={16} class="text-blue-500 flex-shrink-0" />
-          <span class="font-medium text-sm truncate"><span class="text-xs font-normal text-gray-400 dark:text-gray-500">tcp://{fqdn || 'unknown'}</span><span>:{relay.listen_port}</span></span>
+          <span class="font-medium text-sm truncate"><span class="text-sm font-normal text-gray-400 dark:text-gray-500">tcp://{fqdn || 'unknown'}</span><span>:{relay.listen_port}</span></span>
           <span
             class="w-2 h-2 rounded-full flex-shrink-0 {toggling ? 'bg-amber-400 animate-pulse' : running ? 'bg-green-500 status-dot-running' : 'bg-gray-400 dark:bg-gray-600'}"
             title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
@@ -106,7 +106,7 @@
             target="_blank"
             rel="noopener"
             class="font-medium text-sm truncate hover:underline"
-          ><span class="text-xs font-normal text-gray-400 dark:text-gray-500">https://{proxy.hostname}</span><span>{proxy.port ? `:${proxy.port}` : ''}</span></a>
+          ><span class="text-sm font-normal text-gray-400 dark:text-gray-500">https://{proxy.hostname || fqdn}</span><span>{proxy.listen_port && proxy.listen_port !== 443 ? `:${proxy.listen_port}` : ''}</span></a>
           <span
             class="w-2 h-2 rounded-full flex-shrink-0 {toggling ? 'bg-amber-400 animate-pulse' : running ? 'bg-green-500 status-dot-running' : 'bg-gray-400 dark:bg-gray-600'}"
             title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
@@ -118,7 +118,7 @@
           {/if}
         </div>
         <p class="font-medium text-sm mt-1 ml-6">
-          &rarr; {proxy.target}
+          &rarr; {proxy.target_host}:{proxy.target_port}
         </p>
         {#if tlsError}
           <p class="text-xs text-amber-600 dark:text-amber-400 mt-1 ml-6 flex items-start gap-1">
@@ -143,14 +143,14 @@
         <div class="w-px h-5 bg-gray-200 dark:bg-gray-700"></div>
 
         <button
-          class="p-1.5 rounded-md transition-colors {toggling ? 'text-amber-500 cursor-not-allowed' : proxy.enabled ? 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500' : 'hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600'}"
+          class="p-1.5 rounded-md transition-colors {toggling ? 'text-amber-500 cursor-not-allowed' : running ? 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500' : 'hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600'}"
           onclick={() => onToggle('proxy', proxy.id, proxy.enabled)}
           disabled={toggling}
-          title={toggling ? 'Updating…' : proxy.enabled ? 'Stop' : 'Start'}
+          title={toggling ? 'Updating…' : running ? 'Stop' : 'Start'}
         >
           {#if toggling}
             <RefreshCw size={15} class="animate-spin" />
-          {:else if proxy.enabled}
+          {:else if running}
             <Pause size={15} />
           {:else}
             <Play size={15} />

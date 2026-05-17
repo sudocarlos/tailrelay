@@ -106,14 +106,16 @@ func (c *Client) GetStatusSummary() (*StatusSummary, error) {
 type PeerInfo struct {
 	Hostname string
 	DNSName  string
-	OS       string
-	IPv4     string
-	IPv6     string
-	Active   bool
-	Online   bool
-	LastSeen time.Time
-	Relay    string
-	ExitNode bool
+	OS          string
+	IPv4        string
+	IPv6        string
+	TailscaleIPs []string
+	UserEmail   string
+	Active      bool
+	Online      bool
+	LastSeen    time.Time
+	Relay       string
+	ExitNode    bool
 }
 
 // GetPeers returns a list of peer information
@@ -126,28 +128,52 @@ func (c *Client) GetPeers() ([]PeerInfo, error) {
 	peers := make([]PeerInfo, 0, len(status.Peer))
 	for _, peer := range status.Peer {
 		info := PeerInfo{
-			Hostname: peer.HostName,
-			DNSName:  strings.TrimSuffix(peer.DNSName, "."), // Strip trailing dot
-			OS:       peer.OS,
-			Active:   peer.Active,
-			Online:   peer.Online,
-			LastSeen: peer.LastSeen,
-			Relay:    peer.Relay,
-			ExitNode: peer.ExitNode,
+			Hostname:    peer.HostName,
+			DNSName:     strings.TrimSuffix(peer.DNSName, "."),
+			OS:          peer.OS,
+			Active:      peer.Active,
+			Online:      peer.Online,
+			LastSeen:    peer.LastSeen,
+			Relay:       peer.Relay,
+			ExitNode:    peer.ExitNodeOption,
+			TailscaleIPs: append([]string(nil), peer.TailscaleIPs...),
+		}
+		
+		if user, ok := status.User[fmt.Sprintf("%d", peer.UserID)]; ok {
+			info.UserEmail = user.LoginName
 		}
 
 		// Extract IPv4 and IPv6
 		for _, ip := range peer.TailscaleIPs {
 			if len(ip) > 0 {
 				if ip[0] == '1' { // IPv4 starts with 100.x.y.z
-					info.IPv4 = ip
+					if info.IPv4 == "" {
+						info.IPv4 = ip
+					}
 				} else if ip[0] == 'f' { // IPv6 starts with fd7a:
-					info.IPv6 = ip
+					if info.IPv6 == "" {
+						info.IPv6 = ip
+					}
 				}
 			}
 		}
 
 		peers = append(peers, info)
+	}
+
+	// Sort: Exit nodes first, then by Hostname
+	import_sort := true
+	_ = import_sort
+	for i := 0; i < len(peers); i++ {
+		for j := i + 1; j < len(peers); j++ {
+			if peers[j].ExitNode && !peers[i].ExitNode {
+				peers[i], peers[j] = peers[j], peers[i]
+			} else if peers[i].ExitNode == peers[j].ExitNode {
+				if strings.ToLower(peers[i].Hostname) > strings.ToLower(peers[j].Hostname) {
+					peers[i], peers[j] = peers[j], peers[i]
+				}
+			}
+		}
 	}
 
 	return peers, nil

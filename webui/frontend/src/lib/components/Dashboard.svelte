@@ -71,12 +71,12 @@
     togglingId = key;
     try {
       if (type === 'relay') {
-        const url = currentState
-          ? `/api/socat/stop?id=${encodeURIComponent(id)}`
-          : `/api/socat/start?id=${encodeURIComponent(id)}`;
-        await fetchJSON(url, { method: 'POST' });
+        await fetchJSON('/api/serve/tcp/toggle', {
+          method: 'POST',
+          body: JSON.stringify({ id, enabled: !currentState }),
+        });
       } else {
-        await fetchJSON('/api/caddy/toggle', {
+        await fetchJSON('/api/serve/https/toggle', {
           method: 'POST',
           body: JSON.stringify({ id, enabled: !currentState }),
         });
@@ -104,7 +104,7 @@
 
   async function handleAutostartToggle(type, id, autostart) {
     try {
-      const url = type === 'relay' ? '/api/socat/update' : '/api/caddy/update';
+      const url = type === 'relay' ? '/api/serve/tcp/update' : '/api/serve/https/update';
       let currentItem;
 
       if (type === 'relay') {

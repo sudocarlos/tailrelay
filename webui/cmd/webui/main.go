@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/sudocarlos/tailrelay/internal/caddy"
 	"github.com/sudocarlos/tailrelay/internal/config"
 	"github.com/sudocarlos/tailrelay/internal/logger"
 	"github.com/sudocarlos/tailrelay/internal/web"
@@ -61,13 +60,14 @@ func main() {
 	}
 	logger.Info("main", "Configuration loaded from %s", *configFile)
 
-	// Migrate from RELAY_LIST environment variable
-	if err := config.MigrateFromEnvVar(cfg.Paths.SocatRelayConfig); err != nil {
+	// One-shot migration: RELAY_LIST env var and legacy relays.json/proxies.json
+	// → serve_relays.json. Skipped when serve_relays.json already exists.
+	if err := config.MigrateFromEnvVar(cfg.Paths.ServeRelayConfig); err != nil {
 		logger.Warn("main", "Migration from RELAY_LIST failed: %v", err)
 	}
-
-	// Warn once if a legacy proxy file is present; file-based configs are no longer migrated automatically.
-	caddy.WarnIfLegacyProxyFile(cfg.Paths.CaddyProxyConfig)
+	if err := config.MigrateLegacyRelaysToServe(cfg.Paths); err != nil {
+		logger.Warn("main", "Legacy relay migration failed: %v", err)
+	}
 
 	// Load or generate authentication token
 	authToken, err := config.LoadOrGenerateToken(cfg.Auth.TokenFile)
