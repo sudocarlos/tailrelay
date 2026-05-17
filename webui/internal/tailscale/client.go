@@ -245,7 +245,7 @@ func parseAuthURL(output string) (string, error) {
 
 // Logout logs out from Tailscale
 func (c *Client) Logout() error {
-	cmd := exec.Command(c.binaryPath, "logout")
+	cmd := exec.Command(c.binaryPath, "logout", "--reason=Logout by Tailrelay")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to logout: %w", err)
 	}
@@ -254,7 +254,7 @@ func (c *Client) Logout() error {
 
 // Down disconnects from Tailscale
 func (c *Client) Down() error {
-	cmd := exec.Command(c.binaryPath, "down")
+	cmd := exec.Command(c.binaryPath, "down", "--reason=Disconnected by Tailrelay")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to disconnect: %w", err)
 	}
