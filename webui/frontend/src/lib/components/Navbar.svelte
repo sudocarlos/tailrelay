@@ -171,7 +171,7 @@
 
   <!-- Tailscale disconnected warning banner -->
   {#if !tsConnected}
-    <div class="border-t border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 sm:px-6 py-2">
+    <div class="border-t border-amber-200 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 px-4 sm:px-6 py-2">
       <p class="max-w-6xl mx-auto flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
         <AlertTriangle size={13} class="flex-shrink-0" />
         Tailscale is not connected. Relays and Backups are unavailable until Tailscale is authenticated.

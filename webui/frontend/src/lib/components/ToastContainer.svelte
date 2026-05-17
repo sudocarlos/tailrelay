@@ -22,7 +22,7 @@
   const bgMap = {
     success: 'border-green-200 dark:border-green-800',
     danger: 'border-red-200 dark:border-red-800',
-    warning: 'border-amber-200 dark:border-amber-800',
+    warning: 'border-amber-200 dark:border-amber-600',
     info: 'border-blue-200 dark:border-blue-800',
   };
 </script>
