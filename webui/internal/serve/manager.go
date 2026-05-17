@@ -2,6 +2,7 @@ package serve
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"sort"
@@ -10,6 +11,13 @@ import (
 	"github.com/sudocarlos/tailrelay/internal/config"
 	"github.com/sudocarlos/tailrelay/internal/logger"
 )
+
+// ErrTailscaleNotReady is returned by Reconcile when the Tailscale daemon is
+// not yet authenticated or connected. Relay configuration has already been
+// persisted to disk and will be applied on the next successful Reconcile call
+// (e.g. after the daemon authenticates). Callers should treat this as a
+// transient condition rather than a hard error.
+var ErrTailscaleNotReady = errors.New("tailscale not ready: reconcile deferred")
 
 // Manager manages relay rules backed by `tailscale serve`.
 type Manager struct {
@@ -203,8 +211,8 @@ func (m *Manager) Reconcile() error {
 	logger.Debug("serve", "Resetting tailscale serve config")
 	if err := m.run("serve", "reset"); err != nil {
 		if isTailscaleNotReady(err) {
-			logger.Debug("serve", "Tailscale not ready, skipping reconcile: %v", err)
-			return nil
+			logger.Debug("serve", "Tailscale not ready, deferring reconcile: %v", err)
+			return ErrTailscaleNotReady
 		}
 		logger.Error("serve", "tailscale serve reset failed: %v", err)
 		return err

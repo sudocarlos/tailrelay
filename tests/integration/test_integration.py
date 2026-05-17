@@ -269,3 +269,95 @@ class TestTCPRelay:
         data = parse_json_body(body, "/api/serve/tcp/list")
         ids = [item.get("relay", {}).get("id") for item in data]
         assert self.RELAY_ID in ids, f"Created relay {self.RELAY_ID} not found in API list"
+
+    def test_tcp_relay_delete_removes_from_list(self, running_container: str) -> None:
+        """Create a relay, delete it, and verify it no longer appears in the list."""
+        token = get_webui_token(running_container)
+        relay_id = "test-relay-delete"
+        port = 8091
+
+        # Create relay first.
+        payload = json.dumps({
+            "id": relay_id,
+            "type": "tcp",
+            "listen_port": port,
+            "target_host": "whoami-test",
+            "target_port": 80,
+            "enabled": True,
+            "autostart": True,
+        })
+        create_result = container_exec(
+            running_container,
+            f"wget -qO- --timeout=10 --tries=1 "
+            f'--header="Authorization: Bearer {token}" '
+            f'--header="Content-Type: application/json" '
+            f"--post-data='{payload}' "
+            f"{WEBUI_ADDR}/api/serve/tcp/create",
+        )
+        assert create_result.returncode == 0, (
+            f"Setup: POST /api/serve/tcp/create failed:\n{create_result.stdout}\n{create_result.stderr}"
+        )
+
+        # Delete the relay.
+        delete_result = container_exec(
+            running_container,
+            f"wget -qO- --timeout=10 --tries=1 "
+            f'--header="Authorization: Bearer {token}" '
+            f"--post-data='' "
+            f"{WEBUI_ADDR}/api/serve/tcp/delete?id={relay_id}",
+        )
+        assert delete_result.returncode == 0, (
+            f"POST /api/serve/tcp/delete failed:\n{delete_result.stdout}\n{delete_result.stderr}"
+        )
+
+        # Verify relay no longer appears in the list.
+        body = wget_authed_ok(
+            running_container, f"{WEBUI_ADDR}/api/serve/tcp/list", token
+        )
+        data = parse_json_body(body, "/api/serve/tcp/list")
+        ids = [item.get("relay", {}).get("id") for item in data]
+        assert relay_id not in ids, (
+            f"Deleted relay {relay_id} still present in API list: {ids}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Legacy endpoint shims
+# ---------------------------------------------------------------------------
+
+
+class TestLegacyEndpoints:
+    """Removed /api/caddy/* and /api/socat/* endpoints must return 410 Gone."""
+
+    def test_caddy_endpoint_returns_410(self, running_container: str) -> None:
+        token = get_webui_token(running_container)
+        # wget exits 8 on HTTP error responses (4xx/5xx), so we check stderr for 410.
+        result = container_exec(
+            running_container,
+            f"wget -qO- --timeout=5 --tries=1 "
+            f'--header="Authorization: Bearer {token}" '
+            f"{WEBUI_ADDR}/api/caddy/list",
+        )
+        assert result.returncode != 0, (
+            "Expected non-zero exit for /api/caddy/list (it should return 410)"
+        )
+        combined = result.stdout + result.stderr
+        assert "410" in combined, (
+            f"/api/caddy/list did not return 410 Gone (got: {combined!r})"
+        )
+
+    def test_socat_endpoint_returns_410(self, running_container: str) -> None:
+        token = get_webui_token(running_container)
+        result = container_exec(
+            running_container,
+            f"wget -qO- --timeout=5 --tries=1 "
+            f'--header="Authorization: Bearer {token}" '
+            f"{WEBUI_ADDR}/api/socat/list",
+        )
+        assert result.returncode != 0, (
+            "Expected non-zero exit for /api/socat/list (it should return 410)"
+        )
+        combined = result.stdout + result.stderr
+        assert "410" in combined, (
+            f"/api/socat/list did not return 410 Gone (got: {combined!r})"
+        )

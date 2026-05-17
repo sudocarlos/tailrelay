@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
+	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -58,7 +60,10 @@ func (h *ServeHandler) APIListTCP(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	statusJSON, _ := h.manager.Status()
+	statusJSON, err := h.manager.Status()
+	if err != nil {
+		log.Printf("Warning: failed to fetch tailscale serve status for TCP list: %v", err)
+	}
 
 	type relayStatus struct {
 		Relay   config.ServeRelay `json:"relay"`
@@ -71,6 +76,10 @@ func (h *ServeHandler) APIListTCP(w http.ResponseWriter, _ *http.Request) {
 			continue
 		}
 
+		// Running status is derived by matching relay.ListenPort against the TCP
+		// map keys in `tailscale serve status --json`. This is port-based matching;
+		// if two relays share the same port via out-of-band config edits, or if
+		// tailscale serve exposes relay IDs in the future, this should be revisited.
 		running := false
 		if statusJSON != nil && statusJSON.TCP != nil {
 			if tcpInfo, ok := statusJSON.TCP[strconv.Itoa(r.ListenPort)]; ok {
@@ -123,6 +132,12 @@ func (h *ServeHandler) CreateTCP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.manager.UpsertRelay(relay); err != nil {
+		if errors.Is(err, serve.ErrTailscaleNotReady) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "pending", "message": "Relay saved; will be applied once Tailscale is ready"})
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -147,6 +162,12 @@ func (h *ServeHandler) UpdateTCP(w http.ResponseWriter, r *http.Request) {
 	}
 	relay.Type = "tcp"
 	if err := h.manager.UpsertRelay(relay); err != nil {
+		if errors.Is(err, serve.ErrTailscaleNotReady) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "pending", "message": "Relay saved; will be applied once Tailscale is ready"})
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -166,6 +187,12 @@ func (h *ServeHandler) DeleteTCP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.manager.DeleteRelay(id); err != nil {
+		if errors.Is(err, serve.ErrTailscaleNotReady) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "pending", "message": "Relay deleted; serve config will sync once Tailscale is ready"})
+			return
+		}
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -192,6 +219,12 @@ func (h *ServeHandler) ToggleTCP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.manager.ToggleRelay(req.ID, req.Enabled); err != nil {
+		if errors.Is(err, serve.ErrTailscaleNotReady) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "pending", "message": "Relay toggled; serve config will sync once Tailscale is ready"})
+			return
+		}
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -214,7 +247,10 @@ func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
 		hostname = status.MagicDNSName
 	}
 
-	statusJSON, _ := h.manager.Status()
+	statusJSON, err := h.manager.Status()
+	if err != nil {
+		log.Printf("Warning: failed to fetch tailscale serve status for HTTPS list: %v", err)
+	}
 
 	type relayStatus struct {
 		config.ServeRelay
@@ -230,6 +266,10 @@ func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
 			relay.Hostname = hostname
 		}
 
+		// Running status is derived by matching relay.ListenPort against the TCP
+		// map keys in `tailscale serve status --json`. HTTPS relays appear as TCP
+		// entries with HTTPS=true. This is port-based matching; if tailscale serve
+		// exposes relay IDs in a future release, prefer matching on ID instead.
 		running := false
 		if statusJSON != nil && statusJSON.TCP != nil {
 			if tcpInfo, ok := statusJSON.TCP[strconv.Itoa(relay.ListenPort)]; ok {
@@ -274,6 +314,12 @@ func (h *ServeHandler) CreateHTTPS(w http.ResponseWriter, r *http.Request) {
 		relay.ID = fmt.Sprintf("https-%d", relay.ListenPort)
 	}
 	if err := h.manager.UpsertRelay(relay); err != nil {
+		if errors.Is(err, serve.ErrTailscaleNotReady) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "pending", "message": "Proxy saved; will be applied once Tailscale is ready"})
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -298,6 +344,12 @@ func (h *ServeHandler) UpdateHTTPS(w http.ResponseWriter, r *http.Request) {
 	}
 	relay.Type = "https"
 	if err := h.manager.UpsertRelay(relay); err != nil {
+		if errors.Is(err, serve.ErrTailscaleNotReady) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "pending", "message": "Proxy saved; will be applied once Tailscale is ready"})
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -317,6 +369,12 @@ func (h *ServeHandler) DeleteHTTPS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.manager.DeleteRelay(id); err != nil {
+		if errors.Is(err, serve.ErrTailscaleNotReady) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "pending", "message": "Proxy deleted; serve config will sync once Tailscale is ready"})
+			return
+		}
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -343,6 +401,12 @@ func (h *ServeHandler) ToggleHTTPS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.manager.ToggleRelay(req.ID, req.Enabled); err != nil {
+		if errors.Is(err, serve.ErrTailscaleNotReady) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "pending", "message": "Proxy toggled; serve config will sync once Tailscale is ready"})
+			return
+		}
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -353,6 +417,15 @@ func (h *ServeHandler) ToggleHTTPS(w http.ResponseWriter, r *http.Request) {
 // ReloadServe reconciles all enabled relays.
 func (h *ServeHandler) ReloadServe(w http.ResponseWriter, r *http.Request) {
 	if err := h.manager.Reconcile(); err != nil {
+		if errors.Is(err, serve.ErrTailscaleNotReady) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"status":  "pending",
+				"message": "Tailscale not ready; reconcile will run once connected",
+			})
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

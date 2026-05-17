@@ -10,6 +10,10 @@ on:
     types: [published]
 
 env:
+  # Suppress Node.js deprecation warnings from GitHub Actions runners that
+  # still default to Node 16/20 for action execution. Actions themselves
+  # use Node 24 via setup-node, but the runner wrapper emits warnings for
+  # the older host runtime; this env var silences them.
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:

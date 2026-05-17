@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -16,6 +17,7 @@ import (
 	"github.com/sudocarlos/tailrelay/internal/auth"
 	"github.com/sudocarlos/tailrelay/internal/config"
 	"github.com/sudocarlos/tailrelay/internal/handlers"
+	"github.com/sudocarlos/tailrelay/internal/serve"
 )
 
 // Server represents the HTTP server
@@ -92,7 +94,7 @@ func NewServer(cfg *config.Config, authToken, version, commit string, distFS, st
 
 // Start starts the HTTP server
 func (s *Server) Start() error {
-	// Initialize tailscale serve relay state asynchronously, 
+	// Initialize tailscale serve relay state asynchronously,
 	// retrying until the tailscaled netMap is fully loaded and ready.
 	go func() {
 		log.Printf("Waiting for tailscale to connect before reconciling relays...")
@@ -101,11 +103,13 @@ func (s *Server) Start() error {
 				if err := s.serveH.InitializeAutostart(); err == nil {
 					log.Printf("Successfully reconciled tailscale serve relays")
 					return
+				} else if errors.Is(err, serve.ErrTailscaleNotReady) {
+					log.Printf("Tailscale not yet ready on attempt %d, will retry...", i+1)
 				} else {
 					log.Printf("Warning: failed to reconcile tailscale serve relays on attempt %d: %v", i+1, err)
 				}
 			}
-			
+
 			if i < 14 {
 				time.Sleep(2 * time.Second)
 			} else {
@@ -213,6 +217,11 @@ func (s *Server) setupRoutes() *http.ServeMux {
 		fileServer := http.FileServer(http.FS(s.staticFS))
 		mux.Handle("/static/", http.StripPrefix("/static/", s.staticFileHandler(fileServer)))
 	}
+
+	// Legacy endpoint shims — removed endpoints return 410 Gone with migration hints.
+	// These routes catch all sub-paths via the trailing-slash pattern.
+	mux.HandleFunc("/api/caddy/", handlers.LegacyCaddyGone)
+	mux.HandleFunc("/api/socat/", handlers.LegacySocatGone)
 
 	// Protected routes (authentication required)
 	mux.Handle("/", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPAFallback)))
