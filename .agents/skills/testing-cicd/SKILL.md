@@ -238,8 +238,8 @@ test_<subsystem>_<what>_<expected_outcome>
 
 Examples:
   test_webui_health_returns_200
-  test_caddy_proxy_add_persists_after_restart
-  test_socat_relay_invalid_port_rejected
+  test_serve_tcp_relay_add_persists_after_restart
+  test_serve_relay_invalid_port_rejected
 ```
 
 ### Addresses Inside the Container

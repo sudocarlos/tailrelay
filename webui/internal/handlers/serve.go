@@ -52,7 +52,8 @@ func (h *ServeHandler) IsTailscaleReady() bool {
 
 // writeServeResult encodes a JSON success response.  If err is
 // ErrTailscaleNotReady it writes 202 Accepted so the UI can show a "pending"
-// state instead of an error.  Any other error produces 500.
+// state instead of an error.  ErrRelayNotFound produces 404.  Any other error
+// produces 500.
 func writeServeResult(w http.ResponseWriter, err error, msg string) {
 	if err == nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -67,6 +68,10 @@ func writeServeResult(w http.ResponseWriter, err error, msg string) {
 			"status":  "pending",
 			"message": msg + " (tailscale not yet ready — relay config saved and will be applied when connected)",
 		})
+		return
+	}
+	if errors.Is(err, serve.ErrRelayNotFound) {
+		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 	http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -183,10 +188,6 @@ func (h *ServeHandler) DeleteTCP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := h.manager.DeleteRelay(id)
-	if err != nil && !errors.Is(err, serve.ErrTailscaleNotReady) {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
 	writeServeResult(w, err, "Relay deleted successfully")
 }
 
@@ -209,10 +210,6 @@ func (h *ServeHandler) ToggleTCP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := h.manager.ToggleRelay(req.ID, req.Enabled)
-	if err != nil && !errors.Is(err, serve.ErrTailscaleNotReady) {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
 	writeServeResult(w, err, "Relay toggled successfully")
 }
 
@@ -327,10 +324,6 @@ func (h *ServeHandler) DeleteHTTPS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := h.manager.DeleteRelay(id)
-	if err != nil && !errors.Is(err, serve.ErrTailscaleNotReady) {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
 	writeServeResult(w, err, "Proxy deleted successfully")
 }
 
@@ -353,10 +346,6 @@ func (h *ServeHandler) ToggleHTTPS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := h.manager.ToggleRelay(req.ID, req.Enabled)
-	if err != nil && !errors.Is(err, serve.ErrTailscaleNotReady) {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
 	writeServeResult(w, err, "Proxy toggled successfully")
 }
 

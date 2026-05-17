@@ -92,23 +92,22 @@ var ErrTailscaleNotReady = fmt.Errorf("tailscale not ready")
 Returned by `Reconcile()` (and transitively by `UpsertRelay`, `DeleteRelay`,
 `ToggleRelay`) when Tailscale is not yet authenticated or connected.
 
-**Callers must use `errors.Is` to distinguish this from real failures:**
+### `ErrRelayNotFound`
 
 ```go
-if err := manager.UpsertRelay(relay); err != nil {
-    if errors.Is(err, serve.ErrTailscaleNotReady) {
-        // relay config saved; return 202 Accepted so UI shows pending state
-        w.WriteHeader(http.StatusAccepted)
-        return
-    }
-    http.Error(w, err.Error(), http.StatusInternalServerError)
-    return
-}
+var ErrRelayNotFound = fmt.Errorf("relay not found")
 ```
 
-Relay config is persisted before `Reconcile()` is called, so a deferred
-reconcile does not lose data — it is applied on the next successful reconcile
-(e.g. after Tailscale authenticates or `IsTailscaleReady()` returns true).
+Returned by `DeleteRelay` and `ToggleRelay` when no relay with the given ID
+exists in `serve_relays.json`. Use `errors.Is` to distinguish from
+`ErrTailscaleNotReady` or internal errors.
+
+**Callers use `errors.Is` via `writeServeResult`:**
+
+```go
+writeServeResult(w, manager.DeleteRelay(id), "Relay deleted successfully")
+// nil → 200, ErrTailscaleNotReady → 202, ErrRelayNotFound → 404, other → 500
+```
 
 ### Reconciliation Flow
 
@@ -161,7 +160,8 @@ These shims are registered before protected routes and do not require auth.
 ### `writeServeResult` Helper
 
 All mutating handlers use the `writeServeResult(w, err, msg)` helper which
-maps `nil` → 200, `ErrTailscaleNotReady` → 202, and other errors → 500.
+maps `nil` → 200, `ErrTailscaleNotReady` → 202, `ErrRelayNotFound` → 404,
+and other errors → 500.
 
 ## Migration from Legacy Configs
 
