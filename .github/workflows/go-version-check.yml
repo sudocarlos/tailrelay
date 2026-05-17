@@ -1,4 +1,4 @@
-name: Go Version Check
+name: Dependency Version Check
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  check:
+  go:
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -38,5 +38,41 @@ jobs:
             gh issue create \
               --title "$title" \
               --body "The Dockerfile uses Go \`${{ steps.dockerfile.outputs.version }}\` but the latest stable release is \`${{ steps.latest.outputs.version }}\`." \
+              --assignee sudocarlos
+          fi
+
+  node:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get Dockerfile Node version
+        id: dockerfile
+        run: |
+          version=$(grep -oP 'ARG NODE_VERSION=\K[\d.]+' Dockerfile)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Get latest Node version for major track
+        id: latest
+        run: |
+          major=$(echo "${{ steps.dockerfile.outputs.version }}" | cut -d. -f1)
+          listing=$(curl -sSL "https://nodejs.org/download/release/latest-v${major}.x/")
+          version=$(echo "$listing" | grep -oP "node-v\K${major}\.\d+\.\d+" | head -1)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Create issue if outdated
+        if: steps.dockerfile.outputs.version != steps.latest.outputs.version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          title="chore: update Node from ${{ steps.dockerfile.outputs.version }} to ${{ steps.latest.outputs.version }}"
+          existing=$(gh issue list --state open --search "$title" --json title -q '.[].title' | head -1)
+          if [ -z "$existing" ]; then
+            gh issue create \
+              --title "$title" \
+              --body "The Dockerfile uses Node \`${{ steps.dockerfile.outputs.version }}\` but the latest release in the same major track is \`${{ steps.latest.outputs.version }}\`." \
               --assignee sudocarlos
           fi
