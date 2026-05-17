@@ -214,6 +214,18 @@ func (s *Server) setupRoutes() *http.ServeMux {
 		mux.Handle("/static/", http.StripPrefix("/static/", s.staticFileHandler(fileServer)))
 	}
 
+	// Legacy endpoint shims — removed endpoints return 410 Gone with migration hint.
+	// These are registered before the protected catch-all so they respond without auth.
+	legacyGone := func(newBase string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(http.StatusGone)
+			_, _ = w.Write([]byte("This endpoint has been removed. Use " + newBase + " instead.\n"))
+		}
+	}
+	mux.HandleFunc("/api/caddy/", legacyGone("/api/serve/https/"))
+	mux.HandleFunc("/api/socat/", legacyGone("/api/serve/tcp/"))
+
 	// Protected routes (authentication required)
 	mux.Handle("/", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPAFallback)))
 	mux.Handle("/api/auth/logout", s.authMW.RequireAuth(http.HandlerFunc(s.authH.Logout)))

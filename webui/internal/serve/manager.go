@@ -175,6 +175,11 @@ func (m *Manager) ToggleRelay(id string, enabled bool) error {
 	return m.Reconcile()
 }
 
+// ErrTailscaleNotReady is returned by Reconcile when Tailscale is not yet
+// authenticated or connected. Callers can use errors.Is to distinguish a
+// deferred reconcile from a real failure.
+var ErrTailscaleNotReady = fmt.Errorf("tailscale not ready")
+
 // isTailscaleNotReady reports whether err indicates Tailscale is not yet
 // authenticated or connected (e.g. during container startup in CI).
 func isTailscaleNotReady(err error) bool {
@@ -203,8 +208,8 @@ func (m *Manager) Reconcile() error {
 	logger.Debug("serve", "Resetting tailscale serve config")
 	if err := m.run("serve", "reset"); err != nil {
 		if isTailscaleNotReady(err) {
-			logger.Debug("serve", "Tailscale not ready, skipping reconcile: %v", err)
-			return nil
+			logger.Debug("serve", "Tailscale not ready, deferring reconcile: %v", err)
+			return ErrTailscaleNotReady
 		}
 		logger.Error("serve", "tailscale serve reset failed: %v", err)
 		return err

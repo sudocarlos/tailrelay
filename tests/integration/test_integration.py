@@ -269,3 +269,92 @@ class TestTCPRelay:
         data = parse_json_body(body, "/api/serve/tcp/list")
         ids = [item.get("relay", {}).get("id") for item in data]
         assert self.RELAY_ID in ids, f"Created relay {self.RELAY_ID} not found in API list"
+
+    def test_tcp_relay_delete_removes_from_list(self, running_container: str) -> None:
+        """Create a relay, delete it, and verify it no longer appears in the list."""
+        token = get_webui_token(running_container)
+
+        # Ensure the relay exists first.
+        payload = self._create_relay_payload()
+        container_exec(
+            running_container,
+            f"wget -qO- --timeout=10 --tries=1 "
+            f'--header="Authorization: Bearer {token}" '
+            f'--header="Content-Type: application/json" '
+            f"--post-data='{payload}' "
+            f"{WEBUI_ADDR}/api/serve/tcp/create",
+        )
+        time.sleep(1)
+
+        # Delete the relay.
+        delete_result = container_exec(
+            running_container,
+            f"wget -qO- --timeout=10 --tries=1 "
+            f'--header="Authorization: Bearer {token}" '
+            f"--post-data='' "
+            f'"{WEBUI_ADDR}/api/serve/tcp/delete?id={self.RELAY_ID}"',
+        )
+        assert delete_result.returncode == 0, (
+            f"DELETE /api/serve/tcp/delete failed (exit {delete_result.returncode}):\n"
+            f"stdout: {delete_result.stdout}\nstderr: {delete_result.stderr}"
+        )
+
+        # Verify relay no longer appears in API list.
+        body = wget_authed_ok(
+            running_container, f"{WEBUI_ADDR}/api/serve/tcp/list", token
+        )
+        data = parse_json_body(body, "/api/serve/tcp/list")
+        ids = [item.get("relay", {}).get("id") for item in data]
+        assert self.RELAY_ID not in ids, (
+            f"Deleted relay {self.RELAY_ID} still appears in API list"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Legacy endpoint shims
+# ---------------------------------------------------------------------------
+
+
+class TestLegacyEndpointShims:
+    """Removed /api/caddy/* and /api/socat/* endpoints return 410 Gone."""
+
+    def _wget_status(self, container: str, url: str, token: str) -> int:
+        """Return the HTTP status code from wget's server-response header."""
+        result = container_exec(
+            container,
+            f"wget -S --spider --timeout=5 --tries=1 "
+            f'--header="Authorization: Bearer {token}" '
+            f"{url} 2>&1",
+        )
+        output = result.stdout + result.stderr
+        for line in output.splitlines():
+            line = line.strip()
+            if line.startswith("HTTP/") and len(line.split()) >= 2:
+                try:
+                    return int(line.split()[1])
+                except ValueError:
+                    pass
+        return -1
+
+    def test_caddy_endpoint_returns_410(self, running_container: str) -> None:
+        token = get_webui_token(running_container)
+        status = self._wget_status(
+            running_container,
+            f"{WEBUI_ADDR}/api/caddy/list",
+            token,
+        )
+        assert status == 410, (
+            f"Expected 410 Gone from /api/caddy/list, got {status}"
+        )
+
+    def test_socat_endpoint_returns_410(self, running_container: str) -> None:
+        token = get_webui_token(running_container)
+        status = self._wget_status(
+            running_container,
+            f"{WEBUI_ADDR}/api/socat/list",
+            token,
+        )
+        assert status == 410, (
+            f"Expected 410 Gone from /api/socat/list, got {status}"
+        )
+
