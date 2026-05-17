@@ -239,7 +239,7 @@ func (m *Manager) run(args ...string) error {
 	cmd := exec.Command(m.binaryPath, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		errStr := fmt.Sprintf("tailscale %s failed: %w (output: %s)", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
+		errStr := fmt.Sprintf("tailscale %s failed: %s (output: %s)", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
 		if strings.Contains(errStr, "netMap is nil") {
 			logger.Debug("serve", "Tailscale not fully ready yet: %v", errStr)
 		} else {

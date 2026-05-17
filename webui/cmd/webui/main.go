@@ -60,12 +60,11 @@ func main() {
 	}
 	logger.Info("main", "Configuration loaded from %s", *configFile)
 
-	// Migrate from RELAY_LIST environment variable
-	if err := config.MigrateFromEnvVar(cfg.Paths.SocatRelayConfig); err != nil {
+	// One-shot migration: RELAY_LIST env var and legacy relays.json/proxies.json
+	// → serve_relays.json. Skipped when serve_relays.json already exists.
+	if err := config.MigrateFromEnvVar(cfg.Paths.ServeRelayConfig); err != nil {
 		logger.Warn("main", "Migration from RELAY_LIST failed: %v", err)
 	}
-
-	// Migrate legacy caddy/socat metadata into tailscale serve relay metadata.
 	if err := config.MigrateLegacyRelaysToServe(cfg.Paths); err != nil {
 		logger.Warn("main", "Legacy relay migration failed: %v", err)
 	}

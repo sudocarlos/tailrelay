@@ -228,7 +228,7 @@ The test suite is split across three layers:
 
 #### 1. Go unit tests (no Docker required)
 
-Covers `internal/auth`, `internal/caddy`, `internal/handlers`, `internal/backup`,
+Covers `internal/auth`, `internal/serve`, `internal/handlers`, `internal/backup`,
 and `internal/web`.
 
 ```bash
@@ -245,8 +245,7 @@ cd webui && go test -v ./...
 #### 2. Integration tests (requires Docker)
 
 Builds the full container image and smoke-tests container startup, process presence,
-port availability, Tailscale health/metrics endpoints, Web UI API, and socat relay
-forwarding. The suite lives in `tests/integration/` and is driven by environment
+port availability, Tailscale health/metrics endpoints, and Web UI API. The suite lives in `tests/integration/` and is driven by environment
 variables.
 
 ```bash
@@ -315,23 +314,23 @@ The Web UI backend exposes a JSON API on port 8021. All endpoints under `/api/` 
 | `POST` | `/api/tailscale/logout` | Yes | -- | Deauthorize Tailscale node |
 | `POST` | `/api/tailscale/connect` | Yes | -- | Bring Tailscale up |
 | `POST` | `/api/tailscale/disconnect` | Yes | -- | Bring Tailscale down |
-| `GET` | `/api/caddy/proxies` | Yes | -- | List all HTTPS relays (legacy endpoint, serve-backed) |
-| `GET` | `/api/caddy/proxy` | Yes | `?id=` | Get single proxy |
-| `POST` | `/api/caddy/create` | Yes | JSON or multipart | Create proxy |
-| `POST` | `/api/caddy/update` | Yes | JSON or multipart | Update proxy (`id` required) |
-| `POST` | `/api/caddy/delete` | Yes | `?id=` | Delete proxy |
-| `POST` | `/api/caddy/toggle` | Yes | JSON `{id, enabled}` | Enable/disable proxy |
-| `POST` | `/api/caddy/reload` | Yes | -- | Reconcile tailscale serve state |
-| `GET` | `/api/socat/relays` | Yes | -- | List all TCP relays (legacy endpoint, serve-backed) |
-| `GET` | `/api/socat/relay` | Yes | `?id=` | Get single relay |
-| `POST` | `/api/socat/create` | Yes | JSON | Create relay |
-| `POST` | `/api/socat/update` | Yes | JSON | Update relay (`id` required) |
-| `POST` | `/api/socat/delete` | Yes | `?id=` | Delete relay |
-| `POST` | `/api/socat/toggle` | Yes | JSON `{id, enabled}` | Enable/disable relay |
-| `POST` | `/api/socat/start` | Yes | `?id=` | Start relay |
-| `POST` | `/api/socat/stop` | Yes | `?id=` | Stop relay |
-| `POST` | `/api/socat/restart` | Yes | `?id=` | Restart relay |
-| `POST` | `/api/socat/restart-all` | Yes | -- | Reconcile all enabled relays |
+| `GET` | `/api/serve/https/list` | Yes | -- | List all HTTPS relays |
+| `GET` | `/api/serve/https/get` | Yes | `?id=` | Get single HTTPS relay |
+| `POST` | `/api/serve/https/create` | Yes | JSON or multipart | Create HTTPS relay |
+| `POST` | `/api/serve/https/update` | Yes | JSON or multipart | Update HTTPS relay (`id` required) |
+| `POST` | `/api/serve/https/delete` | Yes | `?id=` | Delete HTTPS relay |
+| `POST` | `/api/serve/https/toggle` | Yes | JSON `{id, enabled}` | Enable/disable HTTPS relay |
+| `POST` | `/api/serve/https/reconcile` | Yes | -- | Reconcile all HTTPS relays via `tailscale serve` |
+| `GET` | `/api/serve/tcp/list` | Yes | -- | List all TCP relays |
+| `GET` | `/api/serve/tcp/get` | Yes | `?id=` | Get single TCP relay |
+| `POST` | `/api/serve/tcp/create` | Yes | JSON | Create TCP relay |
+| `POST` | `/api/serve/tcp/update` | Yes | JSON | Update TCP relay (`id` required) |
+| `POST` | `/api/serve/tcp/delete` | Yes | `?id=` | Delete TCP relay |
+| `POST` | `/api/serve/tcp/toggle` | Yes | JSON `{id, enabled}` | Enable/disable TCP relay |
+| `POST` | `/api/serve/tcp/start` | Yes | `?id=` | Start TCP relay |
+| `POST` | `/api/serve/tcp/stop` | Yes | `?id=` | Stop TCP relay |
+| `POST` | `/api/serve/tcp/restart` | Yes | `?id=` | Restart TCP relay |
+| `POST` | `/api/serve/tcp/reconcile` | Yes | -- | Reconcile all enabled TCP relays |
 | `GET` | `/api/backup/list` | Yes | -- | List backups with metadata |
 | `POST` | `/api/backup/create` | Yes | JSON `{backup_type}` | Create backup (`full` or `config-only`) |
 | `POST` | `/api/backup/restore` | Yes | JSON `{filename}` | Restore from backup |
@@ -343,22 +342,25 @@ The Web UI backend exposes a JSON API on port 8021. All endpoints under `/api/` 
 | `GET` | `/api/logs/level` | Yes | -- | Get current log level |
 | `POST` | `/api/logs/level` | Yes | JSON `{level}` | Set log level (`debug`, `info`, `warn`, `error`) |
 
-### HTTPS Relay Object (legacy `/api/caddy/*` shape)
+### HTTPS Relay Object
 
 ```json
 {
   "id": "abc123",
+  "hostname": "myservice",
   "port": 8080,
   "target": "192.168.1.10:3000",
+  "tls": true,
+  "trusted_proxies": false,
+  "host_header": "",
   "enabled": true,
   "autostart": true,
-  "running": true
+  "running": true,
+  "tls_error": ""
 }
 ```
 
-`tls`, `tls_cert_file`, `trusted_proxies`, and `host_header` are no longer applied by the backend after the move to `tailscale serve`.
-
-### Socat Relay Object
+### TCP Relay Object
 
 ```json
 {
@@ -371,7 +373,7 @@ The Web UI backend exposes a JSON API on port 8021. All endpoints under `/api/` 
 }
 ```
 
-The `GET /api/socat/relays` response wraps each relay in `{"Relay": {...}, "Running": true}`.
+The `GET /api/serve/tcp/list` response wraps each relay in `{"Relay": {...}, "Running": true}`.
 
 ### Backup Info Object
 
@@ -442,7 +444,9 @@ docker exec tailrelay tailscale serve status
 
 Force reconcile from saved UI configuration:
 ```bash
-curl -X POST http://localhost:8021/api/caddy/reload
+curl -X POST http://localhost:8021/api/serve/https/reconcile
+# or for TCP relays:
+curl -X POST http://localhost:8021/api/serve/tcp/reconcile
 ```
 
 Test target connectivity:
@@ -603,8 +607,7 @@ Open source project. See repository for license details.
 
 ## Acknowledgments
 
-- [Tailscale](https://tailscale.com) - VPN platform
-- [Caddy](https://caddyserver.com) - Reverse proxy
+- [Tailscale](https://tailscale.com) - VPN platform and `tailscale serve`
 - [Start9](https://start9.com) - Inspiration for this project
 - Original project by [@hollie](https://github.com/hollie/tailscale-caddy-proxy)
 

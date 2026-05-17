@@ -13,8 +13,8 @@
   }
 
   function formatProxyUrl(proxy) {
-    const port = proxy.port ? `:${proxy.port}` : '';
-    return `https://${proxy.hostname}${port}`;
+    const port = proxy.listen_port && proxy.listen_port !== 443 ? `:${proxy.listen_port}` : '';
+    return `https://${proxy.hostname || fqdn}${port}`;
   }
 </script>
 
@@ -106,7 +106,7 @@
             target="_blank"
             rel="noopener"
             class="font-medium text-sm truncate hover:underline"
-          ><span class="text-xs font-normal text-gray-400 dark:text-gray-500">https://{proxy.hostname}</span><span>{proxy.port ? `:${proxy.port}` : ''}</span></a>
+          ><span class="text-xs font-normal text-gray-400 dark:text-gray-500">https://{proxy.hostname || fqdn}</span><span>{proxy.listen_port && proxy.listen_port !== 443 ? `:${proxy.listen_port}` : ''}</span></a>
           <span
             class="w-2 h-2 rounded-full flex-shrink-0 {toggling ? 'bg-amber-400 animate-pulse' : running ? 'bg-green-500 status-dot-running' : 'bg-gray-400 dark:bg-gray-600'}"
             title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
@@ -118,7 +118,7 @@
           {/if}
         </div>
         <p class="font-medium text-sm mt-1 ml-6">
-          &rarr; {proxy.target}
+          &rarr; {proxy.target_host}:{proxy.target_port}
         </p>
         {#if tlsError}
           <p class="text-xs text-amber-600 dark:text-amber-400 mt-1 ml-6 flex items-start gap-1">

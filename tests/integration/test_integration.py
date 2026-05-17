@@ -34,7 +34,7 @@ from tests.integration.helpers import (
 WEBUI_ADDR = "http://127.0.0.1:8021"
 HEALTHZ_ADDR = "http://127.0.0.1:9002/healthz"
 METRICS_ADDR = "http://127.0.0.1:9002/metrics"
-SOCAT_RELAY_PORT = 8089
+RELAY_PORT = 8089
 
 # Token file written by the Web UI on first start.
 WEBUI_TOKEN_FILE = "/var/lib/tailscale/.webui_token"
@@ -187,24 +187,24 @@ class TestWebUI:
             f"Expected 'needsSetup' key in auth status response: {data}"
         )
 
-    def test_webui_caddy_api_list(self, running_container: str) -> None:
+    def test_webui_https_api_list(self, running_container: str) -> None:
         token = get_webui_token(running_container)
         body = wget_authed_ok(
-            running_container, f"{WEBUI_ADDR}/api/caddy/proxies", token
+            running_container, f"{WEBUI_ADDR}/api/serve/https/list", token
         )
-        data = parse_json_body(body, "/api/caddy/proxies")
+        data = parse_json_body(body, "/api/serve/https/list")
         assert isinstance(data, list), (
-            f"Expected JSON array from /api/caddy/proxies, got {type(data)}"
+            f"Expected JSON array from /api/serve/https/list, got {type(data)}"
         )
 
-    def test_webui_socat_api_list(self, running_container: str) -> None:
+    def test_webui_tcp_api_list(self, running_container: str) -> None:
         token = get_webui_token(running_container)
         body = wget_authed_ok(
-            running_container, f"{WEBUI_ADDR}/api/socat/relays", token
+            running_container, f"{WEBUI_ADDR}/api/serve/tcp/list", token
         )
-        data = parse_json_body(body, "/api/socat/relays")
+        data = parse_json_body(body, "/api/serve/tcp/list")
         assert isinstance(data, list), (
-            f"Expected JSON array from /api/socat/relays, got {type(data)}"
+            f"Expected JSON array from /api/serve/tcp/list, got {type(data)}"
         )
 
     def test_webui_backup_api_list(self, running_container: str) -> None:
@@ -221,19 +221,19 @@ class TestWebUI:
 # ---------------------------------------------------------------------------
 
 
-class TestSocatRelay:
+class TestTCPRelay:
     """
-    Create a relay via the Web UI API and verify that socat starts and
-    forwards TCP traffic to the whoami service on the test network.
+    Create a TCP relay via the Web UI API and verify the relay appears in the list.
+    Uses the new /api/serve/tcp/* endpoints backed by `tailscale serve`.
     """
 
     RELAY_ID = "test-relay"
-    RELAY_PATH = "/var/lib/tailscale/relays.json"
 
     def _create_relay_payload(self) -> str:
         payload = {
             "id": self.RELAY_ID,
-            "listen_port": SOCAT_RELAY_PORT,
+            "type": "tcp",
+            "listen_port": RELAY_PORT,
             "target_host": "whoami-test",
             "target_port": 80,
             "enabled": True,
@@ -241,11 +241,10 @@ class TestSocatRelay:
         }
         return json.dumps(payload)
 
-    def test_socat_relay_forwards_http(self, running_container: str) -> None:
+    def test_tcp_relay_create_and_list(self, running_container: str) -> None:
         token = get_webui_token(running_container)
 
         # Create the relay via the Web UI API.
-        # The Create handler automatically starts the relay when enabled=true.
         payload = self._create_relay_payload()
         create_result = container_exec(
             running_container,
@@ -253,10 +252,10 @@ class TestSocatRelay:
             f'--header="Authorization: Bearer {token}" '
             f'--header="Content-Type: application/json" '
             f"--post-data='{payload}' "
-            f"{WEBUI_ADDR}/api/socat/create",
+            f"{WEBUI_ADDR}/api/serve/tcp/create",
         )
         assert create_result.returncode == 0, (
-            f"POST /api/socat/create failed (exit {create_result.returncode}):\n"
+            f"POST /api/serve/tcp/create failed (exit {create_result.returncode}):\n"
             f"stdout: {create_result.stdout}\nstderr: {create_result.stderr}"
         )
 
@@ -265,8 +264,8 @@ class TestSocatRelay:
 
         # Verify relay appears in API list after creation.
         body = wget_authed_ok(
-            running_container, f"{WEBUI_ADDR}/api/socat/relays", token
+            running_container, f"{WEBUI_ADDR}/api/serve/tcp/list", token
         )
-        data = parse_json_body(body, "/api/socat/relays")
-        ids = [item.get("Relay", {}).get("id") for item in data]
+        data = parse_json_body(body, "/api/serve/tcp/list")
+        ids = [item.get("relay", {}).get("id") for item in data]
         assert self.RELAY_ID in ids, f"Created relay {self.RELAY_ID} not found in API list"

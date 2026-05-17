@@ -533,7 +533,7 @@
                       rel="noopener noreferrer"
                       class="font-bold text-gray-900 dark:text-gray-100 text-[13px] hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors"
                     >
-                      {peer.Hostname || '—'}
+                      {peer.DNSName ? peer.DNSName.split('.')[0] : (peer.Hostname || '—')}
                     </a>
                     {#if peer.UserEmail}
                       <span class="text-gray-500 dark:text-gray-400 text-xs">

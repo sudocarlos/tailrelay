@@ -55,8 +55,8 @@ export const lastUpdated = writable('');
  */
 export async function refreshData() {
   const [relayData, proxyData, status, targetData] = await Promise.all([
-    fetchJSON('/api/socat/relays'),
-    fetchJSON('/api/caddy/proxies'),
+    fetchJSON('/api/serve/tcp/list'),
+    fetchJSON('/api/serve/https/list'),
     fetchJSON('/api/tailscale/status'),
     fetchJSON('/api/targets'),
   ]);

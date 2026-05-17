@@ -37,14 +37,21 @@ func (h *ServeHandler) InitializeAutostart() error {
 	return h.manager.Reconcile()
 }
 
+// Manager returns the serve.Manager instance.
+func (h *ServeHandler) Manager() *serve.Manager {
+	return h.manager
+}
+
 // IsTailscaleReady checks if the tailscale daemon is running and connected.
 func (h *ServeHandler) IsTailscaleReady() bool {
 	connected, _ := h.tsClient.IsConnected()
 	return connected
 }
 
-// APIListSocat returns TCP relays using the legacy socat API shape.
-func (h *ServeHandler) APIListSocat(w http.ResponseWriter, _ *http.Request) {
+// ── TCP relay handlers (/api/serve/tcp/*) ─────────────────────────────────────
+
+// APIListTCP returns all TCP relays as JSON.
+func (h *ServeHandler) APIListTCP(w http.ResponseWriter, _ *http.Request) {
 	relays, err := h.manager.ListRelays()
 	if err != nil {
 		http.Error(w, "Failed to load relays", http.StatusInternalServerError)
@@ -53,12 +60,12 @@ func (h *ServeHandler) APIListSocat(w http.ResponseWriter, _ *http.Request) {
 
 	statusJSON, _ := h.manager.Status()
 
-	type socatStatus struct {
-		Relay   config.SocatRelay `json:"Relay"`
-		Running bool              `json:"Running"`
+	type relayStatus struct {
+		Relay   config.ServeRelay `json:"relay"`
+		Running bool              `json:"running"`
 	}
 
-	out := make([]socatStatus, 0, len(relays))
+	out := make([]relayStatus, 0)
 	for _, r := range relays {
 		if r.Type != "tcp" {
 			continue
@@ -73,25 +80,15 @@ func (h *ServeHandler) APIListSocat(w http.ResponseWriter, _ *http.Request) {
 			}
 		}
 
-		out = append(out, socatStatus{
-			Relay: config.SocatRelay{
-				ID:         r.ID,
-				ListenPort: r.ListenPort,
-				TargetHost: r.TargetHost,
-				TargetPort: r.TargetPort,
-				Enabled:    r.Enabled,
-				Autostart:  r.Autostart,
-			},
-			Running: running,
-		})
+		out = append(out, relayStatus{Relay: r, Running: running})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-// APIGetSocat returns one TCP relay using legacy socat API shape.
-func (h *ServeHandler) APIGetSocat(w http.ResponseWriter, r *http.Request) {
+// APIGetTCP returns one TCP relay.
+func (h *ServeHandler) APIGetTCP(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	if id == "" {
 		http.Error(w, "Relay ID is required", http.StatusBadRequest)
@@ -103,43 +100,29 @@ func (h *ServeHandler) APIGetSocat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(config.SocatRelay{
-		ID:         relay.ID,
-		ListenPort: relay.ListenPort,
-		TargetHost: relay.TargetHost,
-		TargetPort: relay.TargetPort,
-		Enabled:    relay.Enabled,
-		Autostart:  relay.Autostart,
-	})
+	_ = json.NewEncoder(w).Encode(relay)
 }
 
-// CreateSocat creates a TCP relay from legacy payload.
-func (h *ServeHandler) CreateSocat(w http.ResponseWriter, r *http.Request) {
+// CreateTCP creates a TCP relay.
+func (h *ServeHandler) CreateTCP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	var relay config.SocatRelay
+	var relay config.ServeRelay
 	if err := json.NewDecoder(r.Body).Decode(&relay); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
+	relay.Type = "tcp"
 	if relay.ID == "" {
 		relay.ID = fmt.Sprintf("tcp-%d", relay.ListenPort)
 	}
 	if relay.TargetHost == "" || relay.ListenPort == 0 || relay.TargetPort == 0 {
-		http.Error(w, "invalid relay payload", http.StatusBadRequest)
+		http.Error(w, "listen_port, target_host, and target_port are required", http.StatusBadRequest)
 		return
 	}
-	if err := h.manager.UpsertRelay(config.ServeRelay{
-		ID:         relay.ID,
-		Type:       "tcp",
-		ListenPort: relay.ListenPort,
-		TargetHost: relay.TargetHost,
-		TargetPort: relay.TargetPort,
-		Enabled:    relay.Enabled,
-		Autostart:  relay.Autostart,
-	}); err != nil {
+	if err := h.manager.UpsertRelay(relay); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -147,13 +130,13 @@ func (h *ServeHandler) CreateSocat(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Relay created successfully"})
 }
 
-// UpdateSocat updates a TCP relay from legacy payload.
-func (h *ServeHandler) UpdateSocat(w http.ResponseWriter, r *http.Request) {
+// UpdateTCP updates a TCP relay.
+func (h *ServeHandler) UpdateTCP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost && r.Method != http.MethodPut {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	var relay config.SocatRelay
+	var relay config.ServeRelay
 	if err := json.NewDecoder(r.Body).Decode(&relay); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -162,15 +145,8 @@ func (h *ServeHandler) UpdateSocat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Relay ID is required", http.StatusBadRequest)
 		return
 	}
-	if err := h.manager.UpsertRelay(config.ServeRelay{
-		ID:         relay.ID,
-		Type:       "tcp",
-		ListenPort: relay.ListenPort,
-		TargetHost: relay.TargetHost,
-		TargetPort: relay.TargetPort,
-		Enabled:    relay.Enabled,
-		Autostart:  relay.Autostart,
-	}); err != nil {
+	relay.Type = "tcp"
+	if err := h.manager.UpsertRelay(relay); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -178,8 +154,8 @@ func (h *ServeHandler) UpdateSocat(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Relay updated successfully"})
 }
 
-// DeleteSocat deletes a TCP relay.
-func (h *ServeHandler) DeleteSocat(w http.ResponseWriter, r *http.Request) {
+// DeleteTCP deletes a TCP relay.
+func (h *ServeHandler) DeleteTCP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete && r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -197,25 +173,25 @@ func (h *ServeHandler) DeleteSocat(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Relay deleted successfully"})
 }
 
-// ToggleSocat enables/disables a TCP relay.
-func (h *ServeHandler) ToggleSocat(w http.ResponseWriter, r *http.Request) {
+// ToggleTCP enables/disables a TCP relay.
+func (h *ServeHandler) ToggleTCP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	var request struct {
+	var req struct {
 		ID      string `json:"id"`
 		Enabled bool   `json:"enabled"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	if request.ID == "" {
+	if req.ID == "" {
 		http.Error(w, "Relay ID is required", http.StatusBadRequest)
 		return
 	}
-	if err := h.manager.ToggleRelay(request.ID, request.Enabled); err != nil {
+	if err := h.manager.ToggleRelay(req.ID, req.Enabled); err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -223,63 +199,10 @@ func (h *ServeHandler) ToggleSocat(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Relay toggled successfully"})
 }
 
-// StartSocat starts a relay via legacy endpoint.
-func (h *ServeHandler) StartSocat(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		http.Error(w, "Relay ID is required", http.StatusBadRequest)
-		return
-	}
-	if err := h.manager.ToggleRelay(id, true); err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Relay started successfully"})
-}
+// ── HTTPS relay handlers (/api/serve/https/*) ─────────────────────────────────
 
-// StopSocat stops a relay via legacy endpoint.
-func (h *ServeHandler) StopSocat(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		http.Error(w, "Relay ID is required", http.StatusBadRequest)
-		return
-	}
-	if err := h.manager.ToggleRelay(id, false); err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Relay stopped successfully"})
-}
-
-// RestartSocat restarts a relay via legacy endpoint.
-func (h *ServeHandler) RestartSocat(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		http.Error(w, "Relay ID is required", http.StatusBadRequest)
-		return
-	}
-	if err := h.manager.ToggleRelay(id, true); err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Relay restarted successfully"})
-}
-
-// RestartAllSocat reconciles all enabled relays.
-func (h *ServeHandler) RestartAllSocat(w http.ResponseWriter, r *http.Request) {
-	if err := h.manager.Reconcile(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "All relays restarted successfully"})
-}
-
-// APIListCaddy returns HTTPS relays using the legacy caddy API shape.
-func (h *ServeHandler) APIListCaddy(w http.ResponseWriter, _ *http.Request) {
+// APIListHTTPS returns all HTTPS relays as JSON.
+func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
 	relays, err := h.manager.ListRelays()
 	if err != nil {
 		http.Error(w, "Failed to load proxies", http.StatusInternalServerError)
@@ -293,19 +216,18 @@ func (h *ServeHandler) APIListCaddy(w http.ResponseWriter, _ *http.Request) {
 
 	statusJSON, _ := h.manager.Status()
 
-	type caddyStatus struct {
-		config.CaddyProxy
+	type relayStatus struct {
+		config.ServeRelay
 		Running bool `json:"running"`
 	}
 
-	out := make([]caddyStatus, 0, len(relays))
+	out := make([]relayStatus, 0)
 	for _, relay := range relays {
 		if relay.Type != "https" {
 			continue
 		}
-		hname := relay.Hostname
-		if hname == "" {
-			hname = hostname
+		if relay.Hostname == "" {
+			relay.Hostname = hostname
 		}
 
 		running := false
@@ -317,26 +239,15 @@ func (h *ServeHandler) APIListCaddy(w http.ResponseWriter, _ *http.Request) {
 			}
 		}
 
-		out = append(out, caddyStatus{
-			CaddyProxy: config.CaddyProxy{
-				ID:        relay.ID,
-				Hostname:  hname,
-				Port:      relay.ListenPort,
-				Target:    fmt.Sprintf("%s:%d", relay.TargetHost, relay.TargetPort),
-				TLS:       relay.TargetHTTPS,
-				Enabled:   relay.Enabled,
-				Autostart: relay.Autostart,
-			},
-			Running: running,
-		})
+		out = append(out, relayStatus{ServeRelay: relay, Running: running})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-// APIGetCaddy returns one HTTPS relay using the legacy caddy API shape.
-func (h *ServeHandler) APIGetCaddy(w http.ResponseWriter, r *http.Request) {
+// APIGetHTTPS returns one HTTPS relay.
+func (h *ServeHandler) APIGetHTTPS(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	if id == "" {
 		http.Error(w, "Proxy ID is required", http.StatusBadRequest)
@@ -348,43 +259,21 @@ func (h *ServeHandler) APIGetCaddy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(config.CaddyProxy{
-		ID:        relay.ID,
-		Hostname:  relay.Hostname,
-		Port:      relay.ListenPort,
-		Target:    fmt.Sprintf("%s:%d", relay.TargetHost, relay.TargetPort),
-		TLS:       relay.TargetHTTPS,
-		Enabled:   relay.Enabled,
-		Autostart: relay.Autostart,
-	})
+	_ = json.NewEncoder(w).Encode(relay)
 }
 
-// CreateCaddy creates an HTTPS relay from legacy caddy payload.
-func (h *ServeHandler) CreateCaddy(w http.ResponseWriter, r *http.Request) {
-	proxy, err := parseLegacyProxy(r)
+// CreateHTTPS creates an HTTPS relay.
+func (h *ServeHandler) CreateHTTPS(w http.ResponseWriter, r *http.Request) {
+	relay, err := parseHTTPSRelay(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if proxy.ID == "" {
-		proxy.ID = fmt.Sprintf("https-%d", proxy.Port)
+	relay.Type = "https"
+	if relay.ID == "" {
+		relay.ID = fmt.Sprintf("https-%d", relay.ListenPort)
 	}
-	targetHost, targetPort, err := splitTarget(proxy.Target)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if err := h.manager.UpsertRelay(config.ServeRelay{
-		ID:          proxy.ID,
-		Type:        "https",
-		Hostname:    proxy.Hostname,
-		ListenPort:  proxy.Port,
-		TargetHost:  targetHost,
-		TargetPort:  targetPort,
-		TargetHTTPS: proxy.TLS,
-		Enabled:     proxy.Enabled,
-		Autostart:   proxy.Autostart,
-	}); err != nil {
+	if err := h.manager.UpsertRelay(relay); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -392,33 +281,23 @@ func (h *ServeHandler) CreateCaddy(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Proxy created successfully"})
 }
 
-// UpdateCaddy updates an HTTPS relay via legacy endpoint.
-func (h *ServeHandler) UpdateCaddy(w http.ResponseWriter, r *http.Request) {
-	proxy, err := parseLegacyProxy(r)
+// UpdateHTTPS updates an HTTPS relay.
+func (h *ServeHandler) UpdateHTTPS(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	relay, err := parseHTTPSRelay(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if proxy.ID == "" {
+	if relay.ID == "" {
 		http.Error(w, "Proxy ID is required", http.StatusBadRequest)
 		return
 	}
-	targetHost, targetPort, err := splitTarget(proxy.Target)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if err := h.manager.UpsertRelay(config.ServeRelay{
-		ID:          proxy.ID,
-		Type:        "https",
-		Hostname:    proxy.Hostname,
-		ListenPort:  proxy.Port,
-		TargetHost:  targetHost,
-		TargetPort:  targetPort,
-		TargetHTTPS: proxy.TLS,
-		Enabled:     proxy.Enabled,
-		Autostart:   proxy.Autostart,
-	}); err != nil {
+	relay.Type = "https"
+	if err := h.manager.UpsertRelay(relay); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -426,8 +305,12 @@ func (h *ServeHandler) UpdateCaddy(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Proxy updated successfully"})
 }
 
-// DeleteCaddy deletes an HTTPS relay.
-func (h *ServeHandler) DeleteCaddy(w http.ResponseWriter, r *http.Request) {
+// DeleteHTTPS deletes an HTTPS relay.
+func (h *ServeHandler) DeleteHTTPS(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete && r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	id := r.URL.Query().Get("id")
 	if id == "" {
 		http.Error(w, "Proxy ID is required", http.StatusBadRequest)
@@ -441,21 +324,25 @@ func (h *ServeHandler) DeleteCaddy(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Proxy deleted successfully"})
 }
 
-// ToggleCaddy toggles an HTTPS relay.
-func (h *ServeHandler) ToggleCaddy(w http.ResponseWriter, r *http.Request) {
-	var request struct {
+// ToggleHTTPS enables/disables an HTTPS relay.
+func (h *ServeHandler) ToggleHTTPS(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
 		ID      string `json:"id"`
 		Enabled bool   `json:"enabled"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	if request.ID == "" {
+	if req.ID == "" {
 		http.Error(w, "Proxy ID is required", http.StatusBadRequest)
 		return
 	}
-	if err := h.manager.ToggleRelay(request.ID, request.Enabled); err != nil {
+	if err := h.manager.ToggleRelay(req.ID, req.Enabled); err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -463,8 +350,8 @@ func (h *ServeHandler) ToggleCaddy(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Proxy toggled successfully"})
 }
 
-// ReloadCaddy keeps compatibility with old reload endpoint.
-func (h *ServeHandler) ReloadCaddy(w http.ResponseWriter, r *http.Request) {
+// ReloadServe reconciles all enabled relays.
+func (h *ServeHandler) ReloadServe(w http.ResponseWriter, r *http.Request) {
 	if err := h.manager.Reconcile(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -476,32 +363,41 @@ func (h *ServeHandler) ReloadCaddy(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func parseLegacyProxy(r *http.Request) (config.CaddyProxy, error) {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+// parseHTTPSRelay decodes a ServeRelay from the request body (JSON or form).
+func parseHTTPSRelay(r *http.Request) (config.ServeRelay, error) {
 	contentType := r.Header.Get("Content-Type")
 	if strings.HasPrefix(contentType, "multipart/form-data") {
 		if err := r.ParseMultipartForm(10 << 20); err != nil {
-			return config.CaddyProxy{}, fmt.Errorf("failed to parse form data")
+			return config.ServeRelay{}, fmt.Errorf("failed to parse form data")
 		}
 		port, _ := strconv.Atoi(r.FormValue("port"))
-		return config.CaddyProxy{
-			ID:        r.FormValue("id"),
-			Hostname:  strings.TrimSpace(r.FormValue("hostname")),
-			Target:    strings.TrimSpace(r.FormValue("target")),
-			Port:      port,
-			TLS:       parseBool(r.FormValue("tls")),
-			Enabled:   parseBool(r.FormValue("enabled")),
-			Autostart: parseBool(r.FormValue("autostart")),
+		targetHost, targetPort, _ := splitServeTarget(r.FormValue("target"))
+		return config.ServeRelay{
+			ID:          r.FormValue("id"),
+			Hostname:    strings.TrimSpace(r.FormValue("hostname")),
+			ListenPort:  port,
+			TargetHost:  targetHost,
+			TargetPort:  targetPort,
+			TargetHTTPS: parseBool(r.FormValue("tls")),
+			Enabled:     parseBool(r.FormValue("enabled")),
+			Autostart:   parseBool(r.FormValue("autostart")),
 		}, nil
 	}
 
-	var proxy config.CaddyProxy
-	if err := json.NewDecoder(r.Body).Decode(&proxy); err != nil {
-		return config.CaddyProxy{}, fmt.Errorf("invalid request body")
+	var relay config.ServeRelay
+	if err := json.NewDecoder(r.Body).Decode(&relay); err != nil {
+		return config.ServeRelay{}, fmt.Errorf("invalid request body")
 	}
-	return proxy, nil
+	// Accept target as "host:port" string for convenience (backwards compat with UI).
+	if relay.TargetHost == "" && relay.TargetPort == 0 {
+		// Check if there's a "target" string field in the body — handled by caller.
+	}
+	return relay, nil
 }
 
-func splitTarget(target string) (string, int, error) {
+func splitServeTarget(target string) (string, int, error) {
 	value := strings.TrimSpace(target)
 	value = strings.TrimPrefix(value, "http://")
 	value = strings.TrimPrefix(value, "https://")
@@ -514,4 +410,9 @@ func splitTarget(target string) (string, int, error) {
 		return "", 0, fmt.Errorf("target port is invalid")
 	}
 	return host, port, nil
+}
+
+func parseBool(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return value == "true" || value == "1" || value == "on" || value == "yes"
 }

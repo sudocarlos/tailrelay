@@ -8,10 +8,6 @@ auth:
   enable_token_auth: true
 
 paths:
-  caddy_config: "/tmp/Caddyfile"
-  socat_relay_config: "/tmp/relays.json"
-  caddy_proxy_config: "/tmp/proxies.json"
-  caddy_server_map: "/tmp/caddy_servers.json"
   serve_relay_config: "/tmp/serve_relays.json"
   state_dir: "/tmp"
   backup_dir: "/tmp/backups"

@@ -9,44 +9,74 @@ import (
 	"strings"
 )
 
-// MigrateFromEnvVar migrates from RELAY_LIST environment variable to relays.json
-func MigrateFromEnvVar(relaysConfigPath string) error {
+// ── Legacy-only types (unexported) ───────────────────────────────────────────
+// These types exist solely to read old relays.json / proxies.json files that
+// were written by pre-v0.8 versions of tailrelay. They will be removed in v2.0.
+
+type legacySocatRelay struct {
+	ID         string `json:"id"`
+	ListenPort int    `json:"listen_port"`
+	TargetHost string `json:"target_host"`
+	TargetPort int    `json:"target_port"`
+	Enabled    bool   `json:"enabled"`
+	Autostart  bool   `json:"autostart"`
+}
+
+type legacySocatRelayList struct {
+	Relays []legacySocatRelay `json:"relays"`
+}
+
+type legacyCaddyProxy struct {
+	ID        string `json:"id"`
+	Hostname  string `json:"hostname"`
+	Port      int    `json:"port"`
+	Target    string `json:"target"`
+	TLS       bool   `json:"tls"`
+	Enabled   bool   `json:"enabled"`
+	Autostart bool   `json:"autostart"`
+}
+
+type legacyCaddyProxyList struct {
+	Proxies []legacyCaddyProxy `json:"proxies"`
+}
+
+// ── MigrateFromEnvVar ─────────────────────────────────────────────────────────
+
+// MigrateFromEnvVar migrates from the legacy RELAY_LIST environment variable
+// directly to serve_relays.json. Skipped when serve_relays.json already exists.
+func MigrateFromEnvVar(serveRelayConfigPath string) error {
 	relayListEnv := os.Getenv("RELAY_LIST")
 
-	// If relays.json exists, migration already done
-	if _, err := os.Stat(relaysConfigPath); err == nil {
+	// If serve_relays.json already exists, migration is done.
+	if _, err := os.Stat(serveRelayConfigPath); err == nil {
 		return nil
 	}
 
-	// If RELAY_LIST is empty, create empty relays.json
+	// If RELAY_LIST is empty, create empty serve_relays.json.
 	if relayListEnv == "" {
-		emptyList := &SocatRelayList{Relays: []SocatRelay{}}
-		return SaveSocatRelays(relaysConfigPath, emptyList)
+		return SaveServeRelays(serveRelayConfigPath, &ServeRelayList{Relays: []ServeRelay{}})
 	}
 
-	// Parse RELAY_LIST and create relays.json
-	fmt.Println("Migrating from RELAY_LIST environment variable...")
-	relays, err := parseRelayList(relayListEnv)
+	fmt.Println("Migrating from RELAY_LIST environment variable to serve_relays.json...")
+	relays, err := parseRelayListAsServe(relayListEnv)
 	if err != nil {
 		return fmt.Errorf("migration failed: %w", err)
 	}
 
-	// Save to relays.json
-	relayList := &SocatRelayList{Relays: relays}
-	if err := SaveSocatRelays(relaysConfigPath, relayList); err != nil {
-		return fmt.Errorf("failed to save relays.json: %w", err)
+	if err := SaveServeRelays(serveRelayConfigPath, &ServeRelayList{Relays: relays}); err != nil {
+		return fmt.Errorf("failed to save serve_relays.json: %w", err)
 	}
 
-	fmt.Printf("Successfully migrated %d relays to %s\n", len(relays), relaysConfigPath)
+	fmt.Printf("Successfully migrated %d relays from RELAY_LIST to %s\n", len(relays), serveRelayConfigPath)
 	fmt.Println("You can now remove RELAY_LIST from your environment variables")
 	return nil
 }
 
-// parseRelayList parses the RELAY_LIST environment variable format
-// Format: port:host:port,port:host:port
-func parseRelayList(relayList string) ([]SocatRelay, error) {
+// parseRelayListAsServe parses the legacy RELAY_LIST format into ServeRelay entries.
+// Format: listen_port:target_host:target_port (comma-separated)
+func parseRelayListAsServe(relayList string) ([]ServeRelay, error) {
 	items := strings.Split(relayList, ",")
-	relays := make([]SocatRelay, 0, len(items))
+	relays := make([]ServeRelay, 0, len(items))
 
 	for i, item := range items {
 		item = strings.TrimSpace(item)
@@ -56,7 +86,7 @@ func parseRelayList(relayList string) ([]SocatRelay, error) {
 
 		parts := strings.Split(item, ":")
 		if len(parts) != 3 {
-			return nil, fmt.Errorf("invalid format for item '%s': expected format is 'port:host:port'", item)
+			return nil, fmt.Errorf("invalid format for item '%s': expected listen_port:target_host:target_port", item)
 		}
 
 		listenPort, err := strconv.Atoi(parts[0])
@@ -74,21 +104,26 @@ func parseRelayList(relayList string) ([]SocatRelay, error) {
 			return nil, fmt.Errorf("invalid target port '%s': %w", parts[2], err)
 		}
 
-		relay := SocatRelay{
+		relays = append(relays, ServeRelay{
 			ID:         fmt.Sprintf("relay-%d", i+1),
+			Type:       "tcp",
 			ListenPort: listenPort,
 			TargetHost: targetHost,
 			TargetPort: targetPort,
 			Enabled:    true,
-		}
-		relays = append(relays, relay)
+			Autostart:  true,
+		})
 	}
 
 	return relays, nil
 }
 
-// MigrateLegacyRelaysToServe migrates legacy socat/caddy relay metadata into the
-// new tailscale serve relay metadata format.
+// ── MigrateLegacyRelaysToServe ────────────────────────────────────────────────
+
+// MigrateLegacyRelaysToServe performs a one-shot migration from the old
+// relays.json (socat) and proxies.json (caddy) formats into serve_relays.json.
+// Skipped if serve_relays.json already exists.
+// Will be removed in v2.0.
 func MigrateLegacyRelaysToServe(paths PathsConfig) error {
 	if _, err := os.Stat(paths.ServeRelayConfig); err == nil {
 		fmt.Printf("serve relay migration skipped: %s already exists\n", paths.ServeRelayConfig)
@@ -110,24 +145,27 @@ func MigrateLegacyRelaysToServe(paths PathsConfig) error {
 		out.Relays = append(out.Relays, r)
 	}
 
-	// Legacy socat relays.
-	if relays, err := LoadSocatRelays(paths.SocatRelayConfig); err == nil {
-		for _, r := range relays.Relays {
-			addRelay(ServeRelay{
-				ID:         r.ID,
-				Type:       "tcp",
-				ListenPort: r.ListenPort,
-				TargetHost: r.TargetHost,
-				TargetPort: r.TargetPort,
-				Enabled:    r.Enabled,
-				Autostart:  r.Autostart,
-			})
+	// Legacy socat relays from relays.json.
+	if data, err := os.ReadFile(legacySocatRelayPath(paths)); err == nil {
+		var list legacySocatRelayList
+		if err := json.Unmarshal(data, &list); err == nil {
+			for _, r := range list.Relays {
+				addRelay(ServeRelay{
+					ID:         r.ID,
+					Type:       "tcp",
+					ListenPort: r.ListenPort,
+					TargetHost: r.TargetHost,
+					TargetPort: r.TargetPort,
+					Enabled:    r.Enabled,
+					Autostart:  r.Autostart,
+				})
+			}
 		}
 	}
 
-	// Legacy caddy proxies metadata from proxies.json.
-	if data, err := os.ReadFile(paths.CaddyProxyConfig); err == nil {
-		var proxies CaddyProxyList
+	// Legacy caddy proxies from proxies.json.
+	if data, err := os.ReadFile(legacyCaddyProxyPath(paths)); err == nil {
+		var proxies legacyCaddyProxyList
 		if err := json.Unmarshal(data, &proxies); err == nil {
 			for _, p := range proxies.Proxies {
 				host, port := splitHostPort(p.Target)
@@ -135,20 +173,38 @@ func MigrateLegacyRelaysToServe(paths PathsConfig) error {
 					continue
 				}
 				addRelay(ServeRelay{
-					ID:         p.ID,
-					Type:       "https",
-					Hostname:   p.Hostname,
-					ListenPort: p.Port,
-					TargetHost: host,
-					TargetPort: port,
-					Enabled:    p.Enabled,
-					Autostart:  p.Autostart,
+					ID:          p.ID,
+					Type:        "https",
+					Hostname:    p.Hostname,
+					ListenPort:  p.Port,
+					TargetHost:  host,
+					TargetPort:  port,
+					TargetHTTPS: p.TLS,
+					Enabled:     p.Enabled,
+					Autostart:   p.Autostart,
 				})
 			}
 		}
 	}
 
 	return SaveServeRelays(paths.ServeRelayConfig, out)
+}
+
+// legacySocatRelayPath returns the path where old relays.json would be.
+// Derive from state_dir since the config field is removed.
+func legacySocatRelayPath(paths PathsConfig) string {
+	if paths.StateDir != "" {
+		return paths.StateDir + "/relays.json"
+	}
+	return "/var/lib/tailscale/relays.json"
+}
+
+// legacyCaddyProxyPath returns the path where old proxies.json would be.
+func legacyCaddyProxyPath(paths PathsConfig) string {
+	if paths.StateDir != "" {
+		return paths.StateDir + "/proxies.json"
+	}
+	return "/var/lib/tailscale/proxies.json"
 }
 
 func splitHostPort(value string) (string, int) {

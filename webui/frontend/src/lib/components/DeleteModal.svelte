@@ -11,9 +11,9 @@
     deleting = true;
     try {
       if (type === 'relay') {
-        await fetchJSON(`/api/socat/delete?id=${encodeURIComponent(id)}`, { method: 'POST' });
+        await fetchJSON(`/api/serve/tcp/delete?id=${encodeURIComponent(id)}`, { method: 'POST' });
       } else {
-        await fetchJSON(`/api/caddy/delete?id=${encodeURIComponent(id)}`, { method: 'POST' });
+        await fetchJSON(`/api/serve/https/delete?id=${encodeURIComponent(id)}`, { method: 'POST' });
       }
       showToast('success', `${type === 'relay' ? 'TCP relay' : 'HTTPS relay'} deleted successfully`);
       onDelete();

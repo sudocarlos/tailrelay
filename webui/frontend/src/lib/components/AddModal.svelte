@@ -28,10 +28,10 @@
       title: isEditing ? (isProxy ? 'Edit HTTPS Relay' : 'Edit TCP Relay') : 'Add Relay',
       relayId: i && t === 'relay' ? i.id : '',
       proxyId: i && t === 'proxy' ? i.id : '',
-      // Unified listen port: relay uses listen_port, proxy uses port
-      listenPort: i ? (t === 'relay' ? String(i.listen_port) : String(i.port || '')) : '',
-      // Unified target: relay combines host:port, proxy uses target verbatim
-      target: i ? (t === 'relay' ? `${i.target_host}:${i.target_port}` : (i.target || '')) : '',
+      // Unified listen port: both now use listen_port
+      listenPort: i ? String(i.listen_port) : '',
+      // Unified target: both now use target_host:target_port
+      target: i ? `${i.target_host}:${i.target_port}` : '',
       trustedProxies: tp,
       hostHeader: hh,
       // Auto-open the Advanced section when editing a proxy that already uses either option
@@ -75,11 +75,10 @@
     target = t.host ? (t.port ? `${t.host}:${t.port}` : t.host) : '';
 
     // Apply type + protocol from the target definition to set form mode.
-    // type aliases: relay/tcp/socat → socat; proxy/https/caddy → Caddy
-    // protocol: 'https' → insecure TLS by default (user can switch to cert);
-    //           'http'  → plain HTTP target; 'tcp' → relay (no TLS concept)
-    const isRelay = ['relay', 'tcp', 'socat'].includes(t.type);
-    const isProxy = ['proxy', 'https', 'caddy'].includes(t.type);
+    // type: 'relay'/'tcp' → TCP relay; 'proxy'/'https' → HTTPS relay
+    // protocol: 'https' → insecure TLS by default; 'http' → plain; 'tcp' → relay
+    const isRelay = ['relay', 'tcp'].includes(t.type);
+    const isProxy = ['proxy', 'https'].includes(t.type);
     if (isRelay) {
       httpRelay = false;
     } else if (isProxy) {
@@ -133,7 +132,7 @@
 
     saving = true;
     try {
-      const url = relayId ? '/api/socat/update' : '/api/socat/create';
+      const url = relayId ? '/api/serve/tcp/update' : '/api/serve/tcp/create';
       await fetchJSON(url, { method: 'POST', body: JSON.stringify(relay) });
       showToast('success', `TCP relay ${relayId ? 'updated' : 'created'} successfully`);
       onSave();
@@ -181,7 +180,7 @@
 
     saving = true;
     try {
-      const url = proxyId ? '/api/caddy/update' : '/api/caddy/create';
+      const url = proxyId ? '/api/serve/https/update' : '/api/serve/https/create';
       await postFormData(url, formData);
       showToast('success', `HTTPS relay ${proxyId ? 'updated' : 'created'} successfully`);
       onSave();
