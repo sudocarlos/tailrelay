@@ -10,36 +10,57 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       issues: write
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get Dockerfile Go version
-        id: dockerfile
-        run: |
-          version=$(grep -oP 'ARG GO_VERSION=\K[\d.]+' Dockerfile)
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Check Go version and open issue if outdated
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const https = require('https');
+            const fs = require('fs');
 
-      - name: Get latest Go version
-        id: latest
-        run: |
-          raw=$(curl -sSL "https://go.dev/VERSION?m=text" | head -1)
-          version=${raw#go}
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+            function get(url) {
+              return new Promise((resolve, reject) => {
+                https.get(url, (res) => {
+                  let data = '';
+                  res.on('data', chunk => data += chunk);
+                  res.on('end', () => resolve(data));
+                }).on('error', reject);
+              });
+            }
 
-      - name: Create issue if outdated
-        if: steps.dockerfile.outputs.version != steps.latest.outputs.version
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          title="chore: update Go from ${{ steps.dockerfile.outputs.version }} to ${{ steps.latest.outputs.version }}"
-          existing=$(gh issue list --state open --search "$title" --json title -q '.[].title' | head -1)
-          if [ -z "$existing" ]; then
-            gh issue create \
-              --title "$title" \
-              --body "The Dockerfile uses Go \`${{ steps.dockerfile.outputs.version }}\` but the latest stable release is \`${{ steps.latest.outputs.version }}\`." \
-              --assignee sudocarlos
-          fi
+            const dockerfile = fs.readFileSync('Dockerfile', 'utf8');
+            const match = dockerfile.match(/ARG GO_VERSION=([\d.]+)/);
+            if (!match) { core.setFailed('Could not find GO_VERSION in Dockerfile'); return; }
+            const pinned = match[1];
+            core.info(`Pinned Go version: ${pinned}`);
+
+            const raw = await get('https://go.dev/VERSION?m=text');
+            const latest = raw.split('\n')[0].replace(/^go/, '');
+            core.info(`Latest Go version: ${latest}`);
+
+            if (pinned === latest) { core.info('Go is up to date.'); return; }
+
+            const title = `chore: update Go from ${pinned} to ${latest}`;
+            const { data: existing } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              per_page: 100,
+            });
+            if (existing.some(i => i.title === title)) { core.info('Issue already exists.'); return; }
+
+            const { data: issue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: `The Dockerfile uses Go \`${pinned}\` but the latest stable release is \`${latest}\`.`,
+              assignees: ['sudocarlos'],
+            });
+            core.info(`Created issue #${issue.number}: ${issue.html_url}`);
 
   tailscale:
     runs-on: ubuntu-latest
@@ -143,10 +164,7 @@ jobs:
             if (!stableVersion) { core.setFailed('Could not match stable digest to any versioned tag'); return; }
             core.info(`stable version resolved to: ${stableVersion}`);
 
-            if (pinnedVersion === stableVersion) {
-              core.info('Dockerfile is up to date, nothing to do.');
-              return;
-            }
+            if (pinnedVersion === stableVersion) { core.info('Dockerfile is up to date.'); return; }
 
             // 5. Check if an issue already exists (open or closed) for this version pair
             const issueTitle = `chore: update Tailscale from ${pinnedVersion} to ${stableVersion}`;
@@ -188,34 +206,57 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       issues: write
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get Dockerfile Node version
-        id: dockerfile
-        run: |
-          version=$(grep -oP 'ARG NODE_VERSION=\K[\d.]+' Dockerfile)
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Check Node version and open issue if outdated
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const https = require('https');
+            const fs = require('fs');
 
-      - name: Get latest Node version for major track
-        id: latest
-        run: |
-          major=$(echo "${{ steps.dockerfile.outputs.version }}" | cut -d. -f1)
-          listing=$(curl -sSL "https://nodejs.org/download/release/latest-v${major}.x/")
-          version=$(echo "$listing" | grep -oP "node-v\K${major}\.\d+\.\d+" | head -1)
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+            function get(url) {
+              return new Promise((resolve, reject) => {
+                https.get(url, (res) => {
+                  let data = '';
+                  res.on('data', chunk => data += chunk);
+                  res.on('end', () => resolve(data));
+                }).on('error', reject);
+              });
+            }
 
-      - name: Create issue if outdated
-        if: steps.dockerfile.outputs.version != steps.latest.outputs.version
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          title="chore: update Node from ${{ steps.dockerfile.outputs.version }} to ${{ steps.latest.outputs.version }}"
-          existing=$(gh issue list --state open --search "$title" --json title -q '.[].title' | head -1)
-          if [ -z "$existing" ]; then
-            gh issue create \
-              --title "$title" \
-              --body "The Dockerfile uses Node \`${{ steps.dockerfile.outputs.version }}\` but the latest release in the same major track is \`${{ steps.latest.outputs.version }}\`." \
-              --assignee sudocarlos
-          fi
+            const dockerfile = fs.readFileSync('Dockerfile', 'utf8');
+            const match = dockerfile.match(/ARG NODE_VERSION=([\d.]+)/);
+            if (!match) { core.setFailed('Could not find NODE_VERSION in Dockerfile'); return; }
+            const pinned = match[1];
+            core.info(`Pinned Node version: ${pinned}`);
+
+            const major = pinned.split('.')[0];
+            const listing = await get(`https://nodejs.org/download/release/latest-v${major}.x/`);
+            const vMatch = listing.match(new RegExp(`node-v(${major}\\.\\d+\\.\\d+)-`));
+            if (!vMatch) { core.setFailed('Could not parse Node version from release listing'); return; }
+            const latest = vMatch[1];
+            core.info(`Latest Node version: ${latest}`);
+
+            if (pinned === latest) { core.info('Node is up to date.'); return; }
+
+            const title = `chore: update Node from ${pinned} to ${latest}`;
+            const { data: existing } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              per_page: 100,
+            });
+            if (existing.some(i => i.title === title)) { core.info('Issue already exists.'); return; }
+
+            const { data: issue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: `The Dockerfile uses Node \`${pinned}\` but the latest release in the v${major}.x track is \`${latest}\`.`,
+              assignees: ['sudocarlos'],
+            });
+            core.info(`Created issue #${issue.number}: ${issue.html_url}`);
