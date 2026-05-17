@@ -1,7 +1,7 @@
 ---
 name: docker-ci-pipeline
 description: Docker image building, Compose development environments, CI/CD pipeline, and testing infrastructure. Use when working with Dockerfiles, docker-compose, GitHub Actions CI, Make targets, integration tests, or deployment workflows.
-reviewed_at: b7ce114
+reviewed_at: e413322
 ---
 
 # Docker & CI Pipeline
@@ -20,19 +20,15 @@ docker buildx build -t sudocarlos/tailrelay:latest --load .
 
 `Dockerfile` stages:
 1. **frontend-builder** (`node:{NODE_VERSION}-alpine`) — builds Vite/Svelte/Tailwind SPA assets; injects `VERSION` via `npm version`
-2. **caddy-builder** (`golang:{GO_VERSION}-alpine`) — clones `caddyserver/caddy` at `v{CADDY_VERSION}` and compiles the `caddy` binary
-3. **webui-builder** (`golang:{GO_VERSION}-alpine`) — builds the tailrelay-webui Go binary; copies frontend dist from `frontend-builder`
-4. **tailscale-builder** (`golang:{GO_VERSION}-alpine`) — builds Tailscale binaries from source via `go install tailscale.com/cmd/...@{TAILSCALE_VERSION}`
-5. **binary-dev** (`scratch`) — holds a pre-built local binary from `./data/tailrelay-webui` for dev builds
-6. **binary-source** — selector stage; resolves to `webui-builder` (default) or `binary-dev` via `WEBUI_SOURCE` build arg
-7. **main** (`alpine:{ALPINE_VERSION}`) — installs runtime deps (iptables, iproute2, socat, mailcap), copies all binaries from builder stages; restores legacy iptables symlinks for broad host compatibility
+2. **webui-builder** (`golang:{GO_VERSION}-alpine`) — builds the tailrelay-webui Go binary; copies frontend dist from `frontend-builder`
+3. **binary-dev** (`scratch`) — holds a pre-built local binary from `./data/tailrelay-webui` for dev builds
+4. **binary-source** — selector stage; resolves to `webui-builder` (default) or `binary-dev` via `WEBUI_SOURCE` build arg
+5. **main** (`ghcr.io/tailscale/tailscale:{TAILSCALE_VERSION}`) — copies webui binary; no socat or Caddy runtime deps
 
 Key build args:
-- `TAILSCALE_VERSION` (default: `v1.96.5`) — version tag passed to `go install tailscale.com/cmd/...@${TAILSCALE_VERSION}`
-- `CADDY_VERSION` (default: `2.11.3`) — version tag used for `git clone --branch v${CADDY_VERSION} caddyserver/caddy`
+- `TAILSCALE_VERSION` (default: `v1.96.5`) — image tag for `ghcr.io/tailscale/tailscale`
 - `GO_VERSION` (default: `1.26.1`)
 - `NODE_VERSION` (default: `24`)
-- `ALPINE_VERSION` (default: `3.22`)
 - `WEBUI_SOURCE` (default: `webui-builder`; set to `binary-dev` for dev builds)
 - `VERSION`, `COMMIT`, `DATE`, `BRANCH`, `BUILDER` — build metadata injected into Go binary and frontend via ldflags / `npm version`
 
@@ -124,8 +120,6 @@ make integration-test   # pytest tests/integration/ -v
 
 | Endpoint | Port | Service |
 |----------|------|---------|
-| HTTP proxy | `:8080`, `:8081` | Caddy |
-| HTTPS proxy | `:8443` | Caddy |
 | Health check | `:9002/healthz` | Tailscale |
 | Metrics | `:9002/metrics` | Tailscale |
 | Web UI | `:8021` | Web UI |
@@ -144,11 +138,8 @@ make integration-test
 
 `start.sh` orchestrates all services:
 1. Start `tailscaled` (userspace networking)
-2. Start Caddy (with Caddyfile)
-3. Wait 1 second for Caddy API
-4. Start Web UI
-5. Spawn socat relays (if `RELAY_LIST` set)
-6. `wait` on tailscaled + webui PIDs
+2. Start Web UI
+3. `wait` on tailscaled + webui PIDs
 
 Handles `SIGTERM`/`SIGINT` for graceful shutdown.
 
@@ -165,7 +156,6 @@ Handles `SIGTERM`/`SIGINT` for graceful shutdown.
 | Component | Version |
 |-----------|---------|
 | Container | `v0.8.8` (see `start.sh`) |
-| Tailscale | `v1.96.5` (built from source via `go install tailscale.com/cmd/...`) |
-| Caddy | `2.11.3` (built from source via `git clone caddyserver/caddy`) |
-| Go | `1.26.1` (Dockerfile ARG) |
+| Tailscale | `v1.96.5` (pre-built official image `ghcr.io/tailscale/tailscale`) |
+| Go | `1.26.1` (Dockerfile ARG, webui-builder stage only) |
 | Node.js (CI) | `20` (GitHub Actions) / `24` (Dockerfile ARG) |

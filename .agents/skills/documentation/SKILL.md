@@ -1,7 +1,7 @@
 ---
 name: documentation
 description: Updating all tailrelay documentation — README, CHANGELOG, release notes, AGENTS.md, SKILL.md files, and webui/README.md. Use when adding user-facing features, releasing a new version, updating component versions, or when any doc's reviewed_at SHA is out of date with HEAD.
-reviewed_at: b7ce114
+reviewed_at: e413322
 ---
 
 # Documentation
@@ -222,8 +222,7 @@ git log --oneline 17791f3..HEAD -- webui/ Makefile
 
 | Skill | File | Covers |
 |-------|------|--------|
-| `caddy-proxy-management` | `.agents/skills/caddy/SKILL.md` | `webui/internal/caddy/`, `webui/internal/handlers/caddy.go` |
-| `socat-relay-management` | `.agents/skills/socat/SKILL.md` | `webui/internal/socat/`, `webui/internal/handlers/socat.go` |
+| `serve-relay-management` | `.agents/skills/serve/SKILL.md` | `webui/internal/serve/`, `webui/internal/handlers/serve.go`, `webui/internal/handlers/legacy.go` |
 | `webui-development` | `.agents/skills/webui/SKILL.md` | `webui/`, `Makefile` |
 | `docker-ci-pipeline` | `.agents/skills/docker-ci/SKILL.md` | `Dockerfile`, `.github/workflows/`, `compose-test.yml` |
 | `tailscale-management` | `.agents/skills/tailscale/SKILL.md` | `webui/internal/tailscale/`, `start.sh` |
@@ -293,39 +292,35 @@ A full review must inspect every skill file, not just the ones whose covered pat
 
 Work through every skill in this order:
 
-1. **`caddy-proxy-management`** — `.agents/skills/caddy/SKILL.md`
-   - Covers: `webui/internal/caddy/`, `webui/internal/handlers/caddy.go`
-   - Check: proxy target format, dial field, route IDs, Admin API patterns, TLS cert handling
+1. **`serve-relay-management`** — `.agents/skills/serve/SKILL.md`
+   - Covers: `webui/internal/serve/`, `webui/internal/handlers/serve.go`, `webui/internal/handlers/legacy.go`
+   - Check: relay config format, Reconcile API, ErrTailscaleNotReady, legacy shim routes
 
-2. **`socat-relay-management`** — `.agents/skills/socat/SKILL.md`
-   - Covers: `webui/internal/socat/`, `webui/internal/handlers/socat.go`
-   - Check: RELAY_LIST format, validation rules, exec.Command invocation, relay lifecycle
-
-3. **`webui-development`** — `.agents/skills/webui/SKILL.md`
+2. **`webui-development`** — `.agents/skills/webui/SKILL.md`
    - Covers: `webui/`, `Makefile`
    - Check: build workflow, handler structure, auth flow, frontend SPA build
 
-4. **`docker-ci-pipeline`** — `.agents/skills/docker-ci/SKILL.md`
+3. **`docker-ci-pipeline`** — `.agents/skills/docker-ci/SKILL.md`
    - Covers: `Dockerfile`, `.github/workflows/`, `compose-test.yml`
-   - Check: pinned versions (Go, Node, Alpine, Tailscale, Caddy, socat), CI job names, Make targets
+   - Check: pinned versions (Go, Node, Alpine, Tailscale), CI job names, Make targets
 
-5. **`tailscale-management`** — `.agents/skills/tailscale/SKILL.md`
+4. **`tailscale-management`** — `.agents/skills/tailscale/SKILL.md`
    - Covers: `webui/internal/tailscale/`, `start.sh`
    - Check: CLI wrapper methods, StatusCache, auth key handling, start.sh version
 
-6. **`security-review`** — `.agents/skills/security-review/SKILL.md`
+5. **`security-review`** — `.agents/skills/security-review/SKILL.md`
    - Covers: all security-relevant code paths
    - Check: known findings, checklist items, any new auth/input/backup code
 
-7. **`testing-cicd`** — `.agents/skills/testing-cicd/SKILL.md`
+6. **`testing-cicd`** — `.agents/skills/testing-cicd/SKILL.md`
    - Covers: `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml`
    - Check: test package list, CI job names, integration test structure
 
-8. **`git-workflow`** — `.agents/skills/git-workflow/SKILL.md`
+7. **`git-workflow`** — `.agents/skills/git-workflow/SKILL.md`
    - Covers: commit conventions, branch naming
    - Check: commit types, branch format, PR template
 
-9. **`documentation`** — `.agents/skills/documentation/SKILL.md` (this file)
+8. **`documentation`** — `.agents/skills/documentation/SKILL.md` (this file)
    - Covers: all docs
    - Check: skill file table completeness, review workflow accuracy
 

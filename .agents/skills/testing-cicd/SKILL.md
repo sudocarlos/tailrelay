@@ -1,7 +1,7 @@
 ---
 name: testing-cicd
 description: Writing tests and CI/CD for tailrelay — Go unit tests, Python integration tests, CI pipeline jobs, and test infrastructure. Use when adding new tests, extending the integration suite, modifying ci.yml, or improving test coverage for any Go package or the container behaviour.
-reviewed_at: b7ce114
+reviewed_at: e413322
 ---
 
 # Tests & CI/CD
@@ -27,17 +27,11 @@ webui/
 │   │   └── middleware_test.go          ✓ exists
 │   ├── backup/
 │   │   └── backup_test.go              ✓ exists
-│   ├── caddy/
-│   │   ├── manager_test.go             ✓ exists
-│   │   ├── metrics_parser_test.go      ✓ exists
-│   │   ├── metrics_store_test.go       ✓ exists
-│   │   └── proxy_manager_test.go       ✓ exists
 │   ├── handlers/
 │   │   ├── auth_test.go                ✓ exists
 │   │   ├── backup_test.go              ✓ exists
-│   │   ├── caddy_test.go               ✓ exists
-│   │   └── socat_test.go               ✓ exists
-│   ├── socat/                          ✗ no tests yet
+│   │   └── serve_test.go               ✗ not yet
+│   ├── serve/                          ✗ no tests yet
 │   ├── tailscale/                      ✗ no tests yet
 │   └── web/
 │       └── server_test.go              ✓ exists
@@ -47,14 +41,14 @@ tests/
     ├── __init__.py
     ├── conftest.py                     session-scoped Docker fixtures
     ├── helpers.py                      subprocess + container_exec utilities
-    └── test_integration.py             pytest test classes (332 lines)
+    └── test_integration.py             pytest test classes
 ```
 
 **Packages without tests** — prioritise these when adding coverage:
-- `webui/internal/socat/` — relay lifecycle, start/stop, config parsing
+- `webui/internal/serve/` — relay lifecycle, Reconcile, ErrTailscaleNotReady
 - `webui/internal/tailscale/` — status parsing, cache behaviour, client mocking
 - `webui/internal/config/` — YAML parsing edge cases
-- `webui/internal/handlers/dashboard.go`, `tailscale.go` — handler coverage
+- `webui/internal/handlers/serve.go`, `dashboard.go`, `tailscale.go` — handler coverage
 
 ---
 
@@ -70,7 +64,7 @@ cd webui && go test ./...
 cd webui && go test -v ./...
 
 # Single package
-cd webui && go test ./internal/caddy/...
+cd webui && go test ./internal/serve/...
 cd webui && go test ./internal/handlers/...
 
 # With coverage
@@ -176,23 +170,22 @@ func TestParseRelays(t *testing.T) {
 
 ### Mocking External Services
 
-For packages that call external processes (Caddy Admin API, `tailscale` CLI, `socat`), use interface mocking:
+For packages that call external processes (`tailscale` CLI), use interface mocking:
 
 ```go
 // Define interface in production code
-type CaddyClient interface {
-    AddRoute(route CaddyRoute) error
-    DeleteRoute(id string) error
+type ServeClient interface {
+    Reconcile(relays []ServeRelay) error
 }
 
 // Use a fake in tests
-type fakeCaddyClient struct {
-    routes map[string]CaddyRoute
+type fakeServeClient struct {
+    calls int
 }
-func (f *fakeCaddyClient) AddRoute(r CaddyRoute) error { ... }
+func (f *fakeServeClient) Reconcile(r []ServeRelay) error { f.calls++; return nil }
 ```
 
-Existing patterns to follow: `webui/internal/caddy/manager_test.go`, `webui/internal/handlers/caddy_test.go`.
+Existing patterns to follow: `webui/internal/handlers/auth_test.go`, `webui/internal/backup/backup_test.go`.
 
 ---
 
@@ -256,7 +249,6 @@ Examples:
 | Web UI | `http://127.0.0.1:8021` |
 | Tailscale health | `http://127.0.0.1:9002/healthz` |
 | Tailscale metrics | `http://127.0.0.1:9002/metrics` |
-| Caddy Admin API | `http://127.0.0.1:2019` |
 
 ### Environment Variables for Integration Tests
 
@@ -348,10 +340,9 @@ Example security job:
 |---------|---------|----------|
 | `internal/auth` | ✓ `middleware_test.go` | Maintain |
 | `internal/backup` | ✓ `backup_test.go` | Maintain |
-| `internal/caddy` | ✓ `manager_test.go`, `proxy_manager_test.go`, `metrics_parser_test.go`, `metrics_store_test.go` | Maintain |
-| `internal/handlers` | ✓ auth, backup, caddy, socat | Add: dashboard, tailscale handlers |
+| `internal/serve` | ✗ none | **High** |
+| `internal/handlers` | ✓ auth, backup | Add: serve, dashboard, tailscale handlers |
 | `internal/web` | ✓ `server_test.go` | Maintain |
-| `internal/socat` | ✗ none | **High** |
 | `internal/tailscale` | ✗ none | **High** |
 | `internal/config` | ✗ none | Medium |
 | `internal/logger` | ✗ none | Low |

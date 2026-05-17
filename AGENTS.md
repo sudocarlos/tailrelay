@@ -22,6 +22,7 @@ Detailed component knowledge is organized into Agent Skills at `.agents/skills/`
 | Skill | Path | When to Use |
 |-------|------|-------------|
 | **Tailscale** | `.agents/skills/tailscale/SKILL.md` | VPN daemon, CLI, authentication, MagicDNS, HTTPS certs |
+| **Serve Relays** | `.agents/skills/serve/SKILL.md` | tailscale serve relay management, ErrTailscaleNotReady, legacy shims |
 | **Web UI** | `.agents/skills/webui/SKILL.md` | Go app, handlers, auth, backup, frontend SPA, build |
 | **Docker/CI** | `.agents/skills/docker-ci/SKILL.md` | Dockerfile, Compose, GitHub Actions, testing |
 | **Security Review** | `.agents/skills/security-review/SKILL.md` | CVE scanning, auth review, injection risks, privacy audit |
@@ -109,15 +110,16 @@ curl -sSL http://localhost:8021                   # Web UI
 
 | Document | `reviewed_at` | Paths Covered |
 |----------|---------------|---------------|
-| `AGENTS.md` | `HEAD` | `AGENTS.md`, `Makefile`, `start.sh` |
-| `.agents/skills/webui/SKILL.md` | `b7ce114` | `webui/`, `Makefile` |
-| `.agents/skills/docker-ci/SKILL.md` | `b7ce114` | `Dockerfile`, `.github/workflows/`, `compose-test.yml` |
-| `.agents/skills/tailscale/SKILL.md` | `b7ce114` | `webui/internal/tailscale/`, `start.sh` |
+| `AGENTS.md` | `e413322` | `AGENTS.md`, `Makefile`, `start.sh` |
+| `.agents/skills/webui/SKILL.md` | `e413322` | `webui/`, `Makefile` |
+| `.agents/skills/docker-ci/SKILL.md` | `e413322` | `Dockerfile`, `.github/workflows/`, `compose-test.yml` |
+| `.agents/skills/tailscale/SKILL.md` | `e413322` | `webui/internal/tailscale/`, `start.sh` |
+| `.agents/skills/serve/SKILL.md` | `e413322` | `webui/internal/serve/`, `webui/internal/handlers/serve.go`, `webui/internal/handlers/legacy.go` |
 | `webui/README.md` | `b7ce114` | `webui/` |
 | `README.md` | `b7ce114` | `README.md`, `webui/internal/web/server.go` |
 | `.agents/skills/security-review/SKILL.md` | `b7ce114` | `webui/internal/auth/`, `webui/internal/handlers/`, `webui/internal/backup/`, `Dockerfile`, `start.sh` |
-| `.agents/skills/testing-cicd/SKILL.md` | `b7ce114` | `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml` |
-| `.agents/skills/documentation/SKILL.md` | `b7ce114` | `README.md`, `CHANGELOG.md`, `webui/README.md`, `AGENTS.md`, `.agents/skills/` |
+| `.agents/skills/testing-cicd/SKILL.md` | `e413322` | `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml` |
+| `.agents/skills/documentation/SKILL.md` | `e413322` | `README.md`, `CHANGELOG.md`, `webui/README.md`, `AGENTS.md`, `.agents/skills/` |
 
 ## Making Changes
 
