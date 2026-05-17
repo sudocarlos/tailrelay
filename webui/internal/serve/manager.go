@@ -175,7 +175,23 @@ func (m *Manager) ToggleRelay(id string, enabled bool) error {
 	return m.Reconcile()
 }
 
+// isTailscaleNotReady reports whether err indicates Tailscale is not yet
+// authenticated or connected (e.g. during container startup in CI).
+func isTailscaleNotReady(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "netMap is nil") ||
+		strings.Contains(s, "not logged in") ||
+		strings.Contains(s, "NeedsLogin") ||
+		strings.Contains(s, "connect: no such file or directory")
+}
+
 // Reconcile resets tailscale serve config and reapplies all enabled relays.
+// If Tailscale is not yet authenticated or connected the reconcile is skipped
+// with a warning — relay config is already persisted and will be applied on
+// the next successful reconcile (e.g. after Tailscale authenticates).
 func (m *Manager) Reconcile() error {
 	logger.Debug("serve", "Starting serve reconcile process")
 	list, err := config.LoadServeRelays(m.relayFile)
@@ -186,6 +202,10 @@ func (m *Manager) Reconcile() error {
 
 	logger.Debug("serve", "Resetting tailscale serve config")
 	if err := m.run("serve", "reset"); err != nil {
+		if isTailscaleNotReady(err) {
+			logger.Debug("serve", "Tailscale not ready, skipping reconcile: %v", err)
+			return nil
+		}
 		logger.Error("serve", "tailscale serve reset failed: %v", err)
 		return err
 	}

@@ -35,7 +35,7 @@ func newTestBackupHandler(t *testing.T) *BackupHandler {
 			RetentionCount: 5,
 		},
 	}
-	return NewBackupHandler(cfg, nil)
+	return NewBackupHandler(cfg, nil, nil)
 }
 
 // --- APIList ---
