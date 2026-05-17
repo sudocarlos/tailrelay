@@ -75,11 +75,7 @@ func (m *Manager) Create(backupType string) (string, error) {
 
 	// Add configuration files
 	filesToBackup := []string{
-		m.cfg.Paths.CaddyConfig, // legacy compatibility
 		m.cfg.Paths.ServeRelayConfig,
-		m.cfg.Paths.SocatRelayConfig, // legacy compatibility
-		m.cfg.Paths.CaddyProxyConfig, // legacy compatibility
-		m.cfg.Paths.CaddyServerMap,   // legacy compatibility
 		m.cfg.ConfigFile,
 	}
 
@@ -168,16 +164,8 @@ func (m *Manager) Restore(backupPath string) error {
 				continue
 			}
 			targetPath = candidate
-		case strings.HasSuffix(header.Name, "Caddyfile"):
-			targetPath = m.cfg.Paths.CaddyConfig
 		case strings.HasSuffix(header.Name, "serve_relays.json"):
 			targetPath = m.cfg.Paths.ServeRelayConfig
-		case strings.HasSuffix(header.Name, "relays.json"):
-			targetPath = m.cfg.Paths.SocatRelayConfig
-		case strings.HasSuffix(header.Name, "proxies.json"):
-			targetPath = m.cfg.Paths.CaddyProxyConfig
-		case strings.HasSuffix(header.Name, "caddy_servers.json"):
-			targetPath = m.cfg.Paths.CaddyServerMap
 		case strings.HasSuffix(header.Name, "webui.yaml"):
 			targetPath = m.cfg.ConfigFile
 		case strings.HasSuffix(header.Name, "tailscaled.state"):
@@ -283,6 +271,44 @@ func (m *Manager) Delete(filename string) error {
 
 	if err := os.Remove(backupPath); err != nil {
 		return fmt.Errorf("failed to delete backup: %w", err)
+	}
+
+	return nil
+}
+
+// Rename renames a backup file
+func (m *Manager) Rename(oldFilename, newFilename string) error {
+	oldBackupPath := filepath.Join(m.cfg.Paths.BackupDir, oldFilename)
+	newBackupPath := filepath.Join(m.cfg.Paths.BackupDir, newFilename)
+
+	// Security check: ensure both files are in the backup directory
+	absOldBackupPath, err := filepath.Abs(oldBackupPath)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute old path: %w", err)
+	}
+
+	absNewBackupPath, err := filepath.Abs(newBackupPath)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute new path: %w", err)
+	}
+
+	absBackupDir, err := filepath.Abs(m.cfg.Paths.BackupDir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute backup dir: %w", err)
+	}
+
+	if (!strings.HasPrefix(absOldBackupPath, absBackupDir+string(filepath.Separator)) && absOldBackupPath != absBackupDir) ||
+		(!strings.HasPrefix(absNewBackupPath, absBackupDir+string(filepath.Separator)) && absNewBackupPath != absBackupDir) {
+		return fmt.Errorf("invalid backup path")
+	}
+
+	// Make sure target has .tar.gz extension
+	if !strings.HasSuffix(newFilename, ".tar.gz") {
+		return fmt.Errorf("invalid backup extension, must be .tar.gz")
+	}
+
+	if err := os.Rename(oldBackupPath, newBackupPath); err != nil {
+		return fmt.Errorf("failed to rename backup: %w", err)
 	}
 
 	return nil

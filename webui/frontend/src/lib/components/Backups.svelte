@@ -10,6 +10,9 @@
     Plus,
     Archive,
     HardDrive,
+    Pencil,
+    Check,
+    RefreshCw,
   } from '@lucide/svelte';
 
   let backups = $state([]);
@@ -18,6 +21,9 @@
   let uploading = $state(false);
   let restoring = $state('');
   let deleting = $state('');
+  let renaming = $state('');
+  let renamingFile = $state('');
+  let renameInput = $state('');
 
   onMount(() => {
     loadBackups();
@@ -82,6 +88,41 @@
       showToast('danger', err.message);
     } finally {
       deleting = '';
+    }
+  }
+
+  function startRename(filename) {
+    renamingFile = filename;
+    renameInput = filename.endsWith('.tar.gz') ? filename.slice(0, -7) : filename;
+  }
+
+  function cancelRename() {
+    renamingFile = '';
+    renameInput = '';
+  }
+
+  async function saveRename() {
+    const originalName = renamingFile.endsWith('.tar.gz')
+      ? renamingFile.slice(0, -7)
+      : renamingFile;
+    if (!renameInput.trim() || renameInput.trim() === originalName) {
+      cancelRename();
+      return;
+    }
+    const oldFilename = renamingFile;
+    renaming = oldFilename;
+    try {
+      await fetchJSON('/api/backup/rename', {
+        method: 'POST',
+        body: JSON.stringify({ old_filename: oldFilename, new_filename: renameInput.trim() }),
+      });
+      showToast('success', 'Backup renamed successfully');
+      cancelRename();
+      await loadBackups();
+    } catch (err) {
+      showToast('danger', err.message);
+    } finally {
+      renaming = '';
     }
   }
 
@@ -199,7 +240,36 @@
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2">
               <HardDrive size={16} class="text-blue-500 flex-shrink-0" />
-              <span class="font-medium text-sm truncate">{backup.filename}</span>
+              {#if renamingFile === backup.filename}
+                <div class="flex items-center gap-1.5 flex-1 min-w-0">
+                  <input
+                    type="text"
+                    class="flex-1 min-w-0 rounded-md border border-gray-300 dark:border-gray-600 bg-transparent px-2 py-0.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    bind:value={renameInput}
+                    onkeydown={(e) => {
+                      if (e.key === 'Enter') saveRename();
+                      if (e.key === 'Escape') cancelRename();
+                    }}
+                  />
+                  {#if renameInput.trim() && renameInput.trim() !== (renamingFile.endsWith('.tar.gz') ? renamingFile.slice(0, -7) : renamingFile)}
+                    <button
+                      class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                      onclick={saveRename}
+                      disabled={renaming === backup.filename}
+                      title="Apply"
+                    >
+                      {#if renaming === backup.filename}
+                        <RefreshCw size={12} class="animate-spin" />
+                      {:else}
+                        <Check size={12} />
+                      {/if}
+                      Apply
+                    </button>
+                  {/if}
+                </div>
+              {:else}
+                <span class="font-medium text-sm truncate">{backup.filename}</span>
+              {/if}
             </div>
             <div class="flex items-center gap-3 mt-1 ml-6 text-xs text-gray-500 dark:text-gray-400">
               <span>{formatSize(backup.size)}</span>
@@ -215,8 +285,17 @@
           <!-- Actions -->
           <div class="flex items-center gap-2 ml-6 sm:ml-0">
             <button
-              class="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors"
+              class="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 {renamingFile === backup.filename ? 'text-blue-500' : 'text-gray-500'}"
+              onclick={() => renamingFile === backup.filename ? cancelRename() : startRename(backup.filename)}
+              title={renamingFile === backup.filename ? 'Cancel rename' : 'Rename'}
+            >
+              <Pencil size={15} />
+            </button>
+
+            <button
+              class="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors disabled:opacity-50"
               onclick={() => downloadBackup(backup.filename)}
+              disabled={renamingFile === backup.filename}
               title="Download"
             >
               <Download size={15} />
@@ -224,7 +303,7 @@
 
             <button
               class="p-1.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-500 transition-colors disabled:opacity-50"
-              disabled={restoring === backup.filename}
+              disabled={restoring === backup.filename || renamingFile === backup.filename}
               onclick={() => restoreBackup(backup.filename)}
               title="Restore"
             >
@@ -233,7 +312,7 @@
 
             <button
               class="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors disabled:opacity-50"
-              disabled={deleting === backup.filename}
+              disabled={deleting === backup.filename || renamingFile === backup.filename}
               onclick={() => deleteBackup(backup.filename)}
               title="Delete"
             >
