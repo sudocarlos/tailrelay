@@ -79,7 +79,7 @@
 
         <button
           class="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors"
-          onclick={() => onDelete('relay', relay.id, formatRelayTitle(relay))}
+          onclick={() => onDelete('relay', relay.id, formatRelayTitle(relay), formatRelayTarget(relay))}
           title="Delete"
         >
           <Trash2 size={15} />
@@ -167,7 +167,7 @@
 
         <button
           class="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors"
-          onclick={() => onDelete('proxy', proxy.id, proxyUrl)}
+          onclick={() => onDelete('proxy', proxy.id, proxyUrl, `${proxy.target_host}:${proxy.target_port}`)}
           title="Delete"
         >
           <Trash2 size={15} />

@@ -1,9 +1,20 @@
 <script>
-  import { X, AlertTriangle } from '@lucide/svelte';
+  import { X, AlertTriangle, Network, ShieldCheck } from '@lucide/svelte';
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
 
-  let { type = 'relay', id = '', name = '', onDelete, onClose } = $props();
+  let { type = 'relay', id = '', name = '', target = '', onDelete, onClose } = $props();
+
+  // Split the URL into a muted prefix and a bold suffix (port or nothing),
+  // mirroring the two-span pattern used in ItemCard.svelte.
+  const namePrefix = $derived(() => {
+    const lastColon = name.lastIndexOf(':');
+    return lastColon !== -1 ? name.slice(0, lastColon) : name;
+  });
+  const nameSuffix = $derived(() => {
+    const lastColon = name.lastIndexOf(':');
+    return lastColon !== -1 ? name.slice(lastColon) : '';
+  });
 
   let deleting = $state(false);
 
@@ -57,9 +68,23 @@
         Are you sure you want to delete this {type === 'relay' ? 'TCP relay' : 'HTTPS relay'}?
       </p>
       {#if name}
-        <p class="text-sm font-medium mt-2 break-all">{name}</p>
+        <div class="mt-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3 text-left">
+          <div class="flex items-center gap-2">
+            {#if type === 'relay'}
+              <Network size={16} class="text-blue-500 flex-shrink-0" />
+            {:else}
+              <ShieldCheck size={16} class="text-blue-500 flex-shrink-0" />
+            {/if}
+            <span class="font-medium text-sm break-all">
+              <span class="font-normal text-gray-400 dark:text-gray-500">{namePrefix()}</span><span>{nameSuffix()}</span>
+            </span>
+          </div>
+          {#if target}
+            <p class="font-medium text-sm mt-1 ml-6">&rarr; {target}</p>
+          {/if}
+        </div>
       {/if}
-      <p class="text-xs text-gray-500 dark:text-gray-500 mt-2">This action cannot be undone.</p>
+      <p class="text-xs text-gray-500 dark:text-gray-500 mt-3">This action cannot be undone.</p>
     </div>
 
     <!-- Footer -->

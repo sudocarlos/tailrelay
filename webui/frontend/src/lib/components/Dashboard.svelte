@@ -61,8 +61,8 @@
     showAddModal = true;
   }
 
-  function openDelete(type, id, name) {
-    deleteTarget = { type, id, name };
+  function openDelete(type, id, name, target) {
+    deleteTarget = { type, id, name, target };
     showDeleteModal = true;
   }
 
@@ -271,7 +271,7 @@
         onToggle={handleToggleAction}
         onAutostart={handleAutostartToggle}
         onEdit={(type, data) => openEdit(type, data)}
-        onDelete={(type, id, name) => openDelete(type, id, name)}
+        onDelete={(type, id, name, target) => openDelete(type, id, name, target)}
       />
     {/each}
   {/if}
@@ -307,6 +307,7 @@
     type={deleteTarget.type}
     id={deleteTarget.id}
     name={deleteTarget.name}
+    target={deleteTarget.target}
     onDelete={handleDeleted}
     onClose={() => { showDeleteModal = false; deleteTarget = null; }}
   />
