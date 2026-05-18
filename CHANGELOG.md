@@ -7,13 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-18
+
+This release replaces the Caddy and socat relay stack with native `tailscale serve`. All relay types (HTTPS and TCP) are now managed directly through the Tailscale daemon — no third-party proxy processes required.
+
 ### Added
 - **Tailscale Serve relay manager** — unified relay backend (`internal/serve`) for HTTPS and TCP relays with persisted desired state in `serve_relays.json`.
+- **Autostart reconciliation** — relays marked as autostart are automatically applied via `tailscale serve` on every container boot (`ReconcileAutostart`).
+- **Search box on dashboard** — the relay list type filter buttons have been replaced with a single search box for faster relay lookup.
 
 ### Changed
 - **Runtime architecture** — all proxy and TCP relay functionality now runs via `tailscale serve`; Caddy and socat have been removed entirely.
 - **API surface** — relay endpoints moved from `/api/caddy/*` and `/api/socat/*` to `/api/serve/https/*` and `/api/serve/tcp/*`.
 - **Container image** — removed Caddy and socat runtime dependencies from `Dockerfile` and `start.sh`.
+- **Delete confirmation** — the relay delete dialog now shows a styled relay card for clearer confirmation of what will be removed.
+
+### Fixed
+- **Serve reconciliation correctness** — addressed edge cases in relay state reconciliation identified in review (PR #23).
 
 ### Removed
 - **Caddy** — removed `internal/caddy/`, `internal/handlers/caddy.go`, and all Caddy Admin API integration.
@@ -21,9 +31,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Caddy metrics endpoints** — dropped `/api/caddy/metrics` and `/api/caddy/metrics/reset`.
 - **Legacy config paths** — `caddy_config`, `socat_relay_config`, `caddy_proxy_config`, `caddy_server_map` removed from `webui.yaml`; `serve_relay_config` is the only relay config path.
 
-### Migration
-- **Automatic**: on first start, existing `relays.json` (socat) and `proxies.json` (caddy) are merged into `serve_relays.json` and all relays are reconciled via `tailscale serve`. No manual action required.
-- **RELAY_LIST**: if present, migrated directly to `serve_relays.json` as TCP relays.
+### Upgrade Notes
+
+> **Breaking changes** — this release removes Caddy and socat entirely. Review the points below before upgrading.
+
+- **Caddy and socat are gone.** All relay traffic (HTTPS and TCP) now flows through `tailscale serve`. There are no Caddy or socat processes in the container.
+- **API endpoints have changed.** If you call the relay API directly (e.g. from scripts or external tooling), update your paths:
+  - HTTPS relays: `/api/caddy/proxies/*` → `/api/serve/https/*`
+  - TCP relays: `/api/socat/relays/*` → `/api/serve/tcp/*`
+  - Caddy metrics: `/api/caddy/metrics` and `/api/caddy/metrics/reset` have been removed with no replacement.
+- **Migration is automatic.** On first start after upgrading, existing `proxies.json` (Caddy) and `relays.json` (socat) are automatically merged into `serve_relays.json` and all relays are reconciled via `tailscale serve`. No manual steps are required.
+- **`RELAY_LIST` env var** is also automatically migrated to `serve_relays.json` as TCP relays on first start.
+- **`webui.yaml` config paths** `caddy_config`, `socat_relay_config`, `caddy_proxy_config`, and `caddy_server_map` are no longer read. The only relay config path is `serve_relay_config`.
+
+### Docker
+
+```
+docker pull sudocarlos/tailrelay:v0.9.0
+```
 
 ## [0.8.8] - 2026-05-14
 
