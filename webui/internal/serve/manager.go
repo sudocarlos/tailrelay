@@ -209,6 +209,41 @@ func (m *Manager) Reconcile() error {
 		return err
 	}
 
+	active := make([]config.ServeRelay, 0, len(list.Relays))
+	for _, r := range list.Relays {
+		if r.Enabled {
+			active = append(active, r)
+		}
+	}
+	return m.resetAndApply(active)
+}
+
+// ReconcileAutostart resets tailscale serve config and reapplies all relays
+// that have Autostart=true. Intended to be called once at container startup so
+// that relays marked for autostart are brought up regardless of their last
+// runtime Enabled state.
+// If Tailscale is not yet authenticated or connected the reconcile is skipped —
+// relay config is already persisted and will be applied on the next successful
+// reconcile (e.g. after Tailscale authenticates).
+func (m *Manager) ReconcileAutostart() error {
+	logger.Debug("serve", "Starting autostart reconcile process")
+	list, err := config.LoadServeRelays(m.relayFile)
+	if err != nil {
+		logger.Error("serve", "Failed to load serve relays: %v", err)
+		return err
+	}
+
+	active := make([]config.ServeRelay, 0, len(list.Relays))
+	for _, r := range list.Relays {
+		if r.Autostart {
+			active = append(active, r)
+		}
+	}
+	return m.resetAndApply(active)
+}
+
+// resetAndApply resets the tailscale serve config and applies the given relays.
+func (m *Manager) resetAndApply(relays []config.ServeRelay) error {
 	logger.Debug("serve", "Resetting tailscale serve config")
 	if err := m.run("serve", "reset"); err != nil {
 		if isTailscaleNotReady(err) {
@@ -219,27 +254,21 @@ func (m *Manager) Reconcile() error {
 		return err
 	}
 
-	enabled := make([]config.ServeRelay, 0, len(list.Relays))
-	for _, r := range list.Relays {
-		if r.Enabled {
-			enabled = append(enabled, r)
+	sort.Slice(relays, func(i, j int) bool {
+		if relays[i].ListenPort == relays[j].ListenPort {
+			return relays[i].ID < relays[j].ID
 		}
-	}
-	sort.Slice(enabled, func(i, j int) bool {
-		if enabled[i].ListenPort == enabled[j].ListenPort {
-			return enabled[i].ID < enabled[j].ID
-		}
-		return enabled[i].ListenPort < enabled[j].ListenPort
+		return relays[i].ListenPort < relays[j].ListenPort
 	})
 
-	for _, relay := range enabled {
+	for _, relay := range relays {
 		logger.Debug("serve", "Applying relay %s (type: %s, port: %d)", relay.ID, relay.Type, relay.ListenPort)
 		if err := m.applyRelay(relay); err != nil {
 			logger.Error("serve", "Failed to apply relay %s: %v", relay.ID, err)
 			return err
 		}
 	}
-	logger.Debug("serve", "Finished serve reconcile process")
+	logger.Debug("serve", "Finished reconcile process")
 	return nil
 }
 

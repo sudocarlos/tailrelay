@@ -68,6 +68,93 @@ func TestManagerUpsertAndReconcile(t *testing.T) {
 	}
 }
 
+// TestReconcileOnlyAppliesEnabledRelays verifies that Reconcile applies relays
+// with Enabled=true and ignores relays where only Autostart=true.
+func TestReconcileOnlyAppliesEnabledRelays(t *testing.T) {
+	dir := t.TempDir()
+	tailscaleScript := filepath.Join(dir, "tailscale")
+	relayFile := filepath.Join(dir, "serve_relays.json")
+	logFile := filepath.Join(dir, "commands.log")
+
+	script := "#!/bin/sh\necho \"$@\" >> \"" + logFile + "\"\nexit 0\n"
+	if err := os.WriteFile(tailscaleScript, []byte(script), 0755); err != nil {
+		t.Fatalf("write tailscale script: %v", err)
+	}
+
+	// enabled=true, autostart=false — should be applied by Reconcile
+	// enabled=false, autostart=true — should NOT be applied by Reconcile
+	if err := config.SaveServeRelays(relayFile, &config.ServeRelayList{
+		Relays: []config.ServeRelay{
+			{ID: "tcp-enabled", Type: "tcp", ListenPort: 11001, TargetHost: "host-a", TargetPort: 80, Enabled: true, Autostart: false},
+			{ID: "tcp-autostart-only", Type: "tcp", ListenPort: 11002, TargetHost: "host-b", TargetPort: 80, Enabled: false, Autostart: true},
+		},
+	}); err != nil {
+		t.Fatalf("save relays: %v", err)
+	}
+
+	m := NewManager(relayFile)
+	m.binaryPath = tailscaleScript
+	if err := m.Reconcile(); err != nil {
+		t.Fatalf("reconcile failed: %v", err)
+	}
+
+	data, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	out := string(data)
+	if !strings.Contains(out, "serve --bg --tcp 11001 tcp://host-a:80") {
+		t.Fatalf("expected enabled relay to be applied, got:\n%s", out)
+	}
+	if strings.Contains(out, "tcp://host-b:80") {
+		t.Fatalf("expected autostart-only relay to NOT be applied by Reconcile, got:\n%s", out)
+	}
+}
+
+// TestReconcileAutostartOnlyAppliesAutostartRelays verifies that
+// ReconcileAutostart applies relays with Autostart=true and ignores relays
+// where only Enabled=true.
+func TestReconcileAutostartOnlyAppliesAutostartRelays(t *testing.T) {
+	dir := t.TempDir()
+	tailscaleScript := filepath.Join(dir, "tailscale")
+	relayFile := filepath.Join(dir, "serve_relays.json")
+	logFile := filepath.Join(dir, "commands.log")
+
+	script := "#!/bin/sh\necho \"$@\" >> \"" + logFile + "\"\nexit 0\n"
+	if err := os.WriteFile(tailscaleScript, []byte(script), 0755); err != nil {
+		t.Fatalf("write tailscale script: %v", err)
+	}
+
+	// enabled=false, autostart=true — should be applied by ReconcileAutostart
+	// enabled=true, autostart=false — should NOT be applied by ReconcileAutostart
+	if err := config.SaveServeRelays(relayFile, &config.ServeRelayList{
+		Relays: []config.ServeRelay{
+			{ID: "tcp-autostart", Type: "tcp", ListenPort: 12001, TargetHost: "host-c", TargetPort: 80, Enabled: false, Autostart: true},
+			{ID: "tcp-enabled-only", Type: "tcp", ListenPort: 12002, TargetHost: "host-d", TargetPort: 80, Enabled: true, Autostart: false},
+		},
+	}); err != nil {
+		t.Fatalf("save relays: %v", err)
+	}
+
+	m := NewManager(relayFile)
+	m.binaryPath = tailscaleScript
+	if err := m.ReconcileAutostart(); err != nil {
+		t.Fatalf("reconcile autostart failed: %v", err)
+	}
+
+	data, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	out := string(data)
+	if !strings.Contains(out, "serve --bg --tcp 12001 tcp://host-c:80") {
+		t.Fatalf("expected autostart relay to be applied, got:\n%s", out)
+	}
+	if strings.Contains(out, "tcp://host-d:80") {
+		t.Fatalf("expected enabled-only relay to NOT be applied by ReconcileAutostart, got:\n%s", out)
+	}
+}
+
 func TestManagerToggleRelay(t *testing.T) {
 	dir := t.TempDir()
 	tailscaleScript := filepath.Join(dir, "tailscale")

@@ -34,9 +34,11 @@ func NewServeHandler(cfg *config.Config, templates *template.Template) *ServeHan
 	}
 }
 
-// InitializeAutostart reconciles enabled serves at startup.
+// InitializeAutostart reconciles autostart serves at startup.
+// It applies only relays with Autostart=true, regardless of their runtime
+// Enabled state, so that the Auto toggle takes effect on container boot.
 func (h *ServeHandler) InitializeAutostart() error {
-	return h.manager.Reconcile()
+	return h.manager.ReconcileAutostart()
 }
 
 // Manager returns the serve.Manager instance.
