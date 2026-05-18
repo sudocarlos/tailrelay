@@ -8,21 +8,13 @@ export const tailnetFQDN = writable('');
 export const tailscaleStatus = writable(null);
 export const targets = writable([]);
 
-// ── Filter toggles ────────────────────────────────────────────────
-export const showRelays = writable(true);
-export const showProxies = writable(true);
-
-// ── Derived: filtered items for the dashboard ─────────────────────
+// ── Derived: all items for the dashboard ─────────────────────────
 export const filteredItems = derived(
-  [relays, proxies, showRelays, showProxies],
-  ([$relays, $proxies, $showRelays, $showProxies]) => {
+  [relays, proxies],
+  ([$relays, $proxies]) => {
     const items = [];
-    if ($showRelays) {
-      $relays.forEach((r) => items.push({ type: 'relay', relay: r.relay, running: r.running }));
-    }
-    if ($showProxies) {
-      $proxies.forEach((p) => items.push({ type: 'proxy', proxy: p }));
-    }
+    $relays.forEach((r) => items.push({ type: 'relay', relay: r.relay, running: r.running }));
+    $proxies.forEach((p) => items.push({ type: 'proxy', proxy: p }));
     return items;
   },
 );

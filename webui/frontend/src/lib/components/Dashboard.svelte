@@ -6,8 +6,6 @@
     proxies,
     tailnetFQDN,
     targets,
-    showRelays,
-    showProxies,
     lastUpdated,
     refreshData,
     logs,
@@ -22,14 +20,12 @@
   import LogConsole from './LogConsole.svelte';
   import {
     Plus,
-    Filter,
     HelpCircle,
   } from '@lucide/svelte';
 
   let items = $state([]);
   let updated = $state('');
-  let filterRelays = $state(true);
-  let filterProxies = $state(true);
+  let searchQuery = $state('');
   let fqdn = $state('');
   let targetList = $state([]);
 
@@ -48,6 +44,21 @@
   lastUpdated.subscribe((v) => (updated = v));
   tailnetFQDN.subscribe((v) => (fqdn = v));
   targets.subscribe((v) => (targetList = v));
+
+  const displayedItems = $derived(
+    (() => {
+      const q = searchQuery.trim().toLowerCase();
+      if (!q) return items;
+      return items.filter((item) => {
+        const listenPort = item.type === 'relay' ? item.relay.listen_port : item.proxy.listen_port;
+        const targetHost = item.type === 'relay' ? item.relay.target_host : item.proxy.target_host;
+        const targetPort = item.type === 'relay' ? item.relay.target_port : item.proxy.target_port;
+        const magicDns = `${fqdn}:${listenPort}`.toLowerCase();
+        const target = `${targetHost}:${targetPort}`.toLowerCase();
+        return magicDns.includes(q) || target.includes(q);
+      });
+    })()
+  );
 
   function openAdd(type = 'proxy') {
     editItem = null;
@@ -141,14 +152,7 @@
     await refreshData();
   }
 
-  // Sync filter toggles with stores
-  $effect(() => {
-    showRelays.set(filterRelays);
-  });
-
-  $effect(() => {
-    showProxies.set(filterProxies);
-  });
+  // Sync filter toggles with stores — removed (type filters replaced by search)
 
   function handleKeydown(e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
@@ -184,7 +188,7 @@
   <div>
     <h1 class="text-xl font-semibold">Relays</h1>
     <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-      {items.length} item{items.length === 1 ? '' : 's'}
+      {displayedItems.length} item{displayedItems.length === 1 ? '' : 's'}
       {#if updated}
         <span class="mx-1">&middot;</span> updated {updated}
       {/if}
@@ -192,25 +196,13 @@
   </div>
 
   <div class="flex items-center gap-2">
-    <!-- Filters -->
-    <div class="flex items-center gap-3 mr-2">
-      <label class="flex items-center gap-1.5 text-sm cursor-pointer">
-        <input
-          type="checkbox"
-          bind:checked={filterRelays}
-          class="rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800"
-        />
-        <span class="text-gray-600 dark:text-gray-400">TCP</span>
-      </label>
-      <label class="flex items-center gap-1.5 text-sm cursor-pointer">
-        <input
-          type="checkbox"
-          bind:checked={filterProxies}
-          class="rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800"
-        />
-        <span class="text-gray-600 dark:text-gray-400">HTTPS</span>
-      </label>
-    </div>
+    <!-- Search -->
+    <input
+      type="search"
+      bind:value={searchQuery}
+      placeholder="Search relays…"
+      class="w-48 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400 dark:placeholder-gray-500"
+    />
 
     <button
       class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
@@ -224,7 +216,7 @@
 
 <!-- Items -->
 <div class="flex flex-col gap-3 mb-6">
-  {#if items.length === 0}
+  {#if displayedItems.length === 0}
     <div class="text-center py-16 px-6">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-20 h-20 mx-auto mb-4 text-gray-300 dark:text-gray-600">
         <rect x="10" y="20" width="60" height="40" rx="4" />
@@ -236,32 +228,24 @@
         <line x1="25" y1="50" x2="55" y2="50" />
       </svg>
       <p class="text-gray-500 dark:text-gray-400 mb-4">
-        {#if !filterRelays && !filterProxies}
-          Enable TCP or HTTPS relays to view items.
-        {:else if filterRelays && !filterProxies}
-          No TCP relays configured. Get started by adding one.
-        {:else if !filterRelays && filterProxies}
-          No HTTPS relays configured. Get started by adding one.
+        {#if searchQuery.trim()}
+          No relays match "{searchQuery.trim()}".
         {:else}
           No relays configured. Get started by adding one.
         {/if}
       </p>
-      <button
-        class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
-        onclick={() => openAdd(filterRelays && !filterProxies ? 'relay' : 'proxy')}
-      >
-        <Plus size={15} />
-        {#if filterRelays && !filterProxies}
+      {#if !searchQuery.trim()}
+        <button
+          class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
+          onclick={() => openAdd()}
+        >
+          <Plus size={15} />
           Add a Relay
-        {:else if !filterRelays && filterProxies}
-          Add an HTTPS Relay
-        {:else}
-          Add a Relay
-        {/if}
-      </button>
+        </button>
+      {/if}
     </div>
   {:else}
-    {#each items as item (item.type === 'relay' ? `relay-${item.relay.id}` : `proxy-${item.proxy.id}`)}
+    {#each displayedItems as item (item.type === 'relay' ? `relay-${item.relay.id}` : `proxy-${item.proxy.id}`)}
       <ItemCard
         {item}
         {fqdn}
