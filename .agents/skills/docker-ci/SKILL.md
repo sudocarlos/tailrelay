@@ -21,15 +21,14 @@ docker buildx build -t sudocarlos/tailrelay:latest --load .
 `Dockerfile` stages:
 1. **frontend-builder** (`node:{NODE_VERSION}-alpine`) — builds Vite/Svelte/Tailwind SPA assets; injects `VERSION` via `npm version`
 2. **webui-builder** (`golang:{GO_VERSION}-alpine`) — builds the tailrelay-webui Go binary; copies frontend dist from `frontend-builder`
-3. **tailscale-builder** (`golang:{GO_VERSION}-alpine`) — builds Tailscale binaries from source via `go install tailscale.com/cmd/...@{TAILSCALE_VERSION}`
-4. **binary-dev** (`scratch`) — holds a pre-built local binary from `./data/tailrelay-webui` for dev builds
-5. **binary-source** — selector stage; resolves to `webui-builder` (default) or `binary-dev` via `WEBUI_SOURCE` build arg
-6. **main** (`alpine:{ALPINE_VERSION}`) — installs runtime deps (iptables, iproute2, mailcap), copies all binaries from builder stages; restores legacy iptables symlinks for broad host compatibility
+3. **binary-dev** (`scratch`) — holds a pre-built local binary from `./data/tailrelay-webui` for dev builds
+4. **binary-source** — selector stage; resolves to `webui-builder` (default) or `binary-dev` via `WEBUI_SOURCE` build arg
+5. **main** (`ghcr.io/tailscale/tailscale:{TAILSCALE_VERSION}`) — based on the official Tailscale image; installs runtime deps (iptables, iproute2, mailcap), copies webui binary from builder stage; restores legacy iptables symlinks for broad host compatibility
 
 Key build args:
-- `TAILSCALE_VERSION` (default: `v1.98.3`) — version tag passed to `go install tailscale.com/cmd/...@${TAILSCALE_VERSION}`
-- `GO_VERSION` (default: `1.26.1`)
-- `NODE_VERSION` (default: `24`)
+- `TAILSCALE_VERSION` (default: `v1.98.3`) — image tag for `ghcr.io/tailscale/tailscale`
+- `GO_VERSION` (default: `1.26.3`)
+- `NODE_VERSION` (default: `24.16.0`)
 - `ALPINE_VERSION` (default: `3.22`)
 - `WEBUI_SOURCE` (default: `webui-builder`; set to `binary-dev` for dev builds)
 - `VERSION`, `COMMIT`, `DATE`, `BRANCH`, `BUILDER` — build metadata injected into Go binary and frontend via ldflags / `npm version`
@@ -186,6 +185,6 @@ When updating a pinned version in the Dockerfile, touch every location in the ta
 | Component | Version |
 |-----------|---------|
 | Container | `v0.9.0` (see `start.sh`) |
-| Tailscale | `v1.98.3` (built from source via `go install tailscale.com/cmd/...`) |
+| Tailscale | `v1.98.3` (`ghcr.io/tailscale/tailscale` base image) |
 | Go | `1.26.3` (Dockerfile ARG) |
 | Node.js (CI) | `24.16.0` (GitHub Actions + Dockerfile ARG) |
