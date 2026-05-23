@@ -1,7 +1,7 @@
 ---
 name: docker-ci-pipeline
 description: Docker image building, Compose development environments, CI/CD pipeline, and testing infrastructure. Use when working with Dockerfiles, docker-compose, GitHub Actions CI, Make targets, integration tests, or deployment workflows.
-reviewed_at: a5b5d11
+reviewed_at: 459bdf0
 ---
 
 # Docker & CI Pipeline
@@ -152,6 +152,35 @@ Handles `SIGTERM`/`SIGINT` for graceful shutdown.
 3. **Docker network**: Use `--net start9` for Start9 deployments to reach embassy services
 4. **TLS certificates**: Must enable HTTPS in Tailscale Admin Console first
 5. **Port conflicts**: Ensure host ports don't conflict with existing services
+
+## Bumping Dependencies
+
+When updating a pinned version in the Dockerfile, touch every location in the table below.
+
+| Dependency | Dockerfile ARG | `docker-ci/SKILL.md` | `security-review/SKILL.md` | `CHANGELOG.md` |
+|------------|---------------|----------------------|---------------------------|----------------|
+| Tailscale | `TAILSCALE_VERSION` | Version Information table | Pinned Versions block | `[Unreleased]` → `### Changed` |
+| Go | `GO_VERSION` | Version Information table | Pinned Versions block | `[Unreleased]` → `### Changed` |
+| Node.js | `NODE_VERSION` | Version Information table | Pinned Versions block | `[Unreleased]` → `### Changed` |
+| Alpine | `ALPINE_VERSION` | *(no explicit entry)* | Pinned Versions block | `[Unreleased]` → `### Changed` |
+
+### Step-by-step
+
+1. Edit the `ARG` value at the top of `Dockerfile`.
+2. Update the **Version Information** table at the bottom of this file.
+3. Update the **Pinned Versions** block in `.agents/skills/security-review/SKILL.md`.
+4. Add a `### Changed` bullet to the `[Unreleased]` section in `CHANGELOG.md`.
+5. Advance `reviewed_at` in this file to the new HEAD SHA after committing.
+
+### Example CHANGELOG entry
+
+```markdown
+## [Unreleased]
+
+### Changed
+- **Tailscale** bumped from `vX.Y.Z` to `vA.B.C` in Dockerfile
+- **Node.js** bumped from `X.Y.Z` to `A.B.C` in Dockerfile
+```
 
 ## Version Information
 
