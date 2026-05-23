@@ -185,7 +185,7 @@ When updating a pinned version in the Dockerfile, touch every location in the ta
 
 | Component | Version |
 |-----------|---------|
-| Container | `v0.8.8` (see `start.sh`) |
+| Container | `v0.9.0` (see `start.sh`) |
 | Tailscale | `v1.98.3` (built from source via `go install tailscale.com/cmd/...`) |
 | Go | `1.26.3` (Dockerfile ARG) |
 | Node.js (CI) | `20` (GitHub Actions) / `24.16.0` (Dockerfile ARG) |
