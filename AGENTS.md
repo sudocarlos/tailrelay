@@ -114,10 +114,10 @@ curl -sSL http://localhost:8021                   # Web UI
 | `.agents/skills/docker-ci/SKILL.md` | `e01406e` | `Dockerfile`, `.github/workflows/`, `compose-test.yml` |
 | `.agents/skills/tailscale/SKILL.md` | `e01406e` | `webui/internal/tailscale/`, `start.sh` |
 | `webui/README.md` | `b7ce114` | `webui/` |
-| `README.md` | `b7ce114` | `README.md`, `webui/internal/web/server.go` |
+| `README.md` | `056aff5` | `README.md`, `webui/internal/web/server.go` |
 | `.agents/skills/security-review/SKILL.md` | `e01406e` | `webui/internal/auth/`, `webui/internal/handlers/`, `webui/internal/backup/`, `Dockerfile`, `start.sh` |
 | `.agents/skills/testing-cicd/SKILL.md` | `e01406e` | `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml` |
-| `.agents/skills/documentation/SKILL.md` | `e01406e` | `README.md`, `CHANGELOG.md`, `webui/README.md`, `AGENTS.md`, `.agents/skills/` |
+| `.agents/skills/documentation/SKILL.md` | `056aff5` | `README.md`, `CHANGELOG.md`, `webui/README.md`, `AGENTS.md`, `.agents/skills/` |
 
 ## Making Changes
 

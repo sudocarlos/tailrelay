@@ -6,60 +6,54 @@ A Docker container that exposes local services to your Tailscale network. Combin
 [![GitHub Release](https://img.shields.io/github/v/release/sudocarlos/tailrelay)](https://github.com/sudocarlos/tailrelay/releases)
 [![License](https://img.shields.io/github/license/sudocarlos/tailrelay)](https://github.com/sudocarlos/tailrelay/blob/main/LICENSE)
 
-## Features
-
-- **Web UI** - Browser-based management on port 8021
-- **Automatic TLS** - Tailscale Serve HTTPS relays with MagicDNS hostnames
-- **HTTPS Relays** - Configure HTTPS reverse relays through the UI
-- **TCP Relays** - Forward non-HTTP protocols through Tailscale Serve
-- **Backup & Restore** - Save and restore configurations
-- **Dual Authentication** - Token or Tailscale network authentication
-- **Multi-Platform** - Docker images for amd64 and arm64
-
 ## Table of Contents
 
 - [Features](#features)
-- [Screenshots](#screenshots)
-- [Why tailrelay?](#why-tailrelay)
-- [Technology Stack](#technology-stack)
-- [Quick Start](#quick-start)
-- [Web UI](#web-ui)
 - [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Tailscale Setup](#tailscale-setup)
-  - [StartOS Deployment](#startos-deployment)
-- [Development](#development)
-  - [Local WebUI Development](#local-webui-development)
-  - [Building](#building)
-  - [Testing](#testing)
-- [API Reference](#api-reference)
 - [Troubleshooting](#troubleshooting)
+- [Screenshots](#screenshots)
+- [Development](#development)
+- [API Reference](#api-reference)
 - [Contributing](#contributing)
 
+## Features
 
-## Why tailrelay?
+tailrelay provides secure remote access to self-hosted services without exposing ports:
 
-tailrelay provides secure remote access to self-hosted services:
+- **Browser-Based Management**: A responsive Web UI running on port `8021` to manage your relays.
+- **Automatic TLS**: Tailscale Serve terminates TLS for HTTPS relays with automatic MagicDNS hostnames.
+- **HTTPS Relays**: Easily configure HTTPS reverse proxies/relays through the UI.
+- **TCP Relays**: Forward non-HTTP protocols through Tailscale Serve.
+- **Backup & Restore**: Save, download, upload, and restore configurations.
+- **Dual Authentication**: Authenticate via Tailscale network identity (peer IP) or secure token.
+- **Multi-Platform**: Multi-arch Docker images built for `amd64` and `arm64`.
 
-- **Secure Access**: Tailscale's VPN eliminates port forwarding requirements
-- **Easy Configuration**: Web UI handles setup without manual config files
-- **Automatic TLS**: Tailscale Serve terminates TLS for HTTPS relays
-- **Protocol Support**: HTTP/HTTPS proxies and TCP relays for any service
-- **Backup & Restore**: Save and restore configurations
+This makes tailrelay useful for exposing local or Start9 services (like BTCPayServer, LND, electrs, and Mempool) to your Tailnet securely without Tor.
 
-Useful for accessing Start9 services like BTCPayServer, LND, electrs, and Mempool without Tor.
+### Web UI details
 
+The frontend is a single-page application built with **Svelte 5** (runes mode), **Tailwind CSS v4**, and **Vite**. All assets (JS, CSS, icons) are bundled locally for zero external CDN requests at runtime.
 
-## Technology Stack
+- **Dashboard**: Real-time Tailscale status, search filtering, and system health info.
+- **Tailscale Management**: Easily connect, disconnect, or deauthorize the node.
+- **Relay Configuration**: Add, edit, delete, toggle, and auto-reconcile HTTPS and TCP relays.
+- **Live Log Viewer**: Streaming container logs (SSE) with live log-level control.
+- **UX Conveniences**: Keyboard shortcuts (`n` for new relay, `r` to refresh, `b` for backups, `l` for logs, `t` for theme), local-storage-persisted dark mode.
 
-| Component | Purpose | Documentation |
-|-----------|---------|---------------|
-| **Tailscale** | VPN, MagicDNS, device authentication | [Tailscale docs](https://tailscale.com/kb) |
-| **Tailscale Serve** | HTTPS reverse relays and TCP forwarding | [Serve docs](https://tailscale.com/kb/1312/serve) |
-| **Web UI** | Browser-based management (Go backend, Svelte 5 + Tailwind CSS frontend) | See [Web UI](#web-ui) section |
+### Web UI Authentication & Access
 
+#### Authentication
+1. **Tailscale Network Authentication**: Devices on your Tailscale network are automatically authenticated. If the container is not connected, the Web UI shows a Tailscale login link and polls until the device is connected.
+2. **Token Authentication**: A token is generated on first startup at `/var/lib/tailscale/.webui_token` for scripted access or CLI integration.
 
-## Quick Start
+#### Access
+The Web UI is accessible on port `8021`:
+- **Secure/Remote**: `https://your-hostname.your-tailnet.ts.net:8021` (once connected and HTTPS is enabled)
+- **Local**: `http://localhost:8021`
+
+## Getting Started
+
+### Quick Start
 
 ```bash
 # Pull the image
@@ -77,43 +71,6 @@ docker run -d --name tailrelay \
 open http://localhost:8021
 ```
 
-
-## Web UI
-
-The Web UI provides browser-based management on port 8021. The frontend is a single-page application built with **Svelte 5** (runes mode), **Tailwind CSS v4**, and **Vite**. All assets (JS, CSS, icons) are bundled locally -- no external CDN requests at runtime.
-
-### Features
-
-- **Dashboard** - Real-time Tailscale connection status and system health
-- **Tailscale Management** - Connect/disconnect and view network peers
-- **HTTPS Relay Management** - Add, edit, delete, and toggle HTTPS relays backed by `tailscale serve`
-- **TCP Relay Management** - Add, edit, delete, and toggle TCP relays backed by `tailscale serve`
-- **Backup & Restore** - Create and restore compressed tar.gz backups
-- **Live Log Viewer** - Collapsible log console with SSE streaming and runtime log level control
-- **Dark Mode** - System-aware theme toggle with localStorage persistence
-- **Keyboard Shortcuts** - `n` (new), `r` (refresh), `b` (backups), `l` (logs), `t` (theme)
-
-### Authentication
-
-The Web UI uses two authentication methods:
-
-1. **Tailscale Network Authentication**: Devices on your Tailscale network are automatically authenticated. If the container is not connected, the Web UI shows a Tailscale login link and polls until the device is connected.
-2. **Token Authentication**: A token is generated on first startup at `/var/lib/tailscale/.webui_token` for scripted access or legacy flows.
-
-### Access
-
-The Web UI runs on port 8021:
-```bash
-# Via Tailscale hostname (if HTTPS is enabled)
-https://your-hostname.your-tailnet.ts.net:8021
-
-# Or via local IP
-http://localhost:8021
-```
-
-
-## Getting Started
-
 ### Prerequisites
 
 1. A Tailscale account with an active Tailnet ([tailscale.com](https://tailscale.com))
@@ -123,7 +80,7 @@ http://localhost:8021
 ### Tailscale Setup
 
 1. Log into Tailscale Admin console and click [DNS](https://login.tailscale.com/admin/dns) to enable MagicDNS.
-  - Tailnets created on or after October 20, 2022 have MagicDNS enabled by default.
+   - Tailnets created on or after October 20, 2022 have MagicDNS enabled by default.
 2. Review [MagicDNS](https://tailscale.com/kb/1081/magicdns) to understand how it works.
 3. Verify or set your [Tailnet name](https://tailscale.com/kb/1217/tailnet-name)
 4. Scroll down and enable HTTPS under HTTPS Certificates
@@ -139,6 +96,154 @@ tailrelay is available as a StartOS package via [sudocarlos/tailrelay-startos](h
 3. Drag and drop or select the `tailrelay.s9pk` file to install.
 4. Once installed, navigate to **Services → Tailrelay** and click **Start**.
 
+## Troubleshooting
+
+### Web UI Not Accessible
+
+Check container status:
+```bash
+docker ps | grep tailrelay
+```
+
+Verify port mapping:
+```bash
+docker port tailrelay
+```
+
+Check logs:
+```bash
+docker logs tailrelay | grep -i webui
+```
+
+Verify listening port:
+```bash
+docker exec tailrelay netstat -tulnp | grep 8021
+```
+
+### Cannot Log In
+
+Retrieve token:
+```bash
+docker exec tailrelay cat /var/lib/tailscale/.webui_token
+```
+
+Ensure you're accessing from Tailscale network or clear browser cache.
+
+### Relay Issues (`tailscale serve`)
+
+Check current serve status:
+```bash
+docker exec tailrelay tailscale serve status
+```
+
+Force reconcile from saved UI configuration:
+```bash
+curl -X POST http://localhost:8021/api/serve/https/reconcile
+# or for TCP relays:
+curl -X POST http://localhost:8021/api/serve/tcp/reconcile
+```
+
+Test target connectivity:
+```bash
+docker exec tailrelay nc -zv target-host target-port
+```
+
+## Screenshots
+
+The Web UI supports light and dark themes and is fully responsive on mobile.
+
+### Login
+
+<table>
+<tr>
+  <th>Light — Desktop</th>
+  <th>Dark — Desktop</th>
+</tr>
+<tr>
+  <td><img src="docs/screenshots/login-light-desktop.png" alt="Login light desktop" width="480"/></td>
+  <td><img src="docs/screenshots/login-dark-desktop.png" alt="Login dark desktop" width="480"/></td>
+</tr>
+<tr>
+  <th>Light — Mobile</th>
+  <th>Dark — Mobile</th>
+</tr>
+<tr>
+  <td><img src="docs/screenshots/login-light-mobile.png" alt="Login light mobile" width="240"/></td>
+  <td><img src="docs/screenshots/login-dark-mobile.png" alt="Login dark mobile" width="240"/></td>
+</tr>
+</table>
+
+### Dashboard
+
+<table>
+<tr>
+  <th>Light — Desktop</th>
+  <th>Dark — Desktop</th>
+</tr>
+<tr>
+  <td><img src="docs/screenshots/dashboard-light-desktop.png" alt="Dashboard light desktop" width="480"/></td>
+  <td><img src="docs/screenshots/dashboard-dark-desktop.png" alt="Dashboard dark desktop" width="480"/></td>
+</tr>
+<tr>
+  <th>Light — Mobile</th>
+  <th>Dark — Mobile</th>
+</tr>
+<tr>
+  <td><img src="docs/screenshots/dashboard-light-mobile.png" alt="Dashboard light mobile" width="240"/></td>
+  <td><img src="docs/screenshots/dashboard-dark-mobile.png" alt="Dashboard dark mobile" width="240"/></td>
+</tr>
+</table>
+
+**Log console expanded (dark):**
+
+![Dashboard with log console expanded](docs/screenshots/dashboard-logs-dark-desktop.png)
+
+**Mobile navigation menu open:**
+
+<table>
+<tr>
+  <td><img src="docs/screenshots/dashboard-mobile-menu-light.png" alt="Mobile menu light" width="240"/></td>
+  <td><img src="docs/screenshots/dashboard-mobile-menu-dark.png" alt="Mobile menu dark" width="240"/></td>
+</tr>
+</table>
+
+### Tailscale
+
+<table>
+<tr>
+  <th>Light — Desktop</th>
+  <th>Dark — Desktop</th>
+</tr>
+<tr>
+  <td><img src="docs/screenshots/tailscale-light-desktop.png" alt="Tailscale light desktop" width="480"/></td>
+  <td><img src="docs/screenshots/tailscale-dark-desktop.png" alt="Tailscale dark desktop" width="480"/></td>
+</tr>
+<tr>
+  <th>Light — Mobile</th>
+  <th>Dark — Mobile</th>
+</tr>
+<tr>
+  <td><img src="docs/screenshots/tailscale-light-mobile.png" alt="Tailscale light mobile" width="240"/></td>
+  <td><img src="docs/screenshots/tailscale-dark-mobile.png" alt="Tailscale dark mobile" width="240"/></td>
+</tr>
+</table>
+
+### Backups
+
+<table>
+<tr>
+  <th>Light — Desktop</th>
+  <th>Dark — Desktop</th>
+</tr>
+<tr>
+  <td><img src="docs/screenshots/backups-light-desktop.png" alt="Backups light desktop" width="480"/></td>
+  <td><img src="docs/screenshots/backups-dark-desktop.png" alt="Backups dark desktop" width="480"/></td>
+</tr>
+</table>
+
+**Mobile (dark):**
+
+<img src="docs/screenshots/backups-dark-mobile.png" alt="Backups dark mobile" width="240"/>
 
 ## Development
 
@@ -296,7 +401,6 @@ var (
 
 Access these in `webui/cmd/webui/main.go`.
 
-
 ## API Reference
 
 The Web UI backend exposes a JSON API on port 8021. All endpoints under `/api/` require authentication except where noted. Authentication is via Tailscale network identity (100.x.y.z) or session cookie.
@@ -401,60 +505,6 @@ All endpoints return errors as:
 }
 ```
 
-
-## Troubleshooting
-
-### Web UI Not Accessible
-
-Check container status:
-```bash
-docker ps | grep tailrelay
-```
-
-Verify port mapping:
-```bash
-docker port tailrelay
-```
-
-Check logs:
-```bash
-docker logs tailrelay | grep -i webui
-```
-
-Verify listening port:
-```bash
-docker exec tailrelay netstat -tulnp | grep 8021
-```
-
-### Cannot Log In
-
-Retrieve token:
-```bash
-docker exec tailrelay cat /var/lib/tailscale/.webui_token
-```
-
-Ensure you're accessing from Tailscale network or clear browser cache.
-
-### Relay Issues (`tailscale serve`)
-
-Check current serve status:
-```bash
-docker exec tailrelay tailscale serve status
-```
-
-Force reconcile from saved UI configuration:
-```bash
-curl -X POST http://localhost:8021/api/serve/https/reconcile
-# or for TCP relays:
-curl -X POST http://localhost:8021/api/serve/tcp/reconcile
-```
-
-Test target connectivity:
-```bash
-docker exec tailrelay nc -zv target-host target-port
-```
-
-
 ## Contributing
 
 Contributions welcome:
@@ -470,134 +520,33 @@ Contributions welcome:
 git clone https://github.com/sudocarlos/tailrelay.git
 cd tailrelay
 
-# Build locally
-docker build -t tailrelay:dev .
+# Build the development image (compiles binary, Svelte UI, and loads Docker image)
+make dev-docker-build
 
-# Run tests
+# Start the test environment (includes tailrelay container and a target container)
 docker compose -f compose-test.yml up -d
 ```
 
 See [Development](#development) section for WebUI development workflow.
 
+### License
 
-## Release Notes
+Open source project. Licensed under the BSD 3-Clause License. See [LICENSE](LICENSE) for details.
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history.
-
-
-## Screenshots
-
-The Web UI supports light and dark themes and is fully responsive on mobile.
-
-### Login
-
-<table>
-<tr>
-  <th>Light — Desktop</th>
-  <th>Dark — Desktop</th>
-</tr>
-<tr>
-  <td><img src="docs/screenshots/login-light-desktop.png" alt="Login light desktop" width="480"/></td>
-  <td><img src="docs/screenshots/login-dark-desktop.png" alt="Login dark desktop" width="480"/></td>
-</tr>
-<tr>
-  <th>Light — Mobile</th>
-  <th>Dark — Mobile</th>
-</tr>
-<tr>
-  <td><img src="docs/screenshots/login-light-mobile.png" alt="Login light mobile" width="240"/></td>
-  <td><img src="docs/screenshots/login-dark-mobile.png" alt="Login dark mobile" width="240"/></td>
-</tr>
-</table>
-
-### Dashboard
-
-<table>
-<tr>
-  <th>Light — Desktop</th>
-  <th>Dark — Desktop</th>
-</tr>
-<tr>
-  <td><img src="docs/screenshots/dashboard-light-desktop.png" alt="Dashboard light desktop" width="480"/></td>
-  <td><img src="docs/screenshots/dashboard-dark-desktop.png" alt="Dashboard dark desktop" width="480"/></td>
-</tr>
-<tr>
-  <th>Light — Mobile</th>
-  <th>Dark — Mobile</th>
-</tr>
-<tr>
-  <td><img src="docs/screenshots/dashboard-light-mobile.png" alt="Dashboard light mobile" width="240"/></td>
-  <td><img src="docs/screenshots/dashboard-dark-mobile.png" alt="Dashboard dark mobile" width="240"/></td>
-</tr>
-</table>
-
-**Log console expanded (dark):**
-
-![Dashboard with log console expanded](docs/screenshots/dashboard-logs-dark-desktop.png)
-
-**Mobile navigation menu open:**
-
-<table>
-<tr>
-  <td><img src="docs/screenshots/dashboard-mobile-menu-light.png" alt="Mobile menu light" width="240"/></td>
-  <td><img src="docs/screenshots/dashboard-mobile-menu-dark.png" alt="Mobile menu dark" width="240"/></td>
-</tr>
-</table>
-
-### Tailscale
-
-<table>
-<tr>
-  <th>Light — Desktop</th>
-  <th>Dark — Desktop</th>
-</tr>
-<tr>
-  <td><img src="docs/screenshots/tailscale-light-desktop.png" alt="Tailscale light desktop" width="480"/></td>
-  <td><img src="docs/screenshots/tailscale-dark-desktop.png" alt="Tailscale dark desktop" width="480"/></td>
-</tr>
-<tr>
-  <th>Light — Mobile</th>
-  <th>Dark — Mobile</th>
-</tr>
-<tr>
-  <td><img src="docs/screenshots/tailscale-light-mobile.png" alt="Tailscale light mobile" width="240"/></td>
-  <td><img src="docs/screenshots/tailscale-dark-mobile.png" alt="Tailscale dark mobile" width="240"/></td>
-</tr>
-</table>
-
-### Backups
-
-<table>
-<tr>
-  <th>Light — Desktop</th>
-  <th>Dark — Desktop</th>
-</tr>
-<tr>
-  <td><img src="docs/screenshots/backups-light-desktop.png" alt="Backups light desktop" width="480"/></td>
-  <td><img src="docs/screenshots/backups-dark-desktop.png" alt="Backups dark desktop" width="480"/></td>
-</tr>
-</table>
-
-**Mobile (dark):**
-
-<img src="docs/screenshots/backups-dark-mobile.png" alt="Backups dark mobile" width="240"/>
-
-
-## License
-
-Open source project. See repository for license details.
-
-
-## Acknowledgments
+### Acknowledgments
 
 - [Tailscale](https://tailscale.com) - VPN platform and `tailscale serve`
 - [Start9](https://start9.com) - Inspiration for this project
 - Original project by [@hollie](https://github.com/hollie/tailscale-caddy-proxy)
 
+### Release Notes
+
+See [CHANGELOG.md](CHANGELOG.md) for the full release history.
+
 ## Review Status
 
-<!-- reviewed_at: 89eabb1 | paths: README.md webui/internal/web/server.go -->
-Last full review completed at commit `89eabb1`. To check what has changed since:
+<!-- reviewed_at: 056aff5 | paths: README.md webui/internal/web/server.go -->
+Last full review completed at commit `056aff5`. To check what has changed since:
 ```bash
-git log --oneline 89eabb1..HEAD -- README.md webui/internal/web/server.go
+git log --oneline 056aff5..HEAD -- README.md webui/internal/web/server.go
 ```
