@@ -1,7 +1,7 @@
 ---
 name: serve-relay-management
 description: tailscale serve relay management — HTTPS and TCP relay types, serve_relays.json format, reconciliation flow, API endpoints, migration from legacy caddy/socat configs, and ErrTailscaleNotReady handling. Use when working with internal/serve/, handlers/serve.go, or /api/serve/* endpoints.
-reviewed_at: f7df402
+reviewed_at: e01406e
 ---
 
 # Serve Relay Management

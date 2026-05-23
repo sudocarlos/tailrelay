@@ -1,14 +1,14 @@
 ---
 name: security-review
 description: Security and privacy review for tailrelay — dependency CVE scanning, Go module auditing, auth review, and code-level vulnerability checks. Use when reviewing code for security issues, auditing Dockerfile dependencies, checking for secrets/injection risks, or assessing privacy of logged/persisted data.
-reviewed_at: b7ce114
+reviewed_at: e01406e
 ---
 
 # Security & Privacy Review
 
 ## Overview
 
-tailrelay combines four networked services (Tailscale, Caddy, socat, Web UI) inside a single container. The attack surface includes: the Web UI HTTP server on port 8021, the Caddy Admin API on port 2019 (internal), socat TCP relays, and the Tailscale daemon. Review should cover all layers — pinned image/binary versions, Go module dependencies, authentication paths, input handling, log sanitization, and data persistence.
+tailrelay combines two networked services (Tailscale and a Go Web UI) inside a single container. The attack surface includes: the Web UI HTTP server on port 8021, `tailscale serve` relay management, and the Tailscale daemon. Review should cover all layers — pinned image/binary versions, Go module dependencies, authentication paths, input handling, log sanitization, and data persistence.
 
 ## Scope Map
 
@@ -16,8 +16,7 @@ tailrelay combines four networked services (Tailscale, Caddy, socat, Web UI) ins
 |------|-----------------|
 | Authentication | `webui/internal/auth/`, `webui/internal/handlers/auth_test.go` |
 | HTTP handlers | `webui/internal/handlers/` |
-| Caddy integration | `webui/internal/caddy/` |
-| socat management | `webui/internal/socat/` |
+| Serve relay management | `webui/internal/serve/`, `webui/internal/handlers/serve.go` |
 | Tailscale integration | `webui/internal/tailscale/` |
 | Backup & restore | `webui/internal/backup/` |
 | Configuration | `webui/internal/config/`, `webui.yaml` |
@@ -35,13 +34,11 @@ tailrelay combines four networked services (Tailscale, Caddy, socat, Web UI) ins
 All versions are pinned as `ARG` values at the top of `Dockerfile`:
 
 ```
-ARG TAILSCALE_VERSION=v1.96.4
-ARG CADDY_VERSION=2.11.2
-ARG GO_VERSION=1.26.1
-ARG NODE_VERSION=24
+ARG TAILSCALE_VERSION=v1.98.3
+ARG GO_VERSION=1.26.3
+ARG NODE_VERSION=24.16.0
 ARG ALPINE_VERSION=3.22
 ARG MAILCAP_VERSION=2.1.54
-ARG SOCAT_VERSION=1.8.0.3
 ```
 
 ### Tools — Use All That Are Available
@@ -101,14 +98,12 @@ For each pinned component, check the official security advisory source:
 | Component | Advisory Source |
 |-----------|----------------|
 | Tailscale | https://github.com/tailscale/tailscale/security/advisories |
-| Caddy | https://github.com/caddyserver/caddy/security/advisories |
 | Alpine Linux | https://security.alpinelinux.org/ |
 | Go runtime | https://go.dev/doc/security/vuln/ |
-| socat | https://www.exploit-db.com/search?q=socat (check CVE databases) |
 | Node.js | https://nodejs.org/en/blog/vulnerability/ |
 
 ```bash
-# Check Alpine package CVEs for mailcap and socat
+# Check Alpine package CVEs for mailcap
 docker run --rm alpine:3.22 sh -c "apk update && apk audit"
 ```
 
@@ -161,32 +156,19 @@ tailrelay uses two auth mechanisms (can be used together):
 
 ## 4. Input Validation & Injection Risks
 
-### Caddy Proxy Config (`internal/caddy/`, `internal/handlers/caddy.go`)
+### Serve Relay Config (`internal/serve/`, `internal/handlers/serve.go`)
 
-Caddy routes are constructed from user-supplied upstream URLs and hostnames. Check:
+Serve relays are constructed from user-supplied target hosts, ports, and hostnames. Check:
 
-- [x] Upstream URL scheme validated in `validateProxyTarget()` — only `http`/`https` accepted (added v0.8.0)
-- [x] Hostname normalised via `caddy.NormalizeHostname()` before use in Caddy JSON config
-- [x] Caddy Admin API (`localhost:2019`) is not routed through the public mux
-- [ ] Route `@id` tags are user-controlled — check for injection via crafted IDs (path traversal in IDs: `../../`)
-
-```go
-// Pattern to look for — unsanitized user input into Caddy config:
-route := CaddyRoute{ID: userInput}  // dangerous if userInput contains ../
-```
-
-### socat Relay Config (`internal/socat/`)
-
-socat relays involve port numbers and target addresses from user input:
-
-- [x] Port numbers validated 1–65535 in `validateSocatRelay()` handler (`handlers/socat.go`) — added v0.8.0
-- [x] Target host validated — shell metacharacters rejected in `validateSocatRelay()` — added v0.8.0
-- [x] socat launched via `exec.Command(binary, arg1, arg2)` — **not** `sh -c`; no shell interpolation
-- [ ] Relay list file (`relays.json`) written with `0644` — consider tightening to `0600`
+- [x] Target parsed via `net.SplitHostPort` — rejects malformed input
+- [x] `listen_port`, `target_host`, and `target_port` required — missing fields return 400
+- [x] `tailscale serve` invoked via `exec.Command` — **not** `sh -c`; no shell interpolation
+- [ ] `target_host` not validated against private/LAN allowlist — users can direct relays at arbitrary hosts
+- [ ] `listen_port` range not validated 1–65535 in handler layer (validated by `tailscale serve` itself)
 
 ```bash
-# Check how socat is invoked in Go code
-grep -n "exec\|Command\|socat" webui/internal/socat/*.go
+# Check how tailscale serve is invoked in Go code
+grep -n "exec\|Command\|tailscale" webui/internal/serve/manager.go
 ```
 
 ### Backup & Restore (`internal/backup/`)
@@ -205,10 +187,9 @@ grep -n "exec\|Command\|socat" webui/internal/socat/*.go
 
 ## 5. Server-Side Request Forgery (SSRF)
 
-The Web UI proxies requests to the Caddy Admin API and can be directed to arbitrary upstream URLs:
+The Web UI can create relay rules that point to arbitrary upstream hosts:
 
-- [ ] Caddy proxy upstream URLs entered by users should be restricted to private/LAN ranges or validated against an allowlist
-- [ ] The Caddy Admin API (`localhost:2019`) access is server-side only — the Web UI should not forward arbitrary user-controlled URLs to it
+- [ ] Serve relay `target_host` values entered by users are not restricted to private/LAN ranges
 - [ ] Any "test connection" or "health check" features that make outbound requests must validate destination addresses
 
 ---
@@ -226,7 +207,7 @@ The Web UI proxies requests to the Caddy Admin API and can be directed to arbitr
 
 Files written by tailrelay:
 - `.webui_token` — auth token (must be `0600`)
-- `relays.json` — relay configuration (no secrets expected)
+- `serve_relays.json` — relay configuration (no secrets expected)
 - `backups/` — tar.gz archives of full config + TLS certs (treat as sensitive)
 - Tailscale state files — contain auth material (managed by Tailscale daemon)
 
