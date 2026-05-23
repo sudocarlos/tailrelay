@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 # check=skip=SecretsUsedInArgOrEnv
-ARG TAILSCALE_VERSION=v1.96.5
+ARG TAILSCALE_VERSION=v1.98.3
 ARG GO_VERSION=1.26.3
-ARG NODE_VERSION=24.15.0
+ARG NODE_VERSION=24.16.0
 ARG WEBUI_SOURCE=webui-builder
 
 # Frontend build stage — Vite + Svelte + Tailwind
