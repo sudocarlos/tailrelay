@@ -1,7 +1,7 @@
 ---
 name: docker-ci-pipeline
 description: Docker image building, Compose development environments, CI/CD pipeline, and testing infrastructure. Use when working with Dockerfiles, docker-compose, GitHub Actions CI, Make targets, integration tests, or deployment workflows.
-reviewed_at: f7df402
+reviewed_at: 459bdf0
 ---
 
 # Docker & CI Pipeline
@@ -21,15 +21,14 @@ docker buildx build -t sudocarlos/tailrelay:latest --load .
 `Dockerfile` stages:
 1. **frontend-builder** (`node:{NODE_VERSION}-alpine`) — builds Vite/Svelte/Tailwind SPA assets; injects `VERSION` via `npm version`
 2. **webui-builder** (`golang:{GO_VERSION}-alpine`) — builds the tailrelay-webui Go binary; copies frontend dist from `frontend-builder`
-3. **tailscale-builder** (`golang:{GO_VERSION}-alpine`) — builds Tailscale binaries from source via `go install tailscale.com/cmd/...@{TAILSCALE_VERSION}`
-4. **binary-dev** (`scratch`) — holds a pre-built local binary from `./data/tailrelay-webui` for dev builds
-5. **binary-source** — selector stage; resolves to `webui-builder` (default) or `binary-dev` via `WEBUI_SOURCE` build arg
-6. **main** (`alpine:{ALPINE_VERSION}`) — installs runtime deps (iptables, iproute2, mailcap), copies all binaries from builder stages; restores legacy iptables symlinks for broad host compatibility
+3. **binary-dev** (`scratch`) — holds a pre-built local binary from `./data/tailrelay-webui` for dev builds
+4. **binary-source** — selector stage; resolves to `webui-builder` (default) or `binary-dev` via `WEBUI_SOURCE` build arg
+5. **main** (`ghcr.io/tailscale/tailscale:{TAILSCALE_VERSION}`) — based on the official Tailscale image; installs runtime deps (iptables, iproute2, mailcap), copies webui binary from builder stage; restores legacy iptables symlinks for broad host compatibility
 
 Key build args:
-- `TAILSCALE_VERSION` (default: `v1.96.5`) — version tag passed to `go install tailscale.com/cmd/...@${TAILSCALE_VERSION}`
-- `GO_VERSION` (default: `1.26.1`)
-- `NODE_VERSION` (default: `24`)
+- `TAILSCALE_VERSION` (default: `v1.98.3`) — image tag for `ghcr.io/tailscale/tailscale`
+- `GO_VERSION` (default: `1.26.3`)
+- `NODE_VERSION` (default: `24.16.0`)
 - `ALPINE_VERSION` (default: `3.22`)
 - `WEBUI_SOURCE` (default: `webui-builder`; set to `binary-dev` for dev builds)
 - `VERSION`, `COMMIT`, `DATE`, `BRANCH`, `BUILDER` — build metadata injected into Go binary and frontend via ldflags / `npm version`
@@ -153,11 +152,39 @@ Handles `SIGTERM`/`SIGINT` for graceful shutdown.
 4. **TLS certificates**: Must enable HTTPS in Tailscale Admin Console first
 5. **Port conflicts**: Ensure host ports don't conflict with existing services
 
+## Bumping Dependencies
+
+When updating a pinned version in the Dockerfile, touch every location in the table below.
+
+| Dependency | Dockerfile ARG | `docker-ci/SKILL.md` | `security-review/SKILL.md` | `CHANGELOG.md` |
+|------------|---------------|----------------------|---------------------------|----------------|
+| Tailscale | `TAILSCALE_VERSION` | Version Information table | Pinned Versions block | `[Unreleased]` → `### Changed` |
+| Go | `GO_VERSION` | Version Information table | Pinned Versions block | `[Unreleased]` → `### Changed` |
+| Node.js | `NODE_VERSION` (Dockerfile) + `node-version` (ci.yml, 4 occurrences) | Version Information table | Pinned Versions block | `[Unreleased]` → `### Changed` |
+
+### Step-by-step
+
+1. Edit the `ARG` value at the top of `Dockerfile`.
+2. Update the **Version Information** table at the bottom of this file.
+3. Update the **Pinned Versions** block in `.agents/skills/security-review/SKILL.md`.
+4. Add a `### Changed` bullet to the `[Unreleased]` section in `CHANGELOG.md`.
+5. Advance `reviewed_at` in this file to the new HEAD SHA after committing.
+
+### Example CHANGELOG entry
+
+```markdown
+## [Unreleased]
+
+### Changed
+- **Tailscale** bumped from `vX.Y.Z` to `vA.B.C` in Dockerfile
+- **Node.js** bumped from `X.Y.Z` to `A.B.C` in Dockerfile
+```
+
 ## Version Information
 
 | Component | Version |
 |-----------|---------|
-| Container | `v0.8.8` (see `start.sh`) |
-| Tailscale | `v1.96.5` (built from source via `go install tailscale.com/cmd/...`) |
-| Go | `1.26.1` (Dockerfile ARG) |
-| Node.js (CI) | `20` (GitHub Actions) / `24` (Dockerfile ARG) |
+| Container | `v0.9.0` (see `start.sh`) |
+| Tailscale | `v1.98.3` (`ghcr.io/tailscale/tailscale` base image) |
+| Go | `1.26.3` (Dockerfile ARG) |
+| Node.js (CI) | `24.16.0` (GitHub Actions + Dockerfile ARG) |

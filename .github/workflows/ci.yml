@@ -9,11 +9,6 @@ on:
   release:
     types: [published]
 
-env:
-  # Suppress Node.js deprecation warnings from GitHub Actions runner internals
-  # that use an older Node.js version than 24 (actions/checkout, etc.).
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   frontend:
     runs-on: ubuntu-latest
@@ -26,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24.16.0'
           
       - name: Install dependencies
         run: npm install
@@ -45,7 +40,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24.16.0'
 
       - name: Build Frontend
         working-directory: webui/frontend
@@ -74,7 +69,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24.16.0'
 
       - name: Install Frontend Dependencies
         working-directory: webui/frontend
@@ -134,7 +129,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24.16.0'
 
       - name: Install Frontend Dependencies
         working-directory: webui/frontend

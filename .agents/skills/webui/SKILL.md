@@ -1,7 +1,7 @@
 ---
 name: webui-development
 description: Go Web UI application development — handlers, authentication, backup, frontend SPA, build workflow, and testing. Use when working with the webui/ directory, Go code, frontend assets, HTML templates, the SPA build system, or any Web UI feature development.
-reviewed_at: f7df402
+reviewed_at: e01406e
 ---
 
 # Web UI Development
@@ -210,4 +210,4 @@ make integration-test
 - Handlers in `internal/handlers/`, business logic in `internal/*`
 - Explicit error handling; avoid panics for runtime conditions
 - Config types in `internal/config`
-- Dependencies: Go 1.26.1+, `gopkg.in/yaml.v3` (everything else is stdlib)
+- Dependencies: Go 1.26.3+, `gopkg.in/yaml.v3` (everything else is stdlib)

@@ -1,7 +1,7 @@
 ---
 name: testing-cicd
 description: Writing tests and CI/CD for tailrelay — Go unit tests, Python integration tests, CI pipeline jobs, and test infrastructure. Use when adding new tests, extending the integration suite, modifying ci.yml, or improving test coverage for any Go package or the container behaviour.
-reviewed_at: f7df402
+reviewed_at: e01406e
 ---
 
 # Tests & CI/CD
@@ -30,7 +30,8 @@ webui/
 │   ├── handlers/
 │   │   ├── auth_test.go                ✓ exists
 │   │   └── backup_test.go              ✓ exists
-│   ├── serve/                          ✗ no tests yet
+│   ├── serve/
+│   │   └── manager_test.go             ✓ exists
 │   ├── tailscale/                      ✗ no tests yet
 │   └── web/
 │       └── server_test.go              ✓ exists
@@ -44,7 +45,6 @@ tests/
 ```
 
 **Packages without tests** — prioritise these when adding coverage:
-- `webui/internal/serve/` — relay lifecycle, reconcile, ErrTailscaleNotReady
 - `webui/internal/tailscale/` — status parsing, cache behaviour, client mocking
 - `webui/internal/config/` — YAML parsing edge cases
 - `webui/internal/handlers/dashboard.go`, `tailscale.go` — handler coverage
@@ -63,7 +63,7 @@ cd webui && go test ./...
 cd webui && go test -v ./...
 
 # Single package
-cd webui && go test ./internal/caddy/...
+cd webui && go test ./internal/serve/...
 cd webui && go test ./internal/handlers/...
 
 # With coverage
@@ -342,7 +342,7 @@ Example security job:
 | `internal/backup` | ✓ `backup_test.go` | Maintain |
 | `internal/handlers` | ✓ auth, backup | Add: serve, dashboard, tailscale handlers |
 | `internal/web` | ✓ `server_test.go` | Maintain |
-| `internal/serve` | ✗ none | **High** |
+| `internal/serve` | ✓ `manager_test.go` | Maintain; add reconcile edge cases |
 | `internal/tailscale` | ✗ none | **High** |
 | `internal/config` | ✗ none | Medium |
 | `internal/logger` | ✗ none | Low |
