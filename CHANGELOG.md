@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Node.js** bumped from `24.15.0` to `24.16.0` in Dockerfile
+- **Tailscale** bumped from `v1.96.5` to `v1.98.3` in Dockerfile
+
 ## [0.9.0] - 2026-05-18
 
 This release replaces the Caddy and socat relay stack with native `tailscale serve`. All relay types (HTTPS and TCP) are now managed directly through the Tailscale daemon — no third-party proxy processes required.

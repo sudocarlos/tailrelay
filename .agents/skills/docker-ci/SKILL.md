@@ -1,7 +1,7 @@
 ---
 name: docker-ci-pipeline
 description: Docker image building, Compose development environments, CI/CD pipeline, and testing infrastructure. Use when working with Dockerfiles, docker-compose, GitHub Actions CI, Make targets, integration tests, or deployment workflows.
-reviewed_at: f7df402
+reviewed_at: a5b5d11
 ---
 
 # Docker & CI Pipeline
@@ -27,7 +27,7 @@ docker buildx build -t sudocarlos/tailrelay:latest --load .
 6. **main** (`alpine:{ALPINE_VERSION}`) — installs runtime deps (iptables, iproute2, mailcap), copies all binaries from builder stages; restores legacy iptables symlinks for broad host compatibility
 
 Key build args:
-- `TAILSCALE_VERSION` (default: `v1.96.5`) — version tag passed to `go install tailscale.com/cmd/...@${TAILSCALE_VERSION}`
+- `TAILSCALE_VERSION` (default: `v1.98.3`) — version tag passed to `go install tailscale.com/cmd/...@${TAILSCALE_VERSION}`
 - `GO_VERSION` (default: `1.26.1`)
 - `NODE_VERSION` (default: `24`)
 - `ALPINE_VERSION` (default: `3.22`)
@@ -158,6 +158,6 @@ Handles `SIGTERM`/`SIGINT` for graceful shutdown.
 | Component | Version |
 |-----------|---------|
 | Container | `v0.8.8` (see `start.sh`) |
-| Tailscale | `v1.96.5` (built from source via `go install tailscale.com/cmd/...`) |
-| Go | `1.26.1` (Dockerfile ARG) |
-| Node.js (CI) | `20` (GitHub Actions) / `24` (Dockerfile ARG) |
+| Tailscale | `v1.98.3` (built from source via `go install tailscale.com/cmd/...`) |
+| Go | `1.26.3` (Dockerfile ARG) |
+| Node.js (CI) | `20` (GitHub Actions) / `24.16.0` (Dockerfile ARG) |
