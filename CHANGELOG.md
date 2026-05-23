@@ -7,9 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-05-22
+
 ### Changed
 - **Node.js** bumped from `24.15.0` to `24.16.0` in Dockerfile
 - **Tailscale** bumped from `v1.96.5` to `v1.98.3` in Dockerfile
+
+### Docker
+```
+docker pull sudocarlos/tailrelay:v0.9.1
+```
 
 ## [0.9.0] - 2026-05-18
 
