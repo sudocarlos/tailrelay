@@ -565,23 +565,6 @@ The Web UI supports light and dark themes and is fully responsive on mobile.
 </tr>
 </table>
 
-### Metrics
-
-<table>
-<tr>
-  <th>Light — Desktop</th>
-  <th>Dark — Desktop</th>
-</tr>
-<tr>
-  <td><img src="docs/screenshots/metrics-light-desktop.png" alt="Metrics light desktop" width="480"/></td>
-  <td><img src="docs/screenshots/metrics-dark-desktop.png" alt="Metrics dark desktop" width="480"/></td>
-</tr>
-</table>
-
-**Full-page (dark):**
-
-![Metrics full page dark](docs/screenshots/metrics-dark-desktop-full.png)
-
 ### Backups
 
 <table>
