@@ -161,7 +161,7 @@ When updating a pinned version in the Dockerfile, touch every location in the ta
 |------------|---------------|----------------------|---------------------------|----------------|
 | Tailscale | `TAILSCALE_VERSION` | Version Information table | Pinned Versions block | `[Unreleased]` → `### Changed` |
 | Go | `GO_VERSION` | Version Information table | Pinned Versions block | `[Unreleased]` → `### Changed` |
-| Node.js | `NODE_VERSION` | Version Information table | Pinned Versions block | `[Unreleased]` → `### Changed` |
+| Node.js | `NODE_VERSION` (Dockerfile) + `node-version` (ci.yml, 4 occurrences) | Version Information table | Pinned Versions block | `[Unreleased]` → `### Changed` |
 
 ### Step-by-step
 
@@ -188,4 +188,4 @@ When updating a pinned version in the Dockerfile, touch every location in the ta
 | Container | `v0.9.0` (see `start.sh`) |
 | Tailscale | `v1.98.3` (built from source via `go install tailscale.com/cmd/...`) |
 | Go | `1.26.3` (Dockerfile ARG) |
-| Node.js (CI) | `24` (GitHub Actions) / `24.16.0` (Dockerfile ARG) |
+| Node.js (CI) | `24.16.0` (GitHub Actions + Dockerfile ARG) |
