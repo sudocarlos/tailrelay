@@ -162,7 +162,6 @@ When updating a pinned version in the Dockerfile, touch every location in the ta
 | Tailscale | `TAILSCALE_VERSION` | Version Information table | Pinned Versions block | `[Unreleased]` → `### Changed` |
 | Go | `GO_VERSION` | Version Information table | Pinned Versions block | `[Unreleased]` → `### Changed` |
 | Node.js | `NODE_VERSION` | Version Information table | Pinned Versions block | `[Unreleased]` → `### Changed` |
-| Alpine | `ALPINE_VERSION` | *(no explicit entry)* | Pinned Versions block | `[Unreleased]` → `### Changed` |
 
 ### Step-by-step
 
