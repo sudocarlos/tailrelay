@@ -210,4 +210,4 @@ make integration-test
 - Handlers in `internal/handlers/`, business logic in `internal/*`
 - Explicit error handling; avoid panics for runtime conditions
 - Config types in `internal/config`
-- Dependencies: Go 1.26.3+, `gopkg.in/yaml.v3` (everything else is stdlib)
+- Dependencies: Go 1.26.4+, `gopkg.in/yaml.v3` (everything else is stdlib)
