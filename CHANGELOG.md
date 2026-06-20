@@ -6,7 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-
+ 
+### Changed
+- **Node.js** bumped from `24.16.0` to `24.17.0` in Dockerfile
+- **Tailscale** bumped from `v1.98.3` to `v1.98.4` in Dockerfile
+- **Go** bumped from `1.26.3` to `1.26.4` in Dockerfile
+ 
 ## [0.9.1] - 2026-05-22
 
 ### Changed
