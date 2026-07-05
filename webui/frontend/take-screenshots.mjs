@@ -44,13 +44,7 @@ const MOCK_TS_PEERS = [
   { DNSName: 'work-laptop.homelab.ts.net.', IPv4: '100.97.110.90', OS: 'windows', Active: false, Online: false, LastSeen: new Date(Date.now() - 86400000).toISOString() },
 ];
 
-const MOCK_METRICS = {
-  hosts: [
-    { host: 'grafana.homelab.ts.net',   requests: 1423, requests_in: 4823400,  responses_out: 92847200, status_codes: { '2xx': 1350, '3xx': 60,  '4xx': 13, '5xx': 0  } },
-    { host: 'portainer.homelab.ts.net', requests: 342,  requests_in: 1204800,  responses_out: 28394000, status_codes: { '2xx': 310,  '3xx': 0,   '4xx': 20, '5xx': 12 } },
-    { host: 'nginx.homelab.ts.net',     requests: 87,   requests_in: 289400,   responses_out: 5234000,  status_codes: { '2xx': 80,   '3xx': 5,   '4xx': 2,  '5xx': 0  } },
-  ],
-};
+const MOCK_FUNNELS = [];
 
 const MOCK_BACKUPS = [
   { filename: 'tailrelay-full-2026-03-13T10-00-00.tar.gz', size: 48320, timestamp: '2026-03-13T10:00:00Z', metadata: { backup_type: 'full' } },
@@ -61,12 +55,12 @@ const MOCK_BACKUPS = [
 // Logs: /api/logs returns { logs: [...], level: 'INFO' }
 // SSE stream returns text/event-stream with JSON data lines
 const MOCK_LOG_ENTRIES = [
-  { level: 'INFO',  component: 'caddy',     message: 'Proxy started on :443',                               timestamp: new Date(Date.now() - 300000).toISOString() },
-  { level: 'INFO',  component: 'socat',     message: 'Relay started: plex (32400 → 192.168.1.10:32400)',   timestamp: new Date(Date.now() - 240000).toISOString() },
-  { level: 'INFO',  component: 'socat',     message: 'Relay started: jellyfin (8096 → 192.168.1.10:8096)', timestamp: new Date(Date.now() - 180000).toISOString() },
+  { level: 'INFO',  component: 'serve',     message: 'HTTPS relay started: grafana.homelab.ts.net',        timestamp: new Date(Date.now() - 300000).toISOString() },
+  { level: 'INFO',  component: 'serve',     message: 'TCP relay started: plex (32400 → 192.168.1.10:32400)',   timestamp: new Date(Date.now() - 240000).toISOString() },
+  { level: 'INFO',  component: 'serve',     message: 'TCP relay started: jellyfin (8096 → 192.168.1.10:8096)', timestamp: new Date(Date.now() - 180000).toISOString() },
   { level: 'WARN',  component: 'tailscale', message: 'Peer work-laptop went offline',                      timestamp: new Date(Date.now() - 120000).toISOString() },
-  { level: 'ERROR', component: 'caddy',     message: 'Failed to reload config: connection timeout',         timestamp: new Date(Date.now() - 60000).toISOString() },
-  { level: 'INFO',  component: 'caddy',     message: 'Config reloaded successfully',                        timestamp: new Date(Date.now() - 30000).toISOString() },
+  { level: 'ERROR', component: 'serve',     message: 'Failed to reconcile serve config: connection timeout', timestamp: new Date(Date.now() - 60000).toISOString() },
+  { level: 'INFO',  component: 'serve',     message: 'Serve config reconciled successfully',                timestamp: new Date(Date.now() - 30000).toISOString() },
   { level: 'DEBUG', component: 'tailscale', message: 'Polling tailscale status',                            timestamp: new Date().toISOString() },
 ];
 
@@ -82,11 +76,11 @@ const MOCK_TARGETS = [
 async function setupMocks(page, { authenticated = true } = {}) {
   await page.route('**/api/auth/status', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ authenticated, needsSetup: false }) }));
   await page.route('**/api/auth/login',  r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true }) }));
-  await page.route('**/api/socat/relays',      r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(MOCK_RELAYS) }));
-  await page.route('**/api/caddy/proxies',     r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(MOCK_PROXIES) }));
+  await page.route('**/api/serve/tcp/list',    r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(MOCK_RELAYS) }));
+  await page.route('**/api/serve/https/list',  r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(MOCK_PROXIES) }));
+  await page.route('**/api/serve/funnel/list', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(MOCK_FUNNELS) }));
   await page.route('**/api/tailscale/status',  r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(MOCK_TS_STATUS) }));
   await page.route('**/api/tailscale/peers',   r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(MOCK_TS_PEERS) }));
-  await page.route('**/api/caddy/metrics',     r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(MOCK_METRICS) }));
   await page.route('**/api/backup/list',       r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(MOCK_BACKUPS) }));
   // /api/logs returns { logs: [...], level: 'INFO' }
   await page.route('**/api/logs',              r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ logs: MOCK_LOG_ENTRIES, level: 'INFO' }) }));
@@ -132,7 +126,7 @@ const context = await browser.newContext();
 // ════════════════════════════════════════════════════════════════════════════
 // 1. LOGIN PAGE
 // ════════════════════════════════════════════════════════════════════════════
-console.log('\n[1/5] Login page');
+console.log('\n[1/4] Login page');
 {
   const page = await context.newPage();
   await setupMocks(page, { authenticated: false });
@@ -163,7 +157,7 @@ console.log('\n[1/5] Login page');
 // ════════════════════════════════════════════════════════════════════════════
 // 2. DASHBOARD
 // ════════════════════════════════════════════════════════════════════════════
-console.log('\n[2/5] Dashboard');
+console.log('\n[2/4] Dashboard');
 {
   // Desktop
   const page = await context.newPage();
@@ -219,7 +213,7 @@ console.log('\n[2/5] Dashboard');
 // ════════════════════════════════════════════════════════════════════════════
 // 3. TAILSCALE TAB
 // ════════════════════════════════════════════════════════════════════════════
-console.log('\n[3/5] Tailscale tab');
+console.log('\n[3/4] Tailscale tab');
 {
   const page = await context.newPage();
   await setupMocks(page);
@@ -256,36 +250,9 @@ console.log('\n[3/5] Tailscale tab');
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// 4. METRICS TAB
+// 4. BACKUPS TAB
 // ════════════════════════════════════════════════════════════════════════════
-console.log('\n[4/5] Metrics tab');
-{
-  const page = await context.newPage();
-  await setupMocks(page);
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto(BASE, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(800);
-
-  await page.getByRole('button', { name: /metrics/i }).first().click();
-  await page.waitForTimeout(1000); // charts need time to render
-
-  await setTheme(page, 'light');
-  await snap(page, 'metrics-light-desktop');
-
-  await setTheme(page, 'dark');
-  await snap(page, 'metrics-dark-desktop');
-
-  // Full page scroll capture for metrics (taller content)
-  await page.screenshot({ path: resolve(OUT, 'metrics-dark-desktop-full.png'), fullPage: true });
-  console.log('  saved metrics-dark-desktop-full.png');
-
-  await page.close();
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// 5. BACKUPS TAB
-// ════════════════════════════════════════════════════════════════════════════
-console.log('\n[5/5] Backups tab');
+console.log('\n[4/4] Backups tab');
 {
   const page = await context.newPage();
   await setupMocks(page);

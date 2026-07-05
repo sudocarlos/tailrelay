@@ -1,7 +1,7 @@
 {
   "name": "Tailrelay",
   "short_name": "Tailrelay",
-  "description": "Tailscale + Caddy reverse proxy manager",
+  "description": "Tailscale relay manager",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f9fafb",
