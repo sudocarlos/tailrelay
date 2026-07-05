@@ -260,3 +260,110 @@ jobs:
               assignees: ['sudocarlos'],
             });
             core.info(`Created issue #${issue.number}: ${issue.html_url}`);
+
+  vite:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Vite version and open issue if outdated
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const https = require('https');
+            const fs = require('fs');
+
+            function get(url) {
+              return new Promise((resolve, reject) => {
+                https.get(url, (res) => {
+                  let data = '';
+                  res.on('data', chunk => data += chunk);
+                  res.on('end', () => resolve(data));
+                }).on('error', reject);
+              });
+            }
+
+            // 1. Read pinned version from webui/frontend/package.json
+            const pkgPath = 'webui/frontend/package.json';
+            const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+            const pinnedRaw = pkg.devDependencies?.vite;
+            if (!pinnedRaw) { core.setFailed('Could not find vite in devDependencies'); return; }
+            const pinned = pinnedRaw.replace(/^[~^]/, '');
+            core.info(`Pinned Vite version: ${pinned}`);
+
+            // 2. Fetch latest version from npm's latest dist-tag
+            const npmData = await get('https://registry.npmjs.org/vite/latest');
+            const latest = JSON.parse(npmData).version;
+            if (!latest) { core.setFailed('Could not determine latest Vite version from npm'); return; }
+            core.info(`Latest Vite version: ${latest}`);
+
+            if (pinned === latest) { core.info('Vite is up to date.'); return; }
+
+            // 3. Fetch the Vite changelog from GitHub and extract the relevant section
+            const changelogUrl = 'https://raw.githubusercontent.com/vitejs/vite/main/packages/vite/CHANGELOG.md';
+            let changelogSection = '';
+            try {
+              const changelog = await get(changelogUrl);
+              // Find the version in brackets to handle varying heading formats
+              // e.g. "## <small>[8.1.3](https://.../) (2026-07-02)</small>"
+              const searchStr = `[${latest}]`;
+              const idx = changelog.indexOf(searchStr);
+              if (idx !== -1) {
+                // Walk back to the ## heading start
+                const before = changelog.substring(0, idx);
+                const headingStart = before.lastIndexOf('## ');
+                const lineStart = before.lastIndexOf('\n', headingStart) + 1;
+                // Find the next ## heading
+                const after = changelog.substring(lineStart + 1);
+                const nextHeading = after.indexOf('\n## ');
+                const end = nextHeading !== -1 ? lineStart + 1 + nextHeading : undefined;
+                changelogSection = changelog.substring(lineStart, end).trim();
+              }
+            } catch (e) {
+              core.warning(`Could not fetch changelog: ${e.message}`);
+            }
+
+            // 4. Build issue body
+            const bodyLines = [
+              `The \`webui/frontend/package.json\` pins Vite at \`${pinned}\` but the npm \`latest\` tag is \`${latest}\`.`,
+              '',
+              `| Field | Value |`,
+              `|-------|-------|`,
+              `| Pinned | \`${pinned}\` |`,
+              `| Latest | \`${latest}\` |`,
+              `| Source | \`webui/frontend/package.json\` |`,
+              '',
+            ];
+            if (changelogSection) {
+              bodyLines.push('### Changelog', '', changelogSection, '');
+            }
+            bodyLines.push(
+              '### Links',
+              `- [npm](https://www.npmjs.com/package/vite/v/${latest})`,
+              `- [GitHub Releases](https://github.com/vitejs/vite/releases)`,
+              `- [Changelog](https://github.com/vitejs/vite/blob/main/packages/vite/CHANGELOG.md)`,
+            );
+
+            // 5. Check for existing issue (open or closed)
+            const title = `chore: update Vite from ${pinned} to ${latest}`;
+            const { data: existing } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              per_page: 100,
+            });
+            if (existing.some(i => i.title === title)) { core.info('Issue already exists.'); return; }
+
+            // 6. Create the issue
+            const { data: issue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: bodyLines.join('\n'),
+              assignees: ['sudocarlos'],
+            });
+            core.info(`Created issue #${issue.number}: ${issue.html_url}`);
