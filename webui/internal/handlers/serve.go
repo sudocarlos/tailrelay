@@ -76,6 +76,16 @@ func writeServeResult(w http.ResponseWriter, err error, msg string) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+	if errors.Is(err, serve.ErrFunnelNotAllowed) {
+		log.Printf("serve: funnel not allowed, returning 409 Conflict")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"status":  "error",
+			"message": "Tailscale Funnel is not allowed for this device. Add the \"funnel\" node attribute to your tailnet policy file (see https://tailscale.com/kb/1223/funnel), then try again.",
+		})
+		return
+	}
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
@@ -351,6 +361,151 @@ func (h *ServeHandler) ToggleHTTPS(w http.ResponseWriter, r *http.Request) {
 	writeServeResult(w, err, "Proxy toggled successfully")
 }
 
+// ── Funnel relay handlers (/api/serve/funnel/*) ───────────────────────────────
+
+// APIListFunnel returns all funnel relays as JSON.
+func (h *ServeHandler) APIListFunnel(w http.ResponseWriter, _ *http.Request) {
+	relays, err := h.manager.ListRelays()
+	if err != nil {
+		http.Error(w, "Failed to load funnels", http.StatusInternalServerError)
+		return
+	}
+
+	hostname := ""
+	if status, err := h.tsClient.GetStatusSummary(); err == nil {
+		hostname = status.MagicDNSName
+	}
+
+	statusJSON, statusErr := h.manager.Status()
+	if statusErr != nil {
+		log.Printf("serve: status check failed, running state may be inaccurate: %v", statusErr)
+	}
+
+	type relayStatus struct {
+		config.ServeRelay
+		Running bool `json:"running"`
+	}
+
+	out := make([]relayStatus, 0)
+	for _, relay := range relays {
+		if relay.Type != "funnel" {
+			continue
+		}
+		if relay.Hostname == "" {
+			relay.Hostname = hostname
+		}
+
+		out = append(out, relayStatus{ServeRelay: relay, Running: funnelIsRunning(statusJSON, relay.ListenPort)})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+// funnelIsRunning reports whether the given port appears in the AllowFunnel
+// map of `tailscale serve status --json`. AllowFunnel is keyed by
+// "host:port", so we match on the port suffix.
+func funnelIsRunning(status *serve.ServeStatusJSON, port int) bool {
+	if status == nil || status.AllowFunnel == nil {
+		return false
+	}
+	suffix := fmt.Sprintf(":%d", port)
+	for key, allowed := range status.AllowFunnel {
+		if allowed && strings.HasSuffix(key, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+// APIGetFunnel returns one funnel relay.
+func (h *ServeHandler) APIGetFunnel(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		http.Error(w, "Funnel ID is required", http.StatusBadRequest)
+		return
+	}
+	relay, err := h.manager.GetRelay(id)
+	if err != nil || relay.Type != "funnel" {
+		http.Error(w, "Funnel not found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(relay)
+}
+
+// CreateFunnel creates a funnel relay.
+func (h *ServeHandler) CreateFunnel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	relay, err := parseFunnelRelay(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if relay.ID == "" {
+		relay.ID = fmt.Sprintf("funnel-%d", relay.ListenPort)
+	}
+	writeServeResult(w, h.manager.UpsertRelay(relay), "Funnel created successfully")
+}
+
+// UpdateFunnel updates a funnel relay.
+func (h *ServeHandler) UpdateFunnel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	relay, err := parseFunnelRelay(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if relay.ID == "" {
+		http.Error(w, "Funnel ID is required", http.StatusBadRequest)
+		return
+	}
+	writeServeResult(w, h.manager.UpsertRelay(relay), "Funnel updated successfully")
+}
+
+// DeleteFunnel deletes a funnel relay.
+func (h *ServeHandler) DeleteFunnel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete && r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		http.Error(w, "Funnel ID is required", http.StatusBadRequest)
+		return
+	}
+	err := h.manager.DeleteRelay(id)
+	writeServeResult(w, err, "Funnel deleted successfully")
+}
+
+// ToggleFunnel enables/disables a funnel relay.
+func (h *ServeHandler) ToggleFunnel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		ID      string `json:"id"`
+		Enabled bool   `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.ID == "" {
+		http.Error(w, "Funnel ID is required", http.StatusBadRequest)
+		return
+	}
+	err := h.manager.ToggleRelay(req.ID, req.Enabled)
+	writeServeResult(w, err, "Funnel toggled successfully")
+}
+
 // ReloadServe reconciles all enabled relays.
 func (h *ServeHandler) ReloadServe(w http.ResponseWriter, r *http.Request) {
 	writeServeResult(w, h.manager.Reconcile(), "tailscale serve configuration is up to date")
@@ -386,6 +541,23 @@ func parseHTTPSRelay(r *http.Request) (config.ServeRelay, error) {
 	// Accept target as "host:port" string for convenience (backwards compat with UI).
 	if relay.TargetHost == "" && relay.TargetPort == 0 {
 		// Check if there's a "target" string field in the body — handled by caller.
+	}
+	return relay, nil
+}
+
+// parseFunnelRelay decodes a funnel ServeRelay from a JSON request body and
+// validates the required fields shared by both funnel transports.
+func parseFunnelRelay(r *http.Request) (config.ServeRelay, error) {
+	var relay config.ServeRelay
+	if err := json.NewDecoder(r.Body).Decode(&relay); err != nil {
+		return config.ServeRelay{}, fmt.Errorf("invalid request body")
+	}
+	relay.Type = "funnel"
+	if relay.ListenPort == 0 || relay.TargetHost == "" || relay.TargetPort == 0 {
+		return config.ServeRelay{}, fmt.Errorf("listen_port, target_host, and target_port are required")
+	}
+	if !serve.IsFunnelPort(relay.ListenPort) {
+		return config.ServeRelay{}, fmt.Errorf("listen_port must be one of %v", serve.FunnelPorts)
 	}
 	return relay, nil
 }

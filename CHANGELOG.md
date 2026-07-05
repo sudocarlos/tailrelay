@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.3] - 2026-07-05
+
+### Added
+- **Tailscale Funnel support** — expose local services to the public internet on ports `443`, `8443`, or `10000` directly from the dashboard
+  - New **Funnel** dashboard section shows a card for each of the three funnel-eligible ports
+  - Free ports show a placeholder card that opens the configure dialog with the port pre-filled
+  - Ports already used by an existing serve relay show a disabled "in use" card
+  - Configured funnel ports support the same lifecycle actions as serve relays: edit, start/stop, autostart, delete
+  - Supports both HTTPS reverse-proxy and raw TCP funnel transports
+  - New `/api/serve/funnel/{list,get,create,update,delete,toggle}` API endpoints
+
+### Docker
+```
+docker pull sudocarlos/tailrelay:v0.9.3
+```
+
 ## [0.9.2] - 2026-06-20
 
 ### Changed

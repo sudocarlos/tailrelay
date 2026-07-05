@@ -24,6 +24,7 @@ tailrelay provides secure remote access to self-hosted services without exposing
 - **Automatic TLS**: Tailscale Serve terminates TLS for HTTPS relays with automatic MagicDNS hostnames.
 - **HTTPS Relays**: Easily configure HTTPS reverse proxies/relays through the UI.
 - **TCP Relays**: Forward non-HTTP protocols through Tailscale Serve.
+- **Funnel**: Expose a service to the public internet on port `443`, `8443`, or `10000` via Tailscale Funnel.
 - **Backup & Restore**: Save, download, upload, and restore configurations.
 - **Dual Authentication**: Authenticate via Tailscale network identity (peer IP) or secure token.
 - **Multi-Platform**: Multi-arch Docker images built for `amd64` and `arm64`.
@@ -37,6 +38,7 @@ The frontend is a single-page application built with **Svelte 5** (runes mode), 
 - **Dashboard**: Real-time Tailscale status, search filtering, and system health info.
 - **Tailscale Management**: Easily connect, disconnect, or deauthorize the node.
 - **Relay Configuration**: Add, edit, delete, toggle, and auto-reconcile HTTPS and TCP relays.
+- **Funnel Configuration**: Dedicated dashboard section for the three funnel-eligible ports (443, 8443, 10000), showing each as configured, in-use-by-a-relay, or available to configure.
 - **Live Log Viewer**: Streaming container logs (SSE) with live log-level control.
 - **UX Conveniences**: Keyboard shortcuts (`n` for new relay, `r` to refresh, `b` for backups, `l` for logs, `t` for theme), local-storage-persisted dark mode.
 
@@ -435,6 +437,12 @@ The Web UI backend exposes a JSON API on port 8021. All endpoints under `/api/` 
 | `POST` | `/api/serve/tcp/stop` | Yes | `?id=` | Stop TCP relay |
 | `POST` | `/api/serve/tcp/restart` | Yes | `?id=` | Restart TCP relay |
 | `POST` | `/api/serve/tcp/reconcile` | Yes | -- | Reconcile all enabled TCP relays |
+| `GET` | `/api/serve/funnel/list` | Yes | -- | List all funnel relays |
+| `GET` | `/api/serve/funnel/get` | Yes | `?id=` | Get single funnel relay |
+| `POST` | `/api/serve/funnel/create` | Yes | JSON | Create funnel relay (port must be 443, 8443, or 10000) |
+| `POST` | `/api/serve/funnel/update` | Yes | JSON | Update funnel relay (`id` required) |
+| `POST` | `/api/serve/funnel/delete` | Yes | `?id=` | Delete funnel relay |
+| `POST` | `/api/serve/funnel/toggle` | Yes | JSON `{id, enabled}` | Enable/disable funnel relay |
 | `GET` | `/api/backup/list` | Yes | -- | List backups with metadata |
 | `POST` | `/api/backup/create` | Yes | JSON `{backup_type}` | Create backup (`full` or `config-only`) |
 | `POST` | `/api/backup/restore` | Yes | JSON `{filename}` | Restore from backup |
@@ -478,6 +486,30 @@ The Web UI backend exposes a JSON API on port 8021. All endpoints under `/api/` 
 ```
 
 The `GET /api/serve/tcp/list` response wraps each relay in `{"Relay": {...}, "Running": true}`.
+
+### Funnel Relay Object
+
+```json
+{
+  "id": "funnel-10000",
+  "type": "funnel",
+  "funnel_transport": "tcp",
+  "listen_port": 10000,
+  "target_host": "192.168.1.10",
+  "target_port": 22,
+  "target_https": false,
+  "enabled": true,
+  "autostart": true,
+  "running": true
+}
+```
+
+Funnel is only permitted on ports `443`, `8443`, and `10000` — this is a
+hard limitation of Tailscale Funnel. `funnel_transport` selects `https`
+(reverse proxy) or `tcp` (raw TCP forwarder). Using Funnel also requires
+your tailnet's access controls to grant the `funnel` node attribute to
+this device (see [Tailscale Funnel docs](https://tailscale.com/kb/1223/tailscale-funnel)) —
+if it's missing, funnel endpoints return `409 Conflict`.
 
 ### Backup Info Object
 
@@ -545,8 +577,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
 ## Review Status
 
-<!-- reviewed_at: 056aff5 | paths: README.md webui/internal/web/server.go -->
-Last full review completed at commit `056aff5`. To check what has changed since:
+<!-- reviewed_at: ec9e4ac | paths: README.md webui/internal/web/server.go -->
+Last full review completed at commit `ec9e4ac`. To check what has changed since:
 ```bash
-git log --oneline 056aff5..HEAD -- README.md webui/internal/web/server.go
+git log --oneline ec9e4ac..HEAD -- README.md webui/internal/web/server.go
 ```

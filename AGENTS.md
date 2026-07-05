@@ -22,6 +22,7 @@ Detailed component knowledge is organized into Agent Skills at `.agents/skills/`
 | Skill | Path | When to Use |
 |-------|------|-------------|
 | **Tailscale** | `.agents/skills/tailscale/SKILL.md` | VPN daemon, CLI, authentication, MagicDNS, HTTPS certs |
+| **Serve & Funnel** | `.agents/skills/serve/SKILL.md` | `tailscale serve`/`tailscale funnel` relay management, serve_relays.json, reconciliation |
 | **Web UI** | `.agents/skills/webui/SKILL.md` | Go app, handlers, auth, backup, frontend SPA, build |
 | **Docker/CI** | `.agents/skills/docker-ci/SKILL.md` | Dockerfile, Compose, GitHub Actions, testing |
 | **Security Review** | `.agents/skills/security-review/SKILL.md` | CVE scanning, auth review, injection risks, privacy audit |
@@ -110,11 +111,12 @@ curl -sSL http://localhost:8021                   # Web UI
 | Document | `reviewed_at` | Paths Covered |
 |----------|---------------|---------------|
 | `AGENTS.md` | `HEAD` | `AGENTS.md`, `Makefile`, `start.sh` |
+| `.agents/skills/serve/SKILL.md` | `ec9e4ac` | `webui/internal/serve/`, `webui/internal/handlers/serve.go` |
 | `.agents/skills/webui/SKILL.md` | `e01406e` | `webui/`, `Makefile` |
 | `.agents/skills/docker-ci/SKILL.md` | `e01406e` | `Dockerfile`, `.github/workflows/`, `compose-test.yml` |
 | `.agents/skills/tailscale/SKILL.md` | `e01406e` | `webui/internal/tailscale/`, `start.sh` |
-| `webui/README.md` | `b7ce114` | `webui/` |
-| `README.md` | `056aff5` | `README.md`, `webui/internal/web/server.go` |
+| `webui/README.md` | `ec9e4ac` | `webui/` |
+| `README.md` | `ec9e4ac` | `README.md`, `webui/internal/web/server.go` |
 | `.agents/skills/security-review/SKILL.md` | `e01406e` | `webui/internal/auth/`, `webui/internal/handlers/`, `webui/internal/backup/`, `Dockerfile`, `start.sh` |
 | `.agents/skills/testing-cicd/SKILL.md` | `e01406e` | `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml` |
 | `.agents/skills/documentation/SKILL.md` | `056aff5` | `README.md`, `CHANGELOG.md`, `webui/README.md`, `AGENTS.md`, `.agents/skills/` |

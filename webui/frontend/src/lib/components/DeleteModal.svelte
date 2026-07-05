@@ -1,9 +1,18 @@
 <script>
-  import { X, AlertTriangle, Network, ShieldCheck } from '@lucide/svelte';
+  import { X, AlertTriangle, Network, ShieldCheck, Globe } from '@lucide/svelte';
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
 
   let { type = 'relay', id = '', name = '', target = '', onDelete, onClose } = $props();
+
+  const typeLabels = { relay: 'TCP relay', proxy: 'HTTPS relay', funnel: 'Funnel' };
+  const typeLabel = $derived(typeLabels[type] ?? 'relay');
+
+  const deleteEndpoints = {
+    relay: '/api/serve/tcp/delete',
+    proxy: '/api/serve/https/delete',
+    funnel: '/api/serve/funnel/delete',
+  };
 
   // Split the URL into a muted prefix and a bold suffix (port or nothing),
   // mirroring the two-span pattern used in ItemCard.svelte.
@@ -21,12 +30,8 @@
   async function handleDelete() {
     deleting = true;
     try {
-      if (type === 'relay') {
-        await fetchJSON(`/api/serve/tcp/delete?id=${encodeURIComponent(id)}`, { method: 'POST' });
-      } else {
-        await fetchJSON(`/api/serve/https/delete?id=${encodeURIComponent(id)}`, { method: 'POST' });
-      }
-      showToast('success', `${type === 'relay' ? 'TCP relay' : 'HTTPS relay'} deleted successfully`);
+      await fetchJSON(`${deleteEndpoints[type]}?id=${encodeURIComponent(id)}`, { method: 'POST' });
+      showToast('success', `${typeLabel} deleted successfully`);
       onDelete();
     } catch (err) {
       showToast('danger', err.message);
@@ -65,13 +70,15 @@
         <AlertTriangle size={24} class="text-red-500" />
       </div>
       <p class="text-sm text-gray-600 dark:text-gray-400">
-        Are you sure you want to delete this {type === 'relay' ? 'TCP relay' : 'HTTPS relay'}?
+        Are you sure you want to delete this {typeLabel}?
       </p>
       {#if name}
         <div class="mt-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3 text-left">
           <div class="flex items-center gap-2">
             {#if type === 'relay'}
               <Network size={16} class="text-blue-500 flex-shrink-0" />
+            {:else if type === 'funnel'}
+              <Globe size={16} class="text-blue-500 flex-shrink-0" />
             {:else}
               <ShieldCheck size={16} class="text-blue-500 flex-shrink-0" />
             {/if}

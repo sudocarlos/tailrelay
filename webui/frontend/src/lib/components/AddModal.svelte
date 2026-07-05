@@ -5,7 +5,7 @@
   import { showToast } from '../stores/toast.js';
   import Tooltip from './Tooltip.svelte';
 
-  let { type: initType = 'proxy', item: initItem = null, fqdn = '', targets = [], onSave, onClose } = $props();
+  let { type: initType = 'proxy', item: initItem = null, fqdn = '', targets = [], funnelPort = null, onSave, onClose } = $props();
 
   // Build initial form state from props once (modal is mounted fresh each time).
   // Using untrack() to read props without reactive tracking avoids state_referenced_locally warnings.
@@ -14,22 +14,29 @@
     const i = initItem;
     const isEditing = i !== null;
     const isProxy = t === 'proxy';
-    // Derive isHttpsTarget from stored proxy fields:
+    const isFunnel = t === 'funnel';
+    // Derive isHttpsTarget from stored proxy/funnel fields:
     let isHttpsTarget = false;
-    if (i && t === 'proxy') {
-      if (i.tls) isHttpsTarget = true;
+    if (i && (t === 'proxy' || t === 'funnel')) {
+      if (i.tls || i.target_https) isHttpsTarget = true;
     }
     const tp = i && t === 'proxy' ? (i.trusted_proxies ?? false) : false;
     const hh = i && t === 'proxy' ? (i.host_header ?? '') : '';
+    const port = isFunnel ? (isEditing ? i.listen_port : funnelPort) : null;
     return {
       editing: isEditing,
-      // When editing, httpRelay reflects the item type; when adding, always start with HTTP relay on
-      httpRelay: isEditing ? isProxy : true,
-      title: isEditing ? (isProxy ? 'Edit HTTPS Relay' : 'Edit TCP Relay') : 'Add Relay',
+      isFunnel,
+      // When editing, httpRelay reflects the item type/transport; when adding,
+      // always start with HTTP relay (or HTTPS funnel transport) on.
+      httpRelay: isEditing ? (isFunnel ? i.funnel_transport !== 'tcp' : isProxy) : true,
+      title: isFunnel
+        ? (isEditing ? `Edit Funnel — port ${port}` : `Configure Funnel — port ${port}`)
+        : isEditing ? (isProxy ? 'Edit HTTPS Relay' : 'Edit TCP Relay') : 'Add Relay',
       relayId: i && t === 'relay' ? i.id : '',
       proxyId: i && t === 'proxy' ? i.id : '',
+      funnelId: i && t === 'funnel' ? i.id : '',
       // Unified listen port: both now use listen_port
-      listenPort: i ? String(i.listen_port) : '',
+      listenPort: isFunnel ? String(port ?? '') : i ? String(i.listen_port) : '',
       // Unified target: both now use target_host:target_port
       target: i ? `${i.target_host}:${i.target_port}` : '',
       trustedProxies: tp,
@@ -43,12 +50,14 @@
 
   let saving = $state(false);
 
-  // HTTP relay toggle (controls whether HTTP-only fields are shown)
+  // HTTP relay toggle (controls whether HTTP-only fields are shown).
+  // For funnel mode this doubles as the HTTPS/TCP transport toggle.
   let httpRelay = $state(initialState.httpRelay);
 
   // IDs (needed for update calls)
   let relayId = $state(initialState.relayId);
   let proxyId = $state(initialState.proxyId);
+  let funnelId = $state(initialState.funnelId);
 
   // Shared fields
   let preset = $state('');
@@ -64,6 +73,7 @@
   let isHttpsTarget = $state(initialState.isHttpsTarget);
 
   const editing = initialState.editing;
+  const isFunnel = initialState.isFunnel;
   const title = initialState.title;
 
 
@@ -105,6 +115,10 @@
   }
 
   async function handleSave() {
+    if (isFunnel) {
+      await saveFunnel();
+      return;
+    }
     const isHttp = editing ? initialState.httpRelay : httpRelay;
     if (isHttp) {
       await saveProxy();
@@ -193,6 +207,38 @@
 
 
 
+  async function saveFunnel() {
+    const parsed = parseTarget(target);
+    if (!parsed) {
+      showToast('danger', 'Target must be in host:port format');
+      return;
+    }
+
+    const relay = {
+      listen_port: parseInt(listenPort),
+      target_host: parsed.host,
+      target_port: parsed.port,
+      funnel_transport: httpRelay ? 'https' : 'tcp',
+      target_https: isHttpsTarget,
+      autostart,
+      enabled: true,
+    };
+
+    if (funnelId) relay.id = funnelId;
+
+    saving = true;
+    try {
+      const url = funnelId ? '/api/serve/funnel/update' : '/api/serve/funnel/create';
+      await fetchJSON(url, { method: 'POST', body: JSON.stringify(relay) });
+      showToast('success', `Funnel ${funnelId ? 'updated' : 'created'} successfully`);
+      onSave();
+    } catch (err) {
+      showToast('danger', err.message);
+    } finally {
+      saving = false;
+    }
+  }
+
   function handleKeydown(e) {
     if (e.key === 'Escape') {
       onClose();
@@ -222,7 +268,19 @@
     <!-- Body -->
     <div class="px-5 py-4 space-y-4">
 
-      <!-- HTTP relay toggle (only when adding) — shown first -->
+      {#if isFunnel}
+        <div class="flex items-start gap-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
+          <Info size={14} class="mt-0.5 shrink-0" />
+          <span>
+            Funnel exposes this port to the public internet. Your tailnet's
+            access controls must grant the <code>funnel</code> node attribute
+            to this device, or requests will be rejected.
+          </span>
+        </div>
+      {/if}
+
+      <!-- HTTP relay toggle (only when adding) — shown first.
+           For funnel mode this selects the HTTPS/TCP transport. -->
       {#if !editing}
         <div class="flex p-1 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm">
           <button
@@ -242,8 +300,8 @@
         </div>
       {/if}
 
-      <!-- Preset Target (shared) -->
-      {#if targets.length > 0}
+      <!-- Preset Target (shared, not applicable to funnel) -->
+      {#if !isFunnel && targets.length > 0}
         <div>
           <label for="preset-target" class="block text-sm font-medium mb-1">Preset Target</label>
           <select
@@ -260,15 +318,16 @@
         </div>
       {/if}
 
-      <!-- Listen Port (shared) -->
+      <!-- Listen Port (shared; fixed for funnel mode since only 443/8443/10000 are allowed) -->
       <div>
         <label for="listen-port" class="block text-sm font-medium mb-1">Listen Port</label>
         <input
           id="listen-port"
           type="number"
           bind:value={listenPort}
+          disabled={isFunnel}
           placeholder="e.g. 8080"
-          class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60 disabled:cursor-not-allowed"
         />
       </div>
 

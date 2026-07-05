@@ -311,6 +311,118 @@ class TestTCPRelay:
 
 
 # ---------------------------------------------------------------------------
+# Funnel relays
+# ---------------------------------------------------------------------------
+
+
+class TestFunnelRelay:
+    """
+    Create a Funnel relay via the Web UI API and verify it appears in the
+    list. Uses /api/serve/funnel/* endpoints backed by `tailscale funnel`.
+
+    Live public exposure requires the tailnet policy file to grant the
+    `funnel` node attribute, which is outside the container's control, so
+    these tests only assert config persistence and API behavior.
+    """
+
+    FUNNEL_ID = "test-funnel"
+    FUNNEL_PORT = 10000
+
+    def _create_funnel_payload(self, port: int = FUNNEL_PORT) -> str:
+        payload = {
+            "id": self.FUNNEL_ID,
+            "type": "funnel",
+            "funnel_transport": "https",
+            "listen_port": port,
+            "target_host": "whoami-test",
+            "target_port": 80,
+            "enabled": True,
+            "autostart": True,
+        }
+        return json.dumps(payload)
+
+    def test_funnel_relay_create_and_list(self, running_container: str) -> None:
+        token = get_webui_token(running_container)
+
+        payload = self._create_funnel_payload()
+        create_result = container_exec(
+            running_container,
+            f"wget -qO- --timeout=10 --tries=1 "
+            f'--header="Authorization: Bearer {token}" '
+            f'--header="Content-Type: application/json" '
+            f"--post-data='{payload}' "
+            f"{WEBUI_ADDR}/api/serve/funnel/create",
+        )
+        assert create_result.returncode == 0, (
+            f"POST /api/serve/funnel/create failed (exit {create_result.returncode}):\n"
+            f"stdout: {create_result.stdout}\nstderr: {create_result.stderr}"
+        )
+
+        time.sleep(2)
+
+        body = wget_authed_ok(
+            running_container, f"{WEBUI_ADDR}/api/serve/funnel/list", token
+        )
+        data = parse_json_body(body, "/api/serve/funnel/list")
+        ids = [item.get("id") for item in data]
+        assert self.FUNNEL_ID in ids, f"Created funnel {self.FUNNEL_ID} not found in API list"
+
+    def test_funnel_relay_delete_removes_from_list(self, running_container: str) -> None:
+        """Create a funnel, delete it, and verify it no longer appears in the list."""
+        token = get_webui_token(running_container)
+
+        payload = self._create_funnel_payload()
+        container_exec(
+            running_container,
+            f"wget -qO- --timeout=10 --tries=1 "
+            f'--header="Authorization: Bearer {token}" '
+            f'--header="Content-Type: application/json" '
+            f"--post-data='{payload}' "
+            f"{WEBUI_ADDR}/api/serve/funnel/create",
+        )
+        time.sleep(1)
+
+        delete_result = container_exec(
+            running_container,
+            f"wget -qO- --timeout=10 --tries=1 "
+            f'--header="Authorization: Bearer {token}" '
+            f"--post-data='' "
+            f'"{WEBUI_ADDR}/api/serve/funnel/delete?id={self.FUNNEL_ID}"',
+        )
+        assert delete_result.returncode == 0, (
+            f"DELETE /api/serve/funnel/delete failed (exit {delete_result.returncode}):\n"
+            f"stdout: {delete_result.stdout}\nstderr: {delete_result.stderr}"
+        )
+
+        body = wget_authed_ok(
+            running_container, f"{WEBUI_ADDR}/api/serve/funnel/list", token
+        )
+        data = parse_json_body(body, "/api/serve/funnel/list")
+        ids = [item.get("id") for item in data]
+        assert self.FUNNEL_ID not in ids, (
+            f"Deleted funnel {self.FUNNEL_ID} still appears in API list"
+        )
+
+    def test_funnel_relay_rejects_disallowed_port(self, running_container: str) -> None:
+        """Funnel only permits ports 443, 8443, and 10000; other ports must be rejected."""
+        token = get_webui_token(running_container)
+
+        payload = self._create_funnel_payload(port=9999)
+        result = container_exec(
+            running_container,
+            f"wget -qO- --server-response --timeout=10 --tries=1 "
+            f'--header="Authorization: Bearer {token}" '
+            f'--header="Content-Type: application/json" '
+            f"--post-data='{payload}' "
+            f"{WEBUI_ADDR}/api/serve/funnel/create 2>&1",
+        )
+        assert "400" in result.stdout or "400" in result.stderr, (
+            f"Expected 400 Bad Request for disallowed funnel port, got:\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Legacy endpoint shims
 # ---------------------------------------------------------------------------
 

@@ -92,7 +92,7 @@ func NewServer(cfg *config.Config, authToken, version, commit string, distFS, st
 
 // Start starts the HTTP server
 func (s *Server) Start() error {
-	// Initialize tailscale serve relay state asynchronously, 
+	// Initialize tailscale serve relay state asynchronously,
 	// retrying until the tailscaled netMap is fully loaded and ready.
 	go func() {
 		log.Printf("Waiting for tailscale to connect before reconciling relays...")
@@ -105,7 +105,7 @@ func (s *Server) Start() error {
 					log.Printf("Warning: failed to reconcile tailscale serve relays on attempt %d: %v", i+1, err)
 				}
 			}
-			
+
 			if i < 14 {
 				time.Sleep(2 * time.Second)
 			} else {
@@ -261,6 +261,14 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.Handle("/api/serve/tcp/delete", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.DeleteTCP)))
 	mux.Handle("/api/serve/tcp/toggle", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.ToggleTCP)))
 	mux.Handle("/api/serve/reload", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.ReloadServe)))
+
+	// Funnel relay routes (/api/serve/funnel/*)
+	mux.Handle("/api/serve/funnel/list", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.APIListFunnel)))
+	mux.Handle("/api/serve/funnel/get", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.APIGetFunnel)))
+	mux.Handle("/api/serve/funnel/create", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.CreateFunnel)))
+	mux.Handle("/api/serve/funnel/update", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.UpdateFunnel)))
+	mux.Handle("/api/serve/funnel/delete", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.DeleteFunnel)))
+	mux.Handle("/api/serve/funnel/toggle", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.ToggleFunnel)))
 
 	// Backup routes
 	mux.Handle("/backup", s.authMW.RequireAuth(http.HandlerFunc(s.backupH.List)))

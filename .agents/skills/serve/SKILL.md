@@ -1,24 +1,32 @@
 ---
 name: serve-relay-management
-description: tailscale serve relay management — HTTPS and TCP relay types, serve_relays.json format, reconciliation flow, API endpoints, migration from legacy caddy/socat configs, and ErrTailscaleNotReady handling. Use when working with internal/serve/, handlers/serve.go, or /api/serve/* endpoints.
-reviewed_at: e01406e
+description: tailscale serve and funnel relay management — HTTPS, TCP, and Funnel relay types, serve_relays.json format, reconciliation flow, API endpoints, migration from legacy caddy/socat configs, ErrTailscaleNotReady and ErrFunnelNotAllowed handling. Use when working with internal/serve/, handlers/serve.go, or /api/serve/* endpoints.
+reviewed_at: ec9e4ac
 ---
 
 # Serve Relay Management
 
 ## Overview
 
-`internal/serve/` implements relay orchestration backed by `tailscale serve`.
-It replaces the former Caddy (HTTPS) and socat (TCP) relay stacks.
-Relay state is persisted to `serve_relays.json` and reconciled with
-`tailscale serve` on startup and after every mutating operation.
+`internal/serve/` implements relay orchestration backed by `tailscale serve`
+and `tailscale funnel`. It replaces the former Caddy (HTTPS) and socat (TCP)
+relay stacks. Relay state is persisted to `serve_relays.json` and reconciled
+with `tailscale serve`/`tailscale funnel` on startup and after every mutating
+operation.
 
 ## Relay Types
 
-| Type    | Transport        | `tailscale serve` command         |
-|---------|------------------|-----------------------------------|
-| `https` | HTTPS termination | `tailscale serve https:<port> ...` |
-| `tcp`   | Raw TCP forward   | `tailscale serve tcp:<port> tcp://...` |
+| Type     | Transport                        | Command                                    |
+|----------|-----------------------------------|---------------------------------------------|
+| `https`  | HTTPS termination (tailnet-only)  | `tailscale serve https:<port> ...`           |
+| `tcp`    | Raw TCP forward (tailnet-only)    | `tailscale serve tcp:<port> tcp://...`       |
+| `funnel` | Public internet exposure          | `tailscale funnel --https=<port> ...` or `--tcp=<port> ...` |
+
+`funnel` relays additionally set `FunnelTransport` (`"https"` or `"tcp"`,
+defaults to `"https"`) to select which `tailscale funnel` flag is used.
+Funnel is only permitted on ports `443`, `8443`, and `10000`
+(`serve.FunnelPorts`, checked via `serve.IsFunnelPort`) — this is a hard
+limitation of Tailscale Funnel, not a tailrelay choice.
 
 ## `serve_relays.json` Format
 
@@ -47,6 +55,16 @@ Default path: `/var/lib/tailscale/serve_relays.json` (configurable via
       "target_port": 22,
       "enabled": true,
       "autostart": true
+    },
+    {
+      "id": "funnel-10000",
+      "type": "funnel",
+      "funnel_transport": "tcp",
+      "listen_port": 10000,
+      "target_host": "192.168.1.30",
+      "target_port": 22,
+      "enabled": true,
+      "autostart": true
     }
   ]
 }
@@ -57,7 +75,7 @@ Default path: `/var/lib/tailscale/serve_relays.json` (configurable via
 ```go
 type ServeRelay struct {
     ID          string `json:"id"`
-    Type        string `json:"type"`          // "https" or "tcp"
+    Type        string `json:"type"`          // "https", "tcp", or "funnel"
     Hostname    string `json:"hostname,omitempty"`
     ListenPort  int    `json:"listen_port"`
     TargetHost  string `json:"target_host"`
@@ -65,6 +83,8 @@ type ServeRelay struct {
     TargetHTTPS bool   `json:"target_https"`
     Enabled     bool   `json:"enabled"`
     Autostart   bool   `json:"autostart"`
+    // FunnelTransport selects "https" or "tcp" when Type is "funnel".
+    FunnelTransport string `json:"funnel_transport,omitempty"`
 }
 ```
 
@@ -82,6 +102,7 @@ type ServeRelay struct {
 | `ToggleRelay(id string, enabled bool) error` | Enable/disable relay and reconcile |
 | `Reconcile() error` | Reset serve config and reapply all enabled relays |
 | `Status() (*ServeStatusJSON, error)` | Parse `tailscale serve status --json` |
+| `IsFunnelPort(port int) bool` | Whether port is one of `FunnelPorts` (443/8443/10000) |
 
 ### `ErrTailscaleNotReady`
 
@@ -102,21 +123,37 @@ Returned by `DeleteRelay` and `ToggleRelay` when no relay with the given ID
 exists in `serve_relays.json`. Use `errors.Is` to distinguish from
 `ErrTailscaleNotReady` or internal errors.
 
+### `ErrFunnelNotAllowed`
+
+```go
+var ErrFunnelNotAllowed = fmt.Errorf("funnel not allowed")
+```
+
+Returned when `tailscale funnel` refuses to apply a relay because the
+tailnet policy file is missing the `funnel` node attribute for this device
+(see [Funnel node attribute](https://tailscale.com/kb/1223/tailscale-funnel#node-attribute-required)).
+Detected by pattern-matching the CLI error text in `isFunnelNotAllowed`.
+
 **Callers use `errors.Is` via `writeServeResult`:**
 
 ```go
 writeServeResult(w, manager.DeleteRelay(id), "Relay deleted successfully")
-// nil → 200, ErrTailscaleNotReady → 202, ErrRelayNotFound → 404, other → 500
+// nil → 200, ErrTailscaleNotReady → 202, ErrRelayNotFound → 404,
+// ErrFunnelNotAllowed → 409, other → 500
 ```
 
 ### Reconciliation Flow
 
 1. Load `serve_relays.json`
-2. `tailscale serve reset` — clears all serve rules
+2. `tailscale serve reset` — clears all serve **and** funnel rules
 3. For each enabled relay, run:
-   - HTTPS: `tailscale serve https:<port> http://<host>:<port>`
-   - TCP:   `tailscale serve tcp:<port> tcp://<host>:<port>`
+   - HTTPS: `tailscale serve --bg --https <port> http://<host>:<port>`
+   - TCP:   `tailscale serve --bg --tcp <port> tcp://<host>:<port>`
+   - Funnel (https transport): `tailscale funnel --bg --https <port> http://<host>:<port>`
+   - Funnel (tcp transport): `tailscale funnel --bg --tcp <port> tcp://<host>:<port>`
 4. If step 2 returns a not-ready error → return `ErrTailscaleNotReady`
+5. If a funnel relay fails to apply because Funnel isn't allowed for this
+   device → return `ErrFunnelNotAllowed`
 
 Startup reconcile is driven by `server.go` in a background goroutine that
 polls `IsTailscaleReady()` every 2 s (up to 15 attempts).
@@ -139,16 +176,23 @@ polls `IsTailscaleReady()` every 2 s (up to 15 attempts).
 | `POST` | `/api/serve/tcp/update`     | Yes | Update TCP relay (`id` required) |
 | `POST` | `/api/serve/tcp/delete`     | Yes | Delete TCP relay (`?id=`) |
 | `POST` | `/api/serve/tcp/toggle`     | Yes | Enable/disable TCP relay |
+| `GET`  | `/api/serve/funnel/list`    | Yes | List funnel relays with `running` status |
+| `GET`  | `/api/serve/funnel/get`     | Yes | Get single funnel relay (`?id=`) |
+| `POST` | `/api/serve/funnel/create`  | Yes | Create funnel relay (JSON); port must be 443/8443/10000 |
+| `POST` | `/api/serve/funnel/update`  | Yes | Update funnel relay (`id` required) |
+| `POST` | `/api/serve/funnel/delete`  | Yes | Delete funnel relay (`?id=`) |
+| `POST` | `/api/serve/funnel/toggle`  | Yes | Enable/disable funnel relay |
 | `POST` | `/api/serve/reload`         | Yes | Trigger full reconcile |
 
 ### Response Status Codes
 
 | Status | Meaning |
 |--------|---------|
-| `200 OK` | Operation applied to tailscale serve |
+| `200 OK` | Operation applied to tailscale serve/funnel |
 | `202 Accepted` | Config saved; Tailscale not yet ready — will apply on next reconcile |
-| `400 Bad Request` | Missing/invalid fields |
+| `400 Bad Request` | Missing/invalid fields, or funnel port outside 443/8443/10000 |
 | `404 Not Found` | Relay ID not found (delete/toggle) |
+| `409 Conflict` | Funnel not allowed — tailnet policy file lacks the `funnel` node attribute |
 | `500 Internal Server Error` | Unexpected error |
 
 ### Legacy Shims
@@ -161,7 +205,7 @@ These shims are registered before protected routes and do not require auth.
 
 All mutating handlers use the `writeServeResult(w, err, msg)` helper which
 maps `nil` → 200, `ErrTailscaleNotReady` → 202, `ErrRelayNotFound` → 404,
-and other errors → 500.
+`ErrFunnelNotAllowed` → 409, and other errors → 500.
 
 ## Migration from Legacy Configs
 
@@ -174,22 +218,35 @@ automatically by `config.MigrateLegacyRelaysToServe`:
 | `proxies.json` (caddy) | `serve_relays.json` with `type: https` |
 | `RELAY_LIST` env var | `serve_relays.json` with `type: tcp` |
 
+There is no legacy source for `funnel` relays — they are a new relay type.
+
 ## Running Status Detection
 
-TCP/HTTPS relay running state is determined by matching `relay.ListenPort`
-against the port keys in `tailscale serve status --json` → `.TCP`.
-- TCP relay is `running` if `TCP[port].HTTPS == false`
-- HTTPS relay is `running` if `TCP[port].HTTPS == true`
+- TCP/HTTPS relay running state is determined by matching `relay.ListenPort`
+  against the port keys in `tailscale serve status --json` → `.TCP`.
+  - TCP relay is `running` if `TCP[port].HTTPS == false`
+  - HTTPS relay is `running` if `TCP[port].HTTPS == true`
+- Funnel relay running state is determined by matching `relay.ListenPort`
+  against the port suffix of keys in `tailscale serve status --json` →
+  `.AllowFunnel` (keyed `"host:port"`); see `funnelIsRunning` in
+  `handlers/serve.go`.
 
 **Limitation:** this matching is port-based and can be unreliable if ports
-are reused or serve config is edited outside the UI.
+are reused or serve/funnel config is edited outside the UI.
 
 ## Testing
 
 Go unit tests: `webui/internal/serve/manager_test.go`
+- Funnel-specific: `TestManagerUpsertFunnelRelay`,
+  `TestManagerUpsertFunnelRejectsInvalidPort`,
+  `TestManagerUpsertFunnelRejectsInvalidTransport`,
+  `TestFunnelRelaysExcludedFromTypedLists`
 
-Integration tests covering serve relay behaviour:
-- `TestServeRelays.test_tcp_relay_create_and_list`
-- `TestServeRelays.test_tcp_relay_delete_removes_from_list`
+Integration tests covering serve/funnel relay behaviour:
+- `TestTCPRelay.test_tcp_relay_create_and_list`
+- `TestTCPRelay.test_tcp_relay_delete_removes_from_list`
+- `TestFunnelRelay.test_funnel_relay_create_and_list`
+- `TestFunnelRelay.test_funnel_relay_delete_removes_from_list`
+- `TestFunnelRelay.test_funnel_relay_rejects_disallowed_port`
 - `TestLegacyEndpointShims.test_caddy_endpoint_returns_410`
 - `TestLegacyEndpointShims.test_socat_endpoint_returns_410`

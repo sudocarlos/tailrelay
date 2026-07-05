@@ -4,6 +4,8 @@
     filteredItems,
     relays,
     proxies,
+    funnels,
+    usedFunnelPorts,
     tailnetFQDN,
     targets,
     lastUpdated,
@@ -15,6 +17,7 @@
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
   import ItemCard from './ItemCard.svelte';
+  import FunnelSection from './FunnelSection.svelte';
   import AddModal from './AddModal.svelte';
   import DeleteModal from './DeleteModal.svelte';
   import LogConsole from './LogConsole.svelte';
@@ -23,7 +26,34 @@
     HelpCircle,
   } from '@lucide/svelte';
 
+  // Endpoints and item lookups keyed by relay type, shared by the toggle
+  // and autostart handlers below so relay/proxy/funnel share one code path.
+  const TOGGLE_URLS = {
+    relay: '/api/serve/tcp/toggle',
+    proxy: '/api/serve/https/toggle',
+    funnel: '/api/serve/funnel/toggle',
+  };
+  const UPDATE_URLS = {
+    relay: '/api/serve/tcp/update',
+    proxy: '/api/serve/https/update',
+    funnel: '/api/serve/funnel/update',
+  };
+
+  function findItem(type, id) {
+    if (type === 'relay') return get(relays).find((r) => r.relay.id === id)?.relay;
+    if (type === 'proxy') return get(proxies).find((p) => p.id === id);
+    return get(funnels).find((f) => f.id === id);
+  }
+
+  function isItemRunning(type, id) {
+    if (type === 'relay') return get(relays).find((r) => r.relay.id === id)?.running;
+    if (type === 'proxy') return get(proxies).find((p) => p.id === id)?.enabled ?? false;
+    return get(funnels).find((f) => f.id === id)?.enabled ?? false;
+  }
+
   let items = $state([]);
+  let funnelList = $state([]);
+  let usedPorts = $state(new Map());
   let updated = $state('');
   let searchQuery = $state('');
   let fqdn = $state('');
@@ -33,6 +63,7 @@
   let showAddModal = $state(false);
   let editItem = $state(null);
   let editType = $state('relay');
+  let funnelPortToConfigure = $state(null);
 
   let showDeleteModal = $state(false);
   let deleteTarget = $state(null);
@@ -41,6 +72,8 @@
   let togglingId = $state(null);
 
   filteredItems.subscribe((v) => (items = v));
+  funnels.subscribe((v) => (funnelList = v));
+  usedFunnelPorts.subscribe((v) => (usedPorts = v));
   lastUpdated.subscribe((v) => (updated = v));
   tailnetFQDN.subscribe((v) => (fqdn = v));
   targets.subscribe((v) => (targetList = v));
@@ -63,12 +96,21 @@
   function openAdd(type = 'proxy') {
     editItem = null;
     editType = type;
+    funnelPortToConfigure = null;
+    showAddModal = true;
+  }
+
+  function openConfigureFunnel(port) {
+    editItem = null;
+    editType = 'funnel';
+    funnelPortToConfigure = port;
     showAddModal = true;
   }
 
   function openEdit(type, item) {
     editItem = item;
     editType = type;
+    funnelPortToConfigure = null;
     showAddModal = true;
   }
 
@@ -81,27 +123,17 @@
     const key = `${type}:${id}`;
     togglingId = key;
     try {
-      if (type === 'relay') {
-        await fetchJSON('/api/serve/tcp/toggle', {
-          method: 'POST',
-          body: JSON.stringify({ id, enabled: !currentState }),
-        });
-      } else {
-        await fetchJSON('/api/serve/https/toggle', {
-          method: 'POST',
-          body: JSON.stringify({ id, enabled: !currentState }),
-        });
-      }
+      await fetchJSON(TOGGLE_URLS[type], {
+        method: 'POST',
+        body: JSON.stringify({ id, enabled: !currentState }),
+      });
       // Poll until status reflects the expected state (up to ~3 s)
       const expected = !currentState;
       for (let i = 0; i < 6; i++) {
         await refreshData();
-        const list = type === 'relay' ? get(relays) : get(proxies);
-        const entry = type === 'relay'
-          ? list.find((r) => r.relay.id === id)
-          : list.find((p) => p.id === id);
+        const entry = findItem(type, id);
         const actualRunning = type === 'relay'
-          ? entry?.running
+          ? get(relays).find((r) => r.relay.id === id)?.running
           : (entry?.enabled ?? false);
         if (actualRunning === expected) break;
         await new Promise((r) => setTimeout(r, 500));
@@ -115,22 +147,10 @@
 
   async function handleAutostartToggle(type, id, autostart) {
     try {
-      const url = type === 'relay' ? '/api/serve/tcp/update' : '/api/serve/https/update';
-      let currentItem;
-
-      if (type === 'relay') {
-        let relayList;
-        relays.subscribe((v) => (relayList = v))();
-        currentItem = relayList.find((r) => r.relay.id === id)?.relay;
-      } else {
-        let proxyList;
-        proxies.subscribe((v) => (proxyList = v))();
-        currentItem = proxyList.find((p) => p.id === id);
-      }
-
+      const currentItem = findItem(type, id);
       if (!currentItem) throw new Error(`${type} not found`);
 
-      await fetchJSON(url, {
+      await fetchJSON(UPDATE_URLS[type], {
         method: 'POST',
         body: JSON.stringify({ ...currentItem, autostart }),
       });
@@ -143,6 +163,7 @@
   async function handleSaved() {
     showAddModal = false;
     editItem = null;
+    funnelPortToConfigure = null;
     await refreshData();
   }
 
@@ -261,6 +282,19 @@
   {/if}
 </div>
 
+<!-- Funnel -->
+<FunnelSection
+  funnels={funnelList}
+  usedFunnelPorts={usedPorts}
+  {fqdn}
+  {togglingId}
+  onConfigure={openConfigureFunnel}
+  onToggle={(id, running) => handleToggleAction('funnel', id, running)}
+  onAutostart={(id, autostart) => handleAutostartToggle('funnel', id, autostart)}
+  onEdit={(item) => openEdit('funnel', item)}
+  onDelete={(id, name, target) => openDelete('funnel', id, name, target)}
+/>
+
 <!-- Log Console -->
 <LogConsole />
 
@@ -281,8 +315,9 @@
     item={editItem}
     {fqdn}
     targets={targetList}
+    funnelPort={funnelPortToConfigure}
     onSave={handleSaved}
-    onClose={() => { showAddModal = false; editItem = null; }}
+    onClose={() => { showAddModal = false; editItem = null; funnelPortToConfigure = null; }}
   />
 {/if}
 
