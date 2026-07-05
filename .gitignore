@@ -253,7 +253,6 @@ pyrightconfig.json
 package-lock.json
 docker-compose.yml
 compose.yml
-Caddyfile
 tailscale/
 !webui/internal/tailscale/
 webui/webui

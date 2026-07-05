@@ -190,9 +190,7 @@ func (h *TailscaleHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ChangeHostname changes the Tailscale hostname via 'tailscale up --hostname=<name>'
-// and, if a Caddy manager is wired in, updates all proxy hostnames that matched
-// the previous Tailscale FQDN to use the new one.
+// ChangeHostname changes the Tailscale hostname via 'tailscale up --hostname=<name>'.
 func (h *TailscaleHandler) ChangeHostname(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSONError(w, "method not allowed", http.StatusMethodNotAllowed)

@@ -147,7 +147,7 @@ Handles `SIGTERM`/`SIGINT` for graceful shutdown.
 ## Common Pitfalls
 
 1. **File persistence**: Start9 removes files on reboot — mount `/var/lib/tailscale` as a volume
-2. **Hostname matching**: `TS_HOSTNAME` must match everywhere (Tailscale, Caddy, Web UI)
+2. **Hostname matching**: `TS_HOSTNAME` must match everywhere (Tailscale, Web UI)
 3. **Docker network**: Use `--net start9` for Start9 deployments to reach embassy services
 4. **TLS certificates**: Must enable HTTPS in Tailscale Admin Console first
 5. **Port conflicts**: Ensure host ports don't conflict with existing services
