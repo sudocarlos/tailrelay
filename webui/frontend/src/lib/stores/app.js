@@ -4,9 +4,13 @@ import { fetchJSON } from '../api.js';
 // ── Core data stores ──────────────────────────────────────────────
 export const relays = writable([]);
 export const proxies = writable([]);
+export const funnels = writable([]);
 export const tailnetFQDN = writable('');
 export const tailscaleStatus = writable(null);
 export const targets = writable([]);
+
+// ── Funnel-eligible listen ports (see internal/serve.FunnelPorts) ─
+export const FUNNEL_PORTS = [443, 8443, 10000];
 
 // ── Derived: all items for the dashboard ─────────────────────────
 export const filteredItems = derived(
@@ -16,6 +20,27 @@ export const filteredItems = derived(
     $relays.forEach((r) => items.push({ type: 'relay', relay: r.relay, running: r.running }));
     $proxies.forEach((p) => items.push({ type: 'proxy', proxy: p }));
     return items;
+  },
+);
+
+// ── Derived: funnel-eligible ports already occupied by a serve relay ──
+// A funnel port can't be configured while a tcp/https serve relay is
+// already listening on that same port.
+export const usedFunnelPorts = derived(
+  [relays, proxies],
+  ([$relays, $proxies]) => {
+    const used = new Map();
+    $relays.forEach((r) => {
+      if (FUNNEL_PORTS.includes(r.relay.listen_port)) {
+        used.set(r.relay.listen_port, { type: 'relay', id: r.relay.id });
+      }
+    });
+    $proxies.forEach((p) => {
+      if (FUNNEL_PORTS.includes(p.listen_port)) {
+        used.set(p.listen_port, { type: 'proxy', id: p.id });
+      }
+    });
+    return used;
   },
 );
 
@@ -42,13 +67,14 @@ export const needsSetup = writable(false);
 export const lastUpdated = writable('');
 
 /**
- * Fetch all core data (relays, proxies, tailscale status, targets)
+ * Fetch all core data (relays, proxies, funnels, tailscale status, targets)
  * in parallel and update stores.
  */
 export async function refreshData() {
-  const [relayData, proxyData, status, targetData] = await Promise.all([
+  const [relayData, proxyData, funnelData, status, targetData] = await Promise.all([
     fetchJSON('/api/serve/tcp/list'),
     fetchJSON('/api/serve/https/list'),
+    fetchJSON('/api/serve/funnel/list'),
     fetchJSON('/api/tailscale/status'),
     fetchJSON('/api/targets'),
   ]);
@@ -64,6 +90,13 @@ export async function refreshData() {
     proxyData.map((p) => ({
       ...p,
       running: p.running ?? p.Running,
+    })),
+  );
+
+  funnels.set(
+    funnelData.map((f) => ({
+      ...f,
+      running: f.running ?? f.Running,
     })),
   );
 
