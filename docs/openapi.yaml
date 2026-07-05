@@ -1,0 +1,1424 @@
+openapi: 3.1.0
+info:
+  title: tailrelay Web UI API
+  version: 0.9.3
+  description: |
+    HTTP/JSON API served by the tailrelay Go Web UI on port `8021`. It manages
+    Tailscale connectivity and `tailscale serve` / `tailscale funnel` relays,
+    plus configuration backups and container logs.
+
+    This document is generated from the actual route registration in
+    `webui/internal/web/server.go` and the handler implementations under
+    `webui/internal/handlers/`. Where the code and the README diverge, this
+    spec follows the code.
+
+    ## Authentication
+    Every `/api/*` route except the public ones (`GET /api/info`,
+    `GET /api/auth/status`, `POST /api/auth/setup`, `POST /api/auth/login`)
+    requires authentication. `RequireAuth` accepts **either**:
+
+    - a **Bearer token** — `Authorization: Bearer <token>` matching the static
+      token written to `/var/lib/tailscale/.webui_token` on first start; or
+    - a **session cookie** — `tailrelay_session` (HttpOnly, SameSite=Strict,
+      `Secure` when served over TLS, 24h expiry). The cookie is set by
+      `POST /api/auth/setup`, `POST /api/auth/login`, and by
+      `GET /api/tailscale/poll` once the node is connected.
+
+    On failure, `/api/*` paths return `401` with a JSON body
+    `{"error":"unauthorized"}`; non-API paths receive a `303` redirect to
+    `/login`.
+
+    ## Error response shapes
+    Error bodies are **not** uniform:
+
+    - Serve handlers use JSON `{"status":"success"|"pending"|"error","message":...}`
+      for success (`200`), tailscale-not-ready (`202`), and funnel-not-allowed
+      (`409`).
+    - Most other errors are emitted via Go's `http.Error`, producing a
+      **plain-text** body (`text/plain`) with the status code — not JSON.
+    - The auth middleware `401` is JSON `{"error":"unauthorized"}`.
+
+    Individual operations document their concrete responses below.
+
+    ## Legacy endpoints (removed)
+    `/api/caddy/*` and `/api/socat/*` are retained only as `410 Gone` shims and
+    are intentionally omitted from this spec.
+  license:
+    name: BSD-3-Clause
+    url: https://github.com/sudocarlos/tailrelay/blob/main/LICENSE
+  contact:
+    name: tailrelay
+    url: https://github.com/sudocarlos/tailrelay
+
+servers:
+  - url: http://localhost:8021
+    description: Local access
+  - url: https://{hostname}.{tailnet}.ts.net:8021
+    description: Tailscale MagicDNS access (once connected and HTTPS is enabled)
+    variables:
+      hostname:
+        default: myserver
+        description: Tailscale machine name (TS_HOSTNAME)
+      tailnet:
+        default: example
+        description: Your tailnet name
+
+tags:
+  - name: Info
+    description: Build metadata (public)
+  - name: Auth
+    description: First-run setup, password login, session management
+  - name: Status
+    description: Aggregate system status and configured targets
+  - name: Tailscale
+    description: Tailscale daemon control and status
+  - name: Serve HTTPS
+    description: HTTPS relays via `tailscale serve`
+  - name: Serve TCP
+    description: TCP relays via `tailscale serve`
+  - name: Serve Funnel
+    description: Public relays via `tailscale funnel` (ports 443, 8443, 10000)
+  - name: Serve
+    description: Cross-cutting serve operations
+  - name: Backup
+    description: Configuration backup create/restore/manage
+  - name: Logs
+    description: Container log history, live stream, and level control
+
+security:
+  - bearerToken: []
+  - sessionCookie: []
+
+paths:
+  # ── Info ────────────────────────────────────────────────────────────────
+  /api/info:
+    get:
+      tags: [Info]
+      summary: Build metadata
+      description: Returns version and commit of the running binary. Public.
+      security: []
+      responses:
+        "200":
+          description: Build metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InfoResponse"
+
+  # ── Auth ────────────────────────────────────────────────────────────────
+  /api/auth/status:
+    get:
+      tags: [Auth]
+      summary: Setup / authentication status
+      description: Whether first-run setup is needed and whether the caller has a valid session. Public.
+      security: []
+      responses:
+        "200":
+          description: Auth status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthStatus"
+
+  /api/auth/setup:
+    post:
+      tags: [Auth]
+      summary: First-run admin password setup
+      description: Creates the initial admin password (bcrypt) and sets a session cookie. Fails if setup was already completed. Public.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordRequest"
+      responses:
+        "200":
+          description: Setup complete; session cookie set
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+              description: "tailrelay_session=...; HttpOnly; SameSite=Strict"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlag"
+        "400": { $ref: "#/components/responses/PlainTextError" }
+        "403":
+          description: Setup already completed (plain text)
+        "500": { $ref: "#/components/responses/PlainTextError" }
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Password login
+      description: Validates the admin password and sets a session cookie. Public.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordRequest"
+      responses:
+        "200":
+          description: Login succeeded; session cookie set
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlag"
+        "400": { $ref: "#/components/responses/PlainTextError" }
+        "401":
+          description: Invalid password (plain text)
+        "403":
+          description: System needs setup first (plain text)
+        "500": { $ref: "#/components/responses/PlainTextError" }
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Log out
+      description: Clears the session cookie.
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlag"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change admin password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlag"
+        "400": { $ref: "#/components/responses/PlainTextError" }
+        "401":
+          description: Current password incorrect, or unauthorized
+        "403":
+          description: System needs setup first (plain text)
+        "500": { $ref: "#/components/responses/PlainTextError" }
+
+  # ── Status ──────────────────────────────────────────────────────────────
+  /api/status:
+    get:
+      tags: [Status]
+      summary: Aggregate system status
+      responses:
+        "200":
+          description: System status snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemStatus"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/targets:
+    get:
+      tags: [Status]
+      summary: List configured targets
+      description: Returns the raw contents of `targets.json`. Returns `[]` if the file is missing or unparseable.
+      responses:
+        "200":
+          description: Targets array (opaque objects)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405":
+          description: Method not allowed (plain text)
+
+  # ── Tailscale ───────────────────────────────────────────────────────────
+  /api/tailscale/login:
+    post:
+      tags: [Tailscale]
+      summary: Begin interactive Tailscale login
+      description: Starts an interactive login and returns the auth URL to visit.
+      responses:
+        "200":
+          description: Auth URL returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TailscaleLoginResult"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+        "500": { $ref: "#/components/responses/TailscaleError" }
+
+  /api/tailscale/login-with-key:
+    post:
+      tags: [Tailscale]
+      summary: Non-interactive login with a pre-shared auth key
+      description: Authenticates using a `tskey-` auth key, then asynchronously reconciles relays.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthKeyRequest"
+      responses:
+        "200":
+          description: Authenticated and connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TailscaleMessage"
+        "400": { $ref: "#/components/responses/TailscaleError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+        "500": { $ref: "#/components/responses/TailscaleError" }
+
+  /api/tailscale/logout:
+    post:
+      tags: [Tailscale]
+      summary: Deauthorize (log out) the node
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TailscaleMessage"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+        "500": { $ref: "#/components/responses/TailscaleError" }
+
+  /api/tailscale/connect:
+    post:
+      tags: [Tailscale]
+      summary: Bring Tailscale up
+      description: Runs `tailscale up`, then asynchronously reconciles relays.
+      responses:
+        "200":
+          description: Connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TailscaleMessage"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+        "500": { $ref: "#/components/responses/TailscaleError" }
+
+  /api/tailscale/disconnect:
+    post:
+      tags: [Tailscale]
+      summary: Bring Tailscale down
+      description: Runs `tailscale down`.
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TailscaleMessage"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+        "500": { $ref: "#/components/responses/TailscaleError" }
+
+  /api/tailscale/hostname:
+    post:
+      tags: [Tailscale]
+      summary: Change the Tailscale hostname
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HostnameRequest"
+      responses:
+        "200":
+          description: Hostname changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TailscaleMessage"
+        "400": { $ref: "#/components/responses/TailscaleError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+        "500": { $ref: "#/components/responses/TailscaleError" }
+
+  /api/tailscale/status:
+    get:
+      tags: [Tailscale]
+      summary: Tailscale status summary
+      description: |
+        Returns a `StatusSummary`. On daemon error the handler still responds
+        `200` with a degraded object (`Connected:false`, `BackendState:"Unknown"`).
+        Note: the Go struct has no JSON tags, so field names are capitalized.
+      responses:
+        "200":
+          description: Status summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusSummary"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/tailscale/peers:
+    get:
+      tags: [Tailscale]
+      summary: List Tailscale peers
+      description: "Note: the `PeerInfo` struct has no JSON tags, so field names are capitalized."
+      responses:
+        "200":
+          description: Peer list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PeerInfo"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/TailscaleError" }
+
+  /api/tailscale/poll:
+    get:
+      tags: [Tailscale]
+      summary: Poll connection state
+      description: Reports whether the node is connected. When connected, sets the `tailrelay_session` cookie.
+      responses:
+        "200":
+          description: Connection state
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+              description: Set only when connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PollResult"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/TailscaleError" }
+
+  # ── Serve HTTPS ───────────────────────────────────────────────────────────
+  /api/serve/https/list:
+    get:
+      tags: [Serve HTTPS]
+      summary: List HTTPS relays
+      responses:
+        "200":
+          description: HTTPS relays with running state
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServeRelayWithRunning"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500":
+          description: Failed to load proxies (plain text)
+
+  /api/serve/https/get:
+    get:
+      tags: [Serve HTTPS]
+      summary: Get one HTTPS relay
+      parameters:
+        - $ref: "#/components/parameters/RelayId"
+      responses:
+        "200":
+          description: The relay
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServeRelay"
+        "400":
+          description: Missing id (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: Not found or not an HTTPS relay (plain text)
+
+  /api/serve/https/create:
+    post:
+      tags: [Serve HTTPS]
+      summary: Create an HTTPS relay
+      description: Accepts either a JSON `ServeRelay` body or `multipart/form-data`. Type is forced to `https`; ID defaults to `https-<listen_port>`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServeRelay"
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/HTTPSRelayForm"
+      responses:
+        "200": { $ref: "#/components/responses/ServeSuccess" }
+        "202": { $ref: "#/components/responses/ServePending" }
+        "400":
+          description: Invalid body (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/PlainTextError" }
+
+  /api/serve/https/update:
+    post: &httpsUpdate
+      tags: [Serve HTTPS]
+      summary: Update an HTTPS relay
+      description: JSON or multipart; `id` is required. Accepts POST or PUT.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServeRelay"
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/HTTPSRelayForm"
+      responses:
+        "200": { $ref: "#/components/responses/ServeSuccess" }
+        "202": { $ref: "#/components/responses/ServePending" }
+        "400":
+          description: Invalid body or missing id (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+        "500": { $ref: "#/components/responses/PlainTextError" }
+    put: *httpsUpdate
+
+  /api/serve/https/delete:
+    post: &httpsDelete
+      tags: [Serve HTTPS]
+      summary: Delete an HTTPS relay
+      description: Accepts POST or DELETE.
+      parameters:
+        - $ref: "#/components/parameters/RelayId"
+      responses:
+        "200": { $ref: "#/components/responses/ServeSuccess" }
+        "400":
+          description: Missing id (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/ServeNotFound" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+    delete: *httpsDelete
+
+  /api/serve/https/toggle:
+    post:
+      tags: [Serve HTTPS]
+      summary: Enable/disable an HTTPS relay
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ToggleRequest"
+      responses:
+        "200": { $ref: "#/components/responses/ServeSuccess" }
+        "400":
+          description: Invalid body or missing id (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/ServeNotFound" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+
+  # ── Serve TCP ─────────────────────────────────────────────────────────────
+  /api/serve/tcp/list:
+    get:
+      tags: [Serve TCP]
+      summary: List TCP relays
+      description: "Unlike HTTPS/funnel lists, each item wraps the relay: `{relay, running}`."
+      responses:
+        "200":
+          description: TCP relays with running state
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TCPRelayStatus"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500":
+          description: Failed to load relays (plain text)
+
+  /api/serve/tcp/get:
+    get:
+      tags: [Serve TCP]
+      summary: Get one TCP relay
+      parameters:
+        - $ref: "#/components/parameters/RelayId"
+      responses:
+        "200":
+          description: The relay
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServeRelay"
+        "400":
+          description: Missing id (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: Not found or not a TCP relay (plain text)
+
+  /api/serve/tcp/create:
+    post:
+      tags: [Serve TCP]
+      summary: Create a TCP relay
+      description: JSON `ServeRelay`. Requires `listen_port`, `target_host`, `target_port`. Type forced to `tcp`; ID defaults to `tcp-<listen_port>`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServeRelay"
+      responses:
+        "200": { $ref: "#/components/responses/ServeSuccess" }
+        "202": { $ref: "#/components/responses/ServePending" }
+        "400":
+          description: Invalid body or missing required fields (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+        "500": { $ref: "#/components/responses/PlainTextError" }
+
+  /api/serve/tcp/update:
+    post: &tcpUpdate
+      tags: [Serve TCP]
+      summary: Update a TCP relay
+      description: JSON `ServeRelay`; `id` required. Accepts POST or PUT.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServeRelay"
+      responses:
+        "200": { $ref: "#/components/responses/ServeSuccess" }
+        "202": { $ref: "#/components/responses/ServePending" }
+        "400":
+          description: Invalid body or missing id (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+        "500": { $ref: "#/components/responses/PlainTextError" }
+    put: *tcpUpdate
+
+  /api/serve/tcp/delete:
+    post: &tcpDelete
+      tags: [Serve TCP]
+      summary: Delete a TCP relay
+      description: Accepts POST or DELETE.
+      parameters:
+        - $ref: "#/components/parameters/RelayId"
+      responses:
+        "200": { $ref: "#/components/responses/ServeSuccess" }
+        "400":
+          description: Missing id (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/ServeNotFound" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+    delete: *tcpDelete
+
+  /api/serve/tcp/toggle:
+    post:
+      tags: [Serve TCP]
+      summary: Enable/disable a TCP relay
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ToggleRequest"
+      responses:
+        "200": { $ref: "#/components/responses/ServeSuccess" }
+        "400":
+          description: Invalid body or missing id (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/ServeNotFound" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+
+  /api/serve/reload:
+    post:
+      tags: [Serve]
+      summary: Reconcile all enabled relays
+      description: |
+        Reconciles the live `tailscale serve` configuration against all enabled
+        relays. This is the only reconcile endpoint; the per-type `/reconcile`,
+        `/start`, `/stop`, `/restart` endpoints described in older docs do not
+        exist.
+      responses:
+        "200":
+          description: Serve configuration up to date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServeResult"
+        "202": { $ref: "#/components/responses/ServePending" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/FunnelNotAllowed" }
+        "500": { $ref: "#/components/responses/PlainTextError" }
+
+  # ── Serve Funnel ──────────────────────────────────────────────────────────
+  /api/serve/funnel/list:
+    get:
+      tags: [Serve Funnel]
+      summary: List funnel relays
+      responses:
+        "200":
+          description: Funnel relays with running state
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServeRelayWithRunning"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/PlainTextError" }
+
+  /api/serve/funnel/get:
+    get:
+      tags: [Serve Funnel]
+      summary: Get one funnel relay
+      parameters:
+        - $ref: "#/components/parameters/RelayId"
+      responses:
+        "200":
+          description: The relay
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServeRelay"
+        "400":
+          description: Missing id (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: Not found or not a funnel relay (plain text)
+
+  /api/serve/funnel/create:
+    post:
+      tags: [Serve Funnel]
+      summary: Create a funnel relay
+      description: |
+        JSON `ServeRelay`. `listen_port` must be a funnel-eligible port
+        (443, 8443, or 10000). `funnel_transport` selects `https` or `tcp`.
+        Type forced to `funnel`; ID defaults to `funnel-<listen_port>`.
+        Requires the tailnet `funnel` node attribute, else `409`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServeRelay"
+      responses:
+        "200": { $ref: "#/components/responses/ServeSuccess" }
+        "202": { $ref: "#/components/responses/ServePending" }
+        "400":
+          description: Invalid body, invalid port, or missing fields (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+        "409": { $ref: "#/components/responses/FunnelNotAllowed" }
+        "500": { $ref: "#/components/responses/PlainTextError" }
+
+  /api/serve/funnel/update:
+    post: &funnelUpdate
+      tags: [Serve Funnel]
+      summary: Update a funnel relay
+      description: JSON `ServeRelay`; `id` required. Accepts POST or PUT.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServeRelay"
+      responses:
+        "200": { $ref: "#/components/responses/ServeSuccess" }
+        "202": { $ref: "#/components/responses/ServePending" }
+        "400":
+          description: Invalid body or missing id (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+        "409": { $ref: "#/components/responses/FunnelNotAllowed" }
+        "500": { $ref: "#/components/responses/PlainTextError" }
+    put: *funnelUpdate
+
+  /api/serve/funnel/delete:
+    post: &funnelDelete
+      tags: [Serve Funnel]
+      summary: Delete a funnel relay
+      description: Accepts POST or DELETE.
+      parameters:
+        - $ref: "#/components/parameters/RelayId"
+      responses:
+        "200": { $ref: "#/components/responses/ServeSuccess" }
+        "400":
+          description: Missing id (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/ServeNotFound" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+    delete: *funnelDelete
+
+  /api/serve/funnel/toggle:
+    post:
+      tags: [Serve Funnel]
+      summary: Enable/disable a funnel relay
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ToggleRequest"
+      responses:
+        "200": { $ref: "#/components/responses/ServeSuccess" }
+        "400":
+          description: Invalid body or missing id (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/ServeNotFound" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+        "409": { $ref: "#/components/responses/FunnelNotAllowed" }
+
+  # ── Backup ────────────────────────────────────────────────────────────────
+  /api/backup/list:
+    get:
+      tags: [Backup]
+      summary: List backups
+      responses:
+        "200":
+          description: Backups with metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BackupInfo"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/PlainTextError" }
+
+  /api/backup/create:
+    post:
+      tags: [Backup]
+      summary: Create a backup
+      description: "`backup_type` defaults to `full` if absent/empty."
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BackupCreateRequest"
+      responses:
+        "200":
+          description: Backup created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupCreateResult"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405":
+          description: Method not allowed (plain text)
+        "500": { $ref: "#/components/responses/PlainTextError" }
+
+  /api/backup/restore:
+    post:
+      tags: [Backup]
+      summary: Restore from a backup
+      description: Restores the named backup, then reconciles serve.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BackupFilenameRequest"
+      responses:
+        "200":
+          description: Restored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServeResult"
+        "400":
+          description: Invalid body or missing filename (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405":
+          description: Method not allowed (plain text)
+        "500": { $ref: "#/components/responses/PlainTextError" }
+
+  /api/backup/delete:
+    post: &backupDelete
+      tags: [Backup]
+      summary: Delete a backup
+      description: Accepts POST or DELETE.
+      parameters:
+        - $ref: "#/components/parameters/Filename"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServeResult"
+        "400":
+          description: Missing filename (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405":
+          description: Method not allowed (plain text)
+        "500": { $ref: "#/components/responses/PlainTextError" }
+    delete: *backupDelete
+
+  /api/backup/rename:
+    post:
+      tags: [Backup]
+      summary: Rename a backup
+      description: "`.tar.gz` is appended to the new name if missing."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BackupRenameRequest"
+      responses:
+        "200":
+          description: Renamed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServeResult"
+        "400":
+          description: Invalid body or missing fields (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405":
+          description: Method not allowed (plain text)
+        "500": { $ref: "#/components/responses/PlainTextError" }
+
+  /api/backup/download:
+    get:
+      tags: [Backup]
+      summary: Download a backup
+      description: Path-traversal-guarded. Streams the `.tar.gz` archive.
+      parameters:
+        - $ref: "#/components/parameters/Filename"
+      responses:
+        "200":
+          description: Backup archive
+          content:
+            application/gzip:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+              description: attachment; filename=...
+        "400":
+          description: Missing or invalid filename (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: Not found (plain text)
+        "500": { $ref: "#/components/responses/PlainTextError" }
+
+  /api/backup/upload:
+    post:
+      tags: [Backup]
+      summary: Upload a backup
+      description: "multipart/form-data, file field `backup`, max 32 MB. Filename must end in `.tar.gz`."
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/BackupUploadForm"
+      responses:
+        "200":
+          description: Uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupUploadResult"
+        "400":
+          description: Parse error, missing file, or bad type (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405":
+          description: Method not allowed (plain text)
+        "500": { $ref: "#/components/responses/PlainTextError" }
+
+  # ── Logs ──────────────────────────────────────────────────────────────────
+  /api/logs:
+    get:
+      tags: [Logs]
+      summary: Historical logs and current level
+      responses:
+        "200":
+          description: Log entries and level
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogsResponse"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/logs/stream:
+    get:
+      tags: [Logs]
+      summary: Live log stream (SSE)
+      description: |
+        Server-Sent Events stream (`text/event-stream`). Emits
+        `data: {"connected": true}` first, then one `data: <LogEntry JSON>`
+        per log event.
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500":
+          description: Streaming unsupported (plain text)
+
+  /api/logs/level:
+    get:
+      tags: [Logs]
+      summary: Get current log level
+      responses:
+        "200":
+          description: Current level
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogLevelResponse"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [Logs]
+      summary: Set log level
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogLevelRequest"
+      responses:
+        "200":
+          description: Level updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogLevelSetResult"
+        "400":
+          description: Invalid body or level (plain text)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405":
+          description: Method not allowed (plain text)
+
+components:
+  securitySchemes:
+    bearerToken:
+      type: http
+      scheme: bearer
+      description: Static token from `/var/lib/tailscale/.webui_token`.
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: tailrelay_session
+      description: Session cookie set after setup/login or successful Tailscale poll.
+
+  parameters:
+    RelayId:
+      name: id
+      in: query
+      required: true
+      schema: { type: string }
+      description: Relay identifier
+    Filename:
+      name: filename
+      in: query
+      required: true
+      schema: { type: string }
+      description: Backup filename (`*.tar.gz`)
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AuthError"
+    PlainTextError:
+      description: Error (plain-text body via http.Error)
+      content:
+        text/plain:
+          schema: { type: string }
+    ServeSuccess:
+      description: Operation succeeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ServeResult"
+    ServePending:
+      description: Tailscale not yet ready; relay config saved and applied when connected
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ServePendingResult"
+    ServeNotFound:
+      description: Relay not found
+      content:
+        text/plain:
+          schema: { type: string }
+    ServeMethodError:
+      description: Method not allowed (plain text)
+      content:
+        text/plain:
+          schema: { type: string }
+    FunnelNotAllowed:
+      description: Tailscale Funnel not permitted for this device (missing `funnel` node attribute)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ServeErrorResult"
+    TailscaleError:
+      description: Tailscale operation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/TailscaleError"
+
+  schemas:
+    InfoResponse:
+      type: object
+      properties:
+        version: { type: string }
+        commit: { type: string }
+      required: [version, commit]
+
+    AuthStatus:
+      type: object
+      properties:
+        needsSetup: { type: boolean }
+        authenticated: { type: boolean }
+      required: [needsSetup, authenticated]
+
+    PasswordRequest:
+      type: object
+      properties:
+        password: { type: string }
+      required: [password]
+
+    ChangePasswordRequest:
+      type: object
+      properties:
+        currentPassword: { type: string }
+        newPassword: { type: string }
+      required: [currentPassword, newPassword]
+
+    SuccessFlag:
+      type: object
+      properties:
+        success: { type: boolean }
+      required: [success]
+
+    AuthError:
+      type: object
+      properties:
+        error:
+          type: string
+          examples: ["unauthorized"]
+      required: [error]
+
+    SystemStatus:
+      type: object
+      description: Aggregate status from DashboardHandler.APIStatus.
+      properties:
+        timestamp: { type: string, format: date-time }
+        version:
+          type: string
+          description: Hardcoded server-reported version string.
+        services:
+          type: object
+          properties:
+            webui:
+              type: string
+              examples: ["running"]
+            tailscale:
+              type: object
+              properties:
+                connected: { type: boolean }
+                state: { type: string, examples: ["Running"] }
+            serve:
+              type: object
+              properties:
+                https_relays: { type: integer }
+                tcp_relays: { type: integer }
+
+    TailscaleLoginResult:
+      type: object
+      properties:
+        status: { type: string, examples: ["success"] }
+        auth_url: { type: string, format: uri }
+        message: { type: string }
+
+    TailscaleMessage:
+      type: object
+      properties:
+        status: { type: string, examples: ["success"] }
+        message: { type: string }
+
+    TailscaleError:
+      type: object
+      properties:
+        status: { type: string, examples: ["error"] }
+        message: { type: string }
+      required: [status, message]
+
+    AuthKeyRequest:
+      type: object
+      properties:
+        auth_key:
+          type: string
+          description: Must be non-empty and start with `tskey-`.
+      required: [auth_key]
+
+    HostnameRequest:
+      type: object
+      properties:
+        hostname: { type: string }
+      required: [hostname]
+
+    PollResult:
+      type: object
+      properties:
+        connected: { type: boolean }
+        timestamp:
+          type: integer
+          format: int64
+          description: Unix timestamp (seconds).
+      required: [connected, timestamp]
+
+    StatusSummary:
+      type: object
+      description: |
+        The Go struct has no JSON tags, so keys are the capitalized Go field
+        names.
+      properties:
+        Connected: { type: boolean }
+        BackendState: { type: string, examples: ["Running"] }
+        Hostname: { type: string }
+        MagicDNSName: { type: string }
+        IPv4: { type: string }
+        IPv6: { type: string }
+        TailnetName: { type: string }
+        Version: { type: string }
+        PeerCount: { type: integer }
+        ActivePeers: { type: integer }
+        Health:
+          type: array
+          items: { type: string }
+        LastCheck: { type: string, format: date-time }
+
+    PeerInfo:
+      type: object
+      description: The Go struct has no JSON tags, so keys are capitalized Go field names.
+      properties:
+        Hostname: { type: string }
+        DNSName: { type: string }
+        OS: { type: string }
+        IPv4: { type: string }
+        IPv6: { type: string }
+        TailscaleIPs:
+          type: array
+          items: { type: string }
+        UserEmail: { type: string }
+        Active: { type: boolean }
+        Online: { type: boolean }
+        LastSeen: { type: string, format: date-time }
+        Relay: { type: string }
+        ExitNode: { type: boolean }
+
+    ServeRelay:
+      type: object
+      description: A relay backed by `tailscale serve` or `tailscale funnel`.
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          enum: [https, tcp, funnel]
+        hostname:
+          type: string
+          description: Omitted when empty; defaults to the MagicDNS name in list responses.
+        listen_port: { type: integer }
+        target_host: { type: string }
+        target_port: { type: integer }
+        target_https: { type: boolean }
+        enabled: { type: boolean }
+        autostart: { type: boolean }
+        funnel_transport:
+          type: string
+          enum: [https, tcp]
+          description: Only meaningful when `type` is `funnel`.
+      required: [id, type, listen_port, target_host, target_port, target_https, enabled, autostart]
+
+    ServeRelayWithRunning:
+      description: A ServeRelay with an added `running` flag (HTTPS and funnel lists).
+      allOf:
+        - $ref: "#/components/schemas/ServeRelay"
+        - type: object
+          properties:
+            running: { type: boolean }
+          required: [running]
+
+    TCPRelayStatus:
+      type: object
+      description: TCP list wrapper shape.
+      properties:
+        relay:
+          $ref: "#/components/schemas/ServeRelay"
+        running: { type: boolean }
+      required: [relay, running]
+
+    HTTPSRelayForm:
+      type: object
+      description: Multipart form accepted by HTTPS create/update.
+      properties:
+        id: { type: string }
+        hostname: { type: string }
+        port:
+          type: string
+          description: Listen port.
+        target:
+          type: string
+          description: Target as `host:port`.
+        tls:
+          type: string
+          description: Bool-ish (true/1/on/yes).
+        enabled:
+          type: string
+          description: Bool-ish (true/1/on/yes).
+        autostart:
+          type: string
+          description: Bool-ish (true/1/on/yes).
+
+    ToggleRequest:
+      type: object
+      properties:
+        id: { type: string }
+        enabled: { type: boolean }
+      required: [id, enabled]
+
+    ServeResult:
+      type: object
+      properties:
+        status: { type: string, examples: ["success"] }
+        message: { type: string }
+      required: [status, message]
+
+    ServePendingResult:
+      type: object
+      properties:
+        status: { type: string, examples: ["pending"] }
+        message: { type: string }
+      required: [status, message]
+
+    ServeErrorResult:
+      type: object
+      properties:
+        status: { type: string, examples: ["error"] }
+        message: { type: string }
+      required: [status, message]
+
+    BackupMetadata:
+      type: object
+      properties:
+        timestamp: { type: string, format: date-time }
+        version: { type: string }
+        hostname: { type: string }
+        backup_type:
+          type: string
+          enum: [full, config-only]
+
+    BackupInfo:
+      type: object
+      properties:
+        filename: { type: string }
+        size: { type: integer, format: int64 }
+        timestamp: { type: string, format: date-time }
+        metadata:
+          $ref: "#/components/schemas/BackupMetadata"
+
+    BackupCreateRequest:
+      type: object
+      properties:
+        backup_type:
+          type: string
+          enum: [full, config-only]
+          default: full
+
+    BackupCreateResult:
+      type: object
+      properties:
+        status: { type: string, examples: ["success"] }
+        message: { type: string }
+        backup_path: { type: string }
+        filename: { type: string }
+
+    BackupFilenameRequest:
+      type: object
+      properties:
+        filename: { type: string }
+      required: [filename]
+
+    BackupRenameRequest:
+      type: object
+      properties:
+        old_filename: { type: string }
+        new_filename: { type: string }
+      required: [old_filename, new_filename]
+
+    BackupUploadForm:
+      type: object
+      properties:
+        backup:
+          type: string
+          format: binary
+      required: [backup]
+
+    BackupUploadResult:
+      type: object
+      properties:
+        status: { type: string, examples: ["success"] }
+        message: { type: string }
+        filename: { type: string }
+
+    LogEntry:
+      type: object
+      properties:
+        timestamp: { type: string, format: date-time }
+        level: { type: string }
+        message: { type: string }
+        source: { type: string }
+
+    LogsResponse:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/LogEntry"
+        level: { type: string }
+
+    LogLevelResponse:
+      type: object
+      properties:
+        level: { type: string }
+
+    LogLevelRequest:
+      type: object
+      properties:
+        level:
+          type: string
+          enum: [debug, info, warn, error]
+      required: [level]
+
+    LogLevelSetResult:
+      type: object
+      properties:
+        success: { type: boolean }
+        level: { type: string }
