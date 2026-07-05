@@ -1,6 +1,6 @@
 # Tailrelay Web UI
 
-A lightweight web interface for managing Tailscale and `tailscale serve` HTTPS/TCP relays in the tailrelay container.
+A lightweight web interface for managing Tailscale and `tailscale serve`/`tailscale funnel` HTTPS/TCP relays in the tailrelay container.
 
 ## Features
 
@@ -8,6 +8,7 @@ A lightweight web interface for managing Tailscale and `tailscale serve` HTTPS/T
 - **Tailscale Management**: Login, status, device list
 - **HTTPS Relay Management**: Add/edit/delete HTTPS relays via `tailscale serve`
 - **TCP Relay Management**: Add/edit/delete TCP relays via `tailscale serve`
+- **Funnel Management**: Expose a service on the public internet on port `443`, `8443`, or `10000` via `tailscale funnel`
 - **Backup & Restore**: Full configuration and certificate backup
 - **Authentication**: Tailscale login link + token-based access for scripts
 
@@ -101,8 +102,8 @@ See the main project README for Docker usage instructions.
 
 ## Review Status
 
-<!-- reviewed_at: b7ce114 | paths: webui/ -->
-Last full review completed at commit `b7ce114`. To check what has changed since:
+<!-- reviewed_at: ec9e4ac | paths: webui/ -->
+Last full review completed at commit `ec9e4ac`. To check what has changed since:
 ```bash
-git log --oneline b7ce114..HEAD -- webui/
+git log --oneline ec9e4ac..HEAD -- webui/
 ```
