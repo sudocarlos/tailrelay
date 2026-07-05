@@ -14,9 +14,9 @@
     onDelete,
   } = $props();
 
-  function funnelForPort(port) {
-    return funnels.find((f) => f.listen_port === port) ?? null;
-  }
+  // Memoized port → funnel lookup, recomputed only when the funnels list
+  // changes (rather than a linear .find() per port on every render).
+  const funnelsByPort = $derived(new Map(funnels.map((f) => [f.listen_port, f])));
 
   function formatFunnelUrl(funnel) {
     const scheme = funnel.funnel_transport === 'tcp' ? 'tcp' : 'https';
@@ -40,7 +40,7 @@
 
 <div class="flex flex-col gap-3 mb-6">
   {#each FUNNEL_PORTS as port (port)}
-    {@const funnel = funnelForPort(port)}
+    {@const funnel = funnelsByPort.get(port)}
     {@const usedBy = usedFunnelPorts.get(port)}
 
     {#if funnel}
