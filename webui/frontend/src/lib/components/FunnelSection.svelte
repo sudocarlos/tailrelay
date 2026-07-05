@@ -1,4 +1,5 @@
 <script>
+  import { untrack } from 'svelte';
   import { Globe, Ban, Plus, Play, Pause, Pencil, Trash2, RefreshCw, ChevronDown, ChevronUp } from '@lucide/svelte';
   import { FUNNEL_PORTS } from '../stores/app.js';
 
@@ -14,7 +15,12 @@
     onDelete,
   } = $props();
 
-  let expanded = $state(false);
+  // Start expanded if any funnel is already configured (data is loaded
+  // before this component first mounts — see App.svelte's initial
+  // refreshData() gate), otherwise start collapsed. Subsequent prop
+  // updates don't re-trigger this; the user's manual toggle takes over.
+  // untrack() reads the initial value only, avoiding a state_referenced_locally warning.
+  let expanded = $state(untrack(() => funnels.length > 0));
 
   // Memoized port → funnel lookup, recomputed only when the funnels list
   // changes (rather than a linear .find() per port on every render).
@@ -40,7 +46,7 @@
   <div>
     <h2 class="text-xl font-semibold">Funnel</h2>
     <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-      {funnels.length} of {FUNNEL_PORTS.length} port{FUNNEL_PORTS.length === 1 ? '' : 's'} configured
+      {funnels.length} of {FUNNEL_PORTS.length} configured &middot; expose services to the public internet
     </p>
   </div>
   {#if expanded}
