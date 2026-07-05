@@ -8,7 +8,8 @@
 .docusaurus
 .cache-loader
 
-# Generated API docs (from docs/openapi.yaml via docusaurus gen-api-docs)
+# Generated API docs — run 'npm run docusaurus gen-api-docs all' before local builds
+# Regenerated automatically in CI (.github/workflows/docs.yml)
 /docs/api
 
 # Misc
