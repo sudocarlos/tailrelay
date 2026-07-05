@@ -1,7 +1,7 @@
 import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
-import type * as Redocusaurus from 'redocusaurus';
+import type * as OpenApiPlugin from 'docusaurus-plugin-openapi-docs';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -34,6 +34,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
+          docItemComponent: '@theme/ApiItem',
           editUrl: 'https://github.com/sudocarlos/tailrelay/tree/main/website/',
         },
         blog: false,
@@ -42,25 +43,31 @@ const config: Config = {
         },
       } satisfies Preset.Options,
     ],
-    [
-      'redocusaurus',
-      {
-        specs: [
-          {
-            id: 'tailrelay-api',
-            spec: '../docs/openapi.yaml',
-            route: '/api/',
-          },
-        ],
-        theme: {
-          primaryColor: '#3b82f6',
-        },
-      },
-    ] satisfies Redocusaurus.PresetEntry,
   ],
 
+  plugins: [
+    [
+      'docusaurus-plugin-openapi-docs',
+      {
+        id: 'api',
+        docsPluginId: 'classic',
+        config: {
+          tailrelay: {
+            specPath: '../docs/openapi.yaml',
+            outputDir: 'docs/api',
+            sidebarOptions: {
+              groupPathsBy: 'tag',
+            },
+          } satisfies OpenApiPlugin.Options,
+        },
+      },
+    ],
+  ],
+
+  themes: ['docusaurus-theme-openapi-docs'],
+
   themeConfig: {
-    image: 'img/docusaurus-social-card.jpg',
+      image: 'img/social-card.png',
     colorMode: {
       respectPrefersColorScheme: true,
     },
@@ -68,7 +75,7 @@ const config: Config = {
       title: 'tailrelay',
       logo: {
         alt: 'tailrelay logo',
-        src: 'img/logo.svg',
+        src: 'img/logo.png',
       },
       items: [
         {
@@ -78,7 +85,7 @@ const config: Config = {
           label: 'Docs',
         },
         {
-          to: '/api/',
+          to: '/docs/api/',
           label: 'API Reference',
           position: 'left',
         },
@@ -101,7 +108,7 @@ const config: Config = {
           title: 'Docs',
           items: [
             {label: 'Getting Started', to: '/docs/getting-started'},
-            {label: 'API Reference', to: '/api/'},
+            {label: 'API Reference', to: '/docs/api/'},
             {label: 'Troubleshooting', to: '/docs/troubleshooting'},
           ],
         },

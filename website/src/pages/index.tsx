@@ -25,7 +25,7 @@ function HomepageHeader() {
           </Link>
           <Link
             className="button button--secondary button--lg margin-left--md"
-            to="/api/">
+            to="/docs/api/">
             API Reference
           </Link>
         </div>

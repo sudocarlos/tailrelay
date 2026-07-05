@@ -10,7 +10,7 @@ Combines **Tailscale VPN**, **Tailscale Serve** (HTTPS + TCP relays), **Tailscal
 Funnel** (public relays), and a **Web UI** for browser-based management.
 
 This site documents how to deploy, configure, and develop tailrelay, and hosts
-the generated [API Reference](/api/) sourced directly from the project's
+the generated [API Reference](/docs/api/) sourced directly from the project's
 OpenAPI specification.
 
 ## Features
@@ -53,4 +53,4 @@ bundled locally for zero external CDN requests at runtime.
   persisted dark mode.
 
 Continue to [Getting Started](./getting-started.md) to deploy your first
-container, or jump straight to the [API Reference](/api/).
+container, or jump straight to the [API Reference](/docs/api/).

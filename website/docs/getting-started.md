@@ -54,5 +54,5 @@ tailrelay is available as a StartOS package via
 ## Next Steps
 
 - [Authentication](./authentication.md) — how the Web UI is secured.
-- [API Reference](/api/) — the full HTTP/JSON API.
+- [API Reference](/docs/api/) — the full HTTP/JSON API.
 - [Troubleshooting](./troubleshooting.md) — common issues and fixes.

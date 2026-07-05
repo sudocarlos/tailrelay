@@ -29,7 +29,7 @@ On failure, `/api/*` paths return `401` with a JSON body
 `{"error":"unauthorized"}`; non-API paths receive a `303` redirect to
 `/login`.
 
-See the [API Reference](/api/) for the full authentication scheme details
+See the [API Reference](/docs/api/) for the full authentication scheme details
 and per-endpoint requirements.
 
 ## Access

@@ -8,6 +8,9 @@
 .docusaurus
 .cache-loader
 
+# Generated API docs (from docs/openapi.yaml via docusaurus gen-api-docs)
+/docs/api
+
 # Misc
 .DS_Store
 .env.local

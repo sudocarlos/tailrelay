@@ -71,14 +71,15 @@ reference rendered from it.
 **When a handler or route changes:**
 - Update the corresponding path/operation in `docs/openapi.yaml` (request
   body, responses, status codes, error shapes)
-- No other file needs touching — `website/` (via `redocusaurus`) renders
-  the spec directly on every build, and CI (`.github/workflows/docs.yml`)
-  redeploys the GitHub Pages site whenever `docs/openapi.yaml` changes
+- No other file needs touching — `website/` (via `docusaurus-openapi-docs`)
+  generates MDX from the spec via `docusaurus gen-api-docs all`, and CI
+  (`.github/workflows/docs.yml`) regenerates and redeploys the GitHub Pages
+  site whenever `docs/openapi.yaml` changes
 
 **When adding a new guide page:**
 - Add a Markdown file under `website/docs/`
 - Register it in `website/sidebars.ts`
-- Verify locally: `cd website && npm run build`
+- Verify locally: `cd website && npm run docusaurus gen-api-docs all && npm run build`
 
 **Ownership split for guide content (Quick Start, Tailscale Setup,
 Troubleshooting, etc.):** `website/docs/*.md` is the canonical, detailed

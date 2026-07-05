@@ -23,7 +23,8 @@
     "prism-react-renderer": "^2.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "redocusaurus": "^2.5.2"
+    "docusaurus-plugin-openapi-docs": "^5.1.0",
+    "docusaurus-theme-openapi-docs": "^5.1.0"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "3.10.1",

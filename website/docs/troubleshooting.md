@@ -59,7 +59,7 @@ curl -X POST http://localhost:8021/api/serve/reload
 
 This is the only reconcile endpoint — it reconciles the live
 `tailscale serve` configuration against every enabled relay in a single call.
-See the [API Reference](/api/) (`POST /api/serve/reload`, tag **Serve**) for
+See the [API Reference](/docs/api/) (`POST /api/serve/reload`, tag **Serve**) for
 the full request/response shape.
 
 Test target connectivity:

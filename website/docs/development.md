@@ -170,14 +170,13 @@ Access these in `webui/cmd/webui/main.go`.
 ## Documentation Site
 
 This documentation site lives in `website/` and is built with
-[Docusaurus](https://docusaurus.io/). The [API Reference](/api/) is rendered
-directly from `docs/openapi.yaml` via [Redoc](https://redocly.com/redoc) —
-regenerate nothing, just keep the spec accurate and the site reflects it on
-the next build.
+[Docusaurus](https://docusaurus.io/). The [API Reference](/docs/api/) is
+generated from `docs/openapi.yaml` via `docusaurus gen-api-docs all` and
+rendered with [docusaurus-openapi-docs](https://github.com/PaloAltoNetworks/docusaurus-openapi-docs).
+Run the generator before building:
 
 ```bash
 cd website
-npm install
-npm start    # local dev server with hot reload
-npm run build
+npm run docusaurus gen-api-docs all
+npm run build     # or npm start for local dev
 ```
