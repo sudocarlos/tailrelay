@@ -261,6 +261,69 @@ func TestManagerUpsertFunnelRejectsInvalidTransport(t *testing.T) {
 	}
 }
 
+// TestManagerUpsertDefaultIDUsesNormalizedType verifies that the auto-generated
+// relay ID is derived from the normalized (defaulted, lowercased) Type rather
+// than the raw input Type, so a caller that omits both ID and Type still gets
+// a correctly prefixed ID (e.g. "tcp-443", not "-443").
+func TestManagerUpsertDefaultIDUsesNormalizedType(t *testing.T) {
+	dir := t.TempDir()
+	relayFile := filepath.Join(dir, "serve_relays.json")
+	tailscaleScript := filepath.Join(dir, "tailscale")
+	if err := os.WriteFile(tailscaleScript, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatalf("write tailscale script: %v", err)
+	}
+
+	m := NewManager(relayFile)
+	m.binaryPath = tailscaleScript
+
+	// Omit both ID and Type; Type should default to "tcp" before the ID is derived.
+	if err := m.UpsertRelay(config.ServeRelay{
+		ListenPort: 443,
+		TargetHost: "127.0.0.1",
+		TargetPort: 3000,
+	}); err != nil {
+		t.Fatalf("upsert relay failed: %v", err)
+	}
+
+	relays, err := m.ListRelays()
+	if err != nil {
+		t.Fatalf("list relays failed: %v", err)
+	}
+	if len(relays) != 1 {
+		t.Fatalf("expected exactly one relay, got %d", len(relays))
+	}
+	if relays[0].ID != "tcp-443" {
+		t.Fatalf("expected default ID %q, got %q", "tcp-443", relays[0].ID)
+	}
+
+	// Same check for an explicit Type with mixed case/whitespace.
+	if err := m.UpsertRelay(config.ServeRelay{
+		Type:       " FUNNEL ",
+		ListenPort: 8443,
+		TargetHost: "127.0.0.1",
+		TargetPort: 3000,
+	}); err != nil {
+		t.Fatalf("upsert funnel relay failed: %v", err)
+	}
+	relays, err = m.ListRelays()
+	if err != nil {
+		t.Fatalf("list relays failed: %v", err)
+	}
+	ids := make([]string, 0, len(relays))
+	for _, r := range relays {
+		ids = append(ids, r.ID)
+	}
+	found := false
+	for _, id := range ids {
+		if id == "funnel-8443" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected a relay with default ID %q, got ids: %v", "funnel-8443", ids)
+	}
+}
+
 // TestFunnelRelaysExcludedFromTypedLists verifies that a funnel relay is
 // distinguishable from tcp/https relays by Type, so callers filtering by
 // Type=="tcp" or Type=="https" correctly exclude it.

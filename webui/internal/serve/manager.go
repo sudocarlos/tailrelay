@@ -105,15 +105,16 @@ func (m *Manager) UpsertRelay(relay config.ServeRelay) error {
 		return err
 	}
 
-	if relay.ID == "" {
-		relay.ID = fmt.Sprintf("%s-%d", relay.Type, relay.ListenPort)
-	}
 	if relay.Type == "" {
 		relay.Type = "tcp"
 	}
 	relay.Type = strings.ToLower(strings.TrimSpace(relay.Type))
 	if relay.Type != "https" && relay.Type != "tcp" && relay.Type != "funnel" {
 		return fmt.Errorf("relay type must be https, tcp, or funnel")
+	}
+
+	if relay.ID == "" {
+		relay.ID = fmt.Sprintf("%s-%d", relay.Type, relay.ListenPort)
 	}
 
 	if relay.Type == "funnel" {
