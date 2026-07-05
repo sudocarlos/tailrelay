@@ -97,9 +97,11 @@ curl -sSL http://localhost:8021                   # Web UI
 ├── webui/                  # Go Web UI (see webui skill)
 ├── tests/                  # Integration test suite (pytest)
 ├── compose-test.yml        # Test Compose config
+├── docs/openapi.yaml       # OpenAPI 3.1 spec — source of truth for the API
+├── website/                # Docusaurus docs site (renders docs/openapi.yaml)
 ├── .agents/skills/         # Agent Skills (see table above)
 ├── .agents/workflows/      # Dev workflows (dev-build, docker-test)
-└── .github/workflows/      # CI pipeline
+└── .github/workflows/      # CI pipeline + docs.yml (GitHub Pages deploy)
 ```
 
 ## Documentation Review Status
@@ -116,10 +118,10 @@ curl -sSL http://localhost:8021                   # Web UI
 | `.agents/skills/docker-ci/SKILL.md` | `e01406e` | `Dockerfile`, `.github/workflows/`, `compose-test.yml` |
 | `.agents/skills/tailscale/SKILL.md` | `e01406e` | `webui/internal/tailscale/`, `start.sh` |
 | `webui/README.md` | `ec9e4ac` | `webui/` |
-| `README.md` | `ec9e4ac` | `README.md`, `webui/internal/web/server.go` |
+| `README.md` | `6f8a583` | `README.md`, `webui/internal/web/server.go`, `docs/openapi.yaml` |
 | `.agents/skills/security-review/SKILL.md` | `e01406e` | `webui/internal/auth/`, `webui/internal/handlers/`, `webui/internal/backup/`, `Dockerfile`, `start.sh` |
 | `.agents/skills/testing-cicd/SKILL.md` | `e01406e` | `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml` |
-| `.agents/skills/documentation/SKILL.md` | `056aff5` | `README.md`, `CHANGELOG.md`, `webui/README.md`, `AGENTS.md`, `.agents/skills/` |
+| `.agents/skills/documentation/SKILL.md` | `6f8a583` | `README.md`, `CHANGELOG.md`, `webui/README.md`, `AGENTS.md`, `.agents/skills/`, `docs/openapi.yaml`, `website/` |
 
 ## Making Changes
 
