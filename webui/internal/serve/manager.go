@@ -36,6 +36,23 @@ type ServeStatusJSON struct {
 			Proxy string `json:"Proxy,omitempty"`
 		} `json:"Handlers"`
 	} `json:"Web"`
+	// AllowFunnel maps "host:port" to whether that port is exposed to the
+	// public internet via `tailscale funnel`.
+	AllowFunnel map[string]bool `json:"AllowFunnel,omitempty"`
+}
+
+// FunnelPorts are the only ports `tailscale funnel` is permitted to listen
+// on, per Tailscale's Funnel documentation.
+var FunnelPorts = []int{443, 8443, 10000}
+
+// IsFunnelPort reports whether port is one of the allowed funnel ports.
+func IsFunnelPort(port int) bool {
+	for _, p := range FunnelPorts {
+		if p == port {
+			return true
+		}
+	}
+	return false
 }
 
 // Status returns the parsed output of `tailscale serve status --json`
@@ -95,11 +112,22 @@ func (m *Manager) UpsertRelay(relay config.ServeRelay) error {
 		relay.Type = "tcp"
 	}
 	relay.Type = strings.ToLower(strings.TrimSpace(relay.Type))
-	if relay.Type != "https" && relay.Type != "tcp" {
-		return fmt.Errorf("relay type must be https or tcp")
+	if relay.Type != "https" && relay.Type != "tcp" && relay.Type != "funnel" {
+		return fmt.Errorf("relay type must be https, tcp, or funnel")
 	}
 
-	if relay.ListenPort < 1 || relay.ListenPort > 65535 {
+	if relay.Type == "funnel" {
+		relay.FunnelTransport = strings.ToLower(strings.TrimSpace(relay.FunnelTransport))
+		if relay.FunnelTransport == "" {
+			relay.FunnelTransport = "https"
+		}
+		if relay.FunnelTransport != "https" && relay.FunnelTransport != "tcp" {
+			return fmt.Errorf("funnel_transport must be https or tcp")
+		}
+		if !IsFunnelPort(relay.ListenPort) {
+			return fmt.Errorf("funnel listen_port must be one of %v", FunnelPorts)
+		}
+	} else if relay.ListenPort < 1 || relay.ListenPort > 65535 {
 		return fmt.Errorf("listen_port must be between 1 and 65535")
 	}
 	if relay.TargetPort < 1 || relay.TargetPort > 65535 {
@@ -184,6 +212,25 @@ var ErrTailscaleNotReady = fmt.Errorf("tailscale not ready")
 // with the given ID exists in the config file.
 var ErrRelayNotFound = fmt.Errorf("relay not found")
 
+// ErrFunnelNotAllowed is returned when `tailscale funnel` refuses to apply a
+// relay because the tailnet policy file is missing the `funnel` node
+// attribute for this device, or Funnel is otherwise disabled for the tailnet.
+var ErrFunnelNotAllowed = fmt.Errorf("funnel not allowed")
+
+// isFunnelNotAllowed reports whether err indicates the tailnet policy file is
+// missing the `funnel` node attribute (or Funnel is otherwise unavailable),
+// as opposed to a generic command failure.
+func isFunnelNotAllowed(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "funnel is not enabled") ||
+		strings.Contains(s, "funnel attribute") ||
+		strings.Contains(s, "not allowed to run funnel") ||
+		strings.Contains(s, "requires funnel")
+}
+
 // isTailscaleNotReady reports whether err indicates Tailscale is not yet
 // authenticated or connected (e.g. during container startup in CI).
 func isTailscaleNotReady(err error) bool {
@@ -264,6 +311,14 @@ func (m *Manager) resetAndApply(relays []config.ServeRelay) error {
 	for _, relay := range relays {
 		logger.Debug("serve", "Applying relay %s (type: %s, port: %d)", relay.ID, relay.Type, relay.ListenPort)
 		if err := m.applyRelay(relay); err != nil {
+			if isTailscaleNotReady(err) {
+				logger.Debug("serve", "Tailscale not ready, deferring reconcile: %v", err)
+				return ErrTailscaleNotReady
+			}
+			if relay.Type == "funnel" && isFunnelNotAllowed(err) {
+				logger.Error("serve", "Funnel not allowed for relay %s: %v", relay.ID, err)
+				return ErrFunnelNotAllowed
+			}
 			logger.Error("serve", "Failed to apply relay %s: %v", relay.ID, err)
 			return err
 		}
@@ -285,15 +340,36 @@ func (m *Manager) applyRelay(relay config.ServeRelay) error {
 	case "tcp":
 		target = fmt.Sprintf("tcp://%s:%d", relay.TargetHost, relay.TargetPort)
 		return m.run("serve", "--bg", "--tcp", fmt.Sprintf("%d", relay.ListenPort), target)
+	case "funnel":
+		return m.applyFunnel(relay)
 	default:
 		return fmt.Errorf("unsupported relay type: %s", relay.Type)
+	}
+}
+
+// applyFunnel applies a funnel relay via `tailscale funnel`, translating the
+// stored FunnelTransport ("https" or "tcp") into the matching CLI flag.
+func (m *Manager) applyFunnel(relay config.ServeRelay) error {
+	switch relay.FunnelTransport {
+	case "tcp":
+		target := fmt.Sprintf("tcp://%s:%d", relay.TargetHost, relay.TargetPort)
+		return m.run("funnel", "--bg", "--tcp", fmt.Sprintf("%d", relay.ListenPort), target)
+	case "https", "":
+		protocol := "http"
+		if relay.TargetHTTPS {
+			protocol = "https+insecure"
+		}
+		target := fmt.Sprintf("%s://%s:%d", protocol, relay.TargetHost, relay.TargetPort)
+		return m.run("funnel", "--bg", "--https", fmt.Sprintf("%d", relay.ListenPort), target)
+	default:
+		return fmt.Errorf("unsupported funnel transport: %s", relay.FunnelTransport)
 	}
 }
 
 func (m *Manager) run(args ...string) error {
 	cmdStr := fmt.Sprintf("%s %s", m.binaryPath, strings.Join(args, " "))
 	logger.Debug("serve", "Executing: %s", cmdStr)
-	
+
 	cmd := exec.Command(m.binaryPath, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

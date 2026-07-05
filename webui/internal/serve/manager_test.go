@@ -155,6 +155,162 @@ func TestReconcileAutostartOnlyAppliesAutostartRelays(t *testing.T) {
 	}
 }
 
+// TestManagerUpsertFunnelRelay verifies that funnel relays are applied via
+// `tailscale funnel` with the correct transport flag.
+func TestManagerUpsertFunnelRelay(t *testing.T) {
+	dir := t.TempDir()
+	logFile := filepath.Join(dir, "commands.log")
+	tailscaleScript := filepath.Join(dir, "tailscale")
+	relayFile := filepath.Join(dir, "serve_relays.json")
+
+	script := "#!/bin/sh\necho \"$@\" >> \"" + logFile + "\"\nexit 0\n"
+	if err := os.WriteFile(tailscaleScript, []byte(script), 0755); err != nil {
+		t.Fatalf("write tailscale script: %v", err)
+	}
+
+	m := NewManager(relayFile)
+	m.binaryPath = tailscaleScript
+
+	err := m.UpsertRelay(config.ServeRelay{
+		ID:              "funnel-443",
+		Type:            "funnel",
+		FunnelTransport: "https",
+		ListenPort:      443,
+		TargetHost:      "127.0.0.1",
+		TargetPort:      3000,
+		Enabled:         true,
+		Autostart:       true,
+	})
+	if err != nil {
+		t.Fatalf("upsert funnel relay failed: %v", err)
+	}
+
+	err = m.UpsertRelay(config.ServeRelay{
+		ID:              "funnel-10000",
+		Type:            "funnel",
+		FunnelTransport: "tcp",
+		ListenPort:      10000,
+		TargetHost:      "127.0.0.1",
+		TargetPort:      2222,
+		Enabled:         true,
+		Autostart:       true,
+	})
+	if err != nil {
+		t.Fatalf("upsert tcp funnel relay failed: %v", err)
+	}
+
+	data, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatalf("read log file: %v", err)
+	}
+	out := string(data)
+	if !strings.Contains(out, "funnel --bg --https 443 http://127.0.0.1:3000") {
+		t.Fatalf("expected https funnel command, got logs:\n%s", out)
+	}
+	if !strings.Contains(out, "funnel --bg --tcp 10000 tcp://127.0.0.1:2222") {
+		t.Fatalf("expected tcp funnel command, got logs:\n%s", out)
+	}
+}
+
+// TestManagerUpsertFunnelRejectsInvalidPort verifies that only ports 443,
+// 8443, and 10000 are accepted for funnel relays.
+func TestManagerUpsertFunnelRejectsInvalidPort(t *testing.T) {
+	dir := t.TempDir()
+	relayFile := filepath.Join(dir, "serve_relays.json")
+	tailscaleScript := filepath.Join(dir, "tailscale")
+	if err := os.WriteFile(tailscaleScript, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatalf("write tailscale script: %v", err)
+	}
+
+	m := NewManager(relayFile)
+	m.binaryPath = tailscaleScript
+
+	err := m.UpsertRelay(config.ServeRelay{
+		Type:       "funnel",
+		ListenPort: 8080,
+		TargetHost: "127.0.0.1",
+		TargetPort: 3000,
+	})
+	if err == nil {
+		t.Fatal("expected error for disallowed funnel port, got nil")
+	}
+}
+
+// TestManagerUpsertFunnelRejectsInvalidTransport verifies that only "https"
+// and "tcp" are accepted funnel transports.
+func TestManagerUpsertFunnelRejectsInvalidTransport(t *testing.T) {
+	dir := t.TempDir()
+	relayFile := filepath.Join(dir, "serve_relays.json")
+	tailscaleScript := filepath.Join(dir, "tailscale")
+	if err := os.WriteFile(tailscaleScript, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatalf("write tailscale script: %v", err)
+	}
+
+	m := NewManager(relayFile)
+	m.binaryPath = tailscaleScript
+
+	err := m.UpsertRelay(config.ServeRelay{
+		Type:            "funnel",
+		FunnelTransport: "udp",
+		ListenPort:      443,
+		TargetHost:      "127.0.0.1",
+		TargetPort:      3000,
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid funnel transport, got nil")
+	}
+}
+
+// TestFunnelRelaysExcludedFromTypedLists verifies that a funnel relay is
+// distinguishable from tcp/https relays by Type, so callers filtering by
+// Type=="tcp" or Type=="https" correctly exclude it.
+func TestFunnelRelaysExcludedFromTypedLists(t *testing.T) {
+	dir := t.TempDir()
+	relayFile := filepath.Join(dir, "serve_relays.json")
+	tailscaleScript := filepath.Join(dir, "tailscale")
+	if err := os.WriteFile(tailscaleScript, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatalf("write tailscale script: %v", err)
+	}
+
+	m := NewManager(relayFile)
+	m.binaryPath = tailscaleScript
+
+	if err := m.UpsertRelay(config.ServeRelay{
+		ID:              "funnel-443",
+		Type:            "funnel",
+		FunnelTransport: "https",
+		ListenPort:      443,
+		TargetHost:      "127.0.0.1",
+		TargetPort:      3000,
+		Enabled:         true,
+	}); err != nil {
+		t.Fatalf("upsert funnel relay failed: %v", err)
+	}
+
+	relays, err := m.ListRelays()
+	if err != nil {
+		t.Fatalf("list relays failed: %v", err)
+	}
+
+	tcpCount, httpsCount, funnelCount := 0, 0, 0
+	for _, r := range relays {
+		switch r.Type {
+		case "tcp":
+			tcpCount++
+		case "https":
+			httpsCount++
+		case "funnel":
+			funnelCount++
+		}
+	}
+	if tcpCount != 0 || httpsCount != 0 {
+		t.Fatalf("expected funnel relay to not be counted as tcp/https, got tcp=%d https=%d", tcpCount, httpsCount)
+	}
+	if funnelCount != 1 {
+		t.Fatalf("expected exactly one funnel relay, got %d", funnelCount)
+	}
+}
+
 func TestManagerToggleRelay(t *testing.T) {
 	dir := t.TempDir()
 	tailscaleScript := filepath.Join(dir, "tailscale")
