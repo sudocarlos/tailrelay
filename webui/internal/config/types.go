@@ -47,10 +47,10 @@ type LoggingConfig struct {
 	Format string `yaml:"format"`
 }
 
-// ServeRelay represents a relay backed by `tailscale serve`.
+// ServeRelay represents a relay backed by `tailscale serve` or `tailscale funnel`.
 type ServeRelay struct {
 	ID          string `json:"id"`
-	Type        string `json:"type"` // "https" or "tcp"
+	Type        string `json:"type"` // "https", "tcp", or "funnel"
 	Hostname    string `json:"hostname,omitempty"`
 	ListenPort  int    `json:"listen_port"`
 	TargetHost  string `json:"target_host"`
@@ -58,6 +58,9 @@ type ServeRelay struct {
 	TargetHTTPS bool   `json:"target_https"`
 	Enabled     bool   `json:"enabled"`
 	Autostart   bool   `json:"autostart"`
+	// FunnelTransport selects the underlying `tailscale funnel` transport
+	// ("https" or "tcp") when Type is "funnel". Ignored otherwise.
+	FunnelTransport string `json:"funnel_transport,omitempty"`
 }
 
 // ServeRelayList represents the list of tailscale serve relay definitions.
