@@ -6,6 +6,8 @@ A Docker container that exposes local services to your Tailscale network. Combin
 [![GitHub Release](https://img.shields.io/github/v/release/sudocarlos/tailrelay)](https://github.com/sudocarlos/tailrelay/releases)
 [![License](https://img.shields.io/github/license/sudocarlos/tailrelay)](https://github.com/sudocarlos/tailrelay/blob/main/LICENSE)
 
+📖 **[Full documentation and API reference](https://sudocarlos.github.io/tailrelay/)**
+
 ## Table of Contents
 
 - [Features](#features)
@@ -13,7 +15,7 @@ A Docker container that exposes local services to your Tailscale network. Combin
 - [Troubleshooting](#troubleshooting)
 - [Screenshots](#screenshots)
 - [Development](#development)
-- [API Reference](#api-reference)
+- [Documentation](#documentation)
 - [Contributing](#contributing)
 
 ## Features
@@ -138,11 +140,9 @@ Check current serve status:
 docker exec tailrelay tailscale serve status
 ```
 
-Force reconcile from saved UI configuration:
+Force reconcile all enabled relays from the saved UI configuration:
 ```bash
-curl -X POST http://localhost:8021/api/serve/https/reconcile
-# or for TCP relays:
-curl -X POST http://localhost:8021/api/serve/tcp/reconcile
+curl -X POST http://localhost:8021/api/serve/reload
 ```
 
 Test target connectivity:
@@ -403,139 +403,18 @@ var (
 
 Access these in `webui/cmd/webui/main.go`.
 
-## API Reference
+## Documentation
 
-The Web UI backend exposes a JSON API on port 8021. All endpoints under `/api/` require authentication except where noted. Authentication is via Tailscale network identity (100.x.y.z) or session cookie.
+The full documentation site — Getting Started, Authentication, Development,
+Troubleshooting, and the complete **API Reference** generated from
+[`docs/openapi.yaml`](docs/openapi.yaml) — is published at
+**[sudocarlos.github.io/tailrelay](https://sudocarlos.github.io/tailrelay/)**.
 
-### Endpoint Summary
-
-| Method | Path | Auth | Input | Description |
-|--------|------|------|-------|-------------|
-| `POST` | `/api/tailscale/login` | No | -- | Initiate Tailscale login, returns auth URL |
-| `GET` | `/api/tailscale/poll` | No | -- | Poll login completion, sets session cookie |
-| `GET` | `/api/status` | Yes | -- | Aggregate system status |
-| `GET` | `/api/targets` | Yes | -- | List configured targets |
-| `GET` | `/api/tailscale/status` | Yes | -- | Tailscale status summary |
-| `GET` | `/api/tailscale/peers` | Yes | -- | Tailscale peer list |
-| `POST` | `/api/tailscale/logout` | Yes | -- | Deauthorize Tailscale node |
-| `POST` | `/api/tailscale/connect` | Yes | -- | Bring Tailscale up |
-| `POST` | `/api/tailscale/disconnect` | Yes | -- | Bring Tailscale down |
-| `GET` | `/api/serve/https/list` | Yes | -- | List all HTTPS relays |
-| `GET` | `/api/serve/https/get` | Yes | `?id=` | Get single HTTPS relay |
-| `POST` | `/api/serve/https/create` | Yes | JSON or multipart | Create HTTPS relay |
-| `POST` | `/api/serve/https/update` | Yes | JSON or multipart | Update HTTPS relay (`id` required) |
-| `POST` | `/api/serve/https/delete` | Yes | `?id=` | Delete HTTPS relay |
-| `POST` | `/api/serve/https/toggle` | Yes | JSON `{id, enabled}` | Enable/disable HTTPS relay |
-| `POST` | `/api/serve/https/reconcile` | Yes | -- | Reconcile all HTTPS relays via `tailscale serve` |
-| `GET` | `/api/serve/tcp/list` | Yes | -- | List all TCP relays |
-| `GET` | `/api/serve/tcp/get` | Yes | `?id=` | Get single TCP relay |
-| `POST` | `/api/serve/tcp/create` | Yes | JSON | Create TCP relay |
-| `POST` | `/api/serve/tcp/update` | Yes | JSON | Update TCP relay (`id` required) |
-| `POST` | `/api/serve/tcp/delete` | Yes | `?id=` | Delete TCP relay |
-| `POST` | `/api/serve/tcp/toggle` | Yes | JSON `{id, enabled}` | Enable/disable TCP relay |
-| `POST` | `/api/serve/tcp/start` | Yes | `?id=` | Start TCP relay |
-| `POST` | `/api/serve/tcp/stop` | Yes | `?id=` | Stop TCP relay |
-| `POST` | `/api/serve/tcp/restart` | Yes | `?id=` | Restart TCP relay |
-| `POST` | `/api/serve/tcp/reconcile` | Yes | -- | Reconcile all enabled TCP relays |
-| `GET` | `/api/serve/funnel/list` | Yes | -- | List all funnel relays |
-| `GET` | `/api/serve/funnel/get` | Yes | `?id=` | Get single funnel relay |
-| `POST` | `/api/serve/funnel/create` | Yes | JSON | Create funnel relay (port must be 443, 8443, or 10000) |
-| `POST` | `/api/serve/funnel/update` | Yes | JSON | Update funnel relay (`id` required) |
-| `POST` | `/api/serve/funnel/delete` | Yes | `?id=` | Delete funnel relay |
-| `POST` | `/api/serve/funnel/toggle` | Yes | JSON `{id, enabled}` | Enable/disable funnel relay |
-| `GET` | `/api/backup/list` | Yes | -- | List backups with metadata |
-| `POST` | `/api/backup/create` | Yes | JSON `{backup_type}` | Create backup (`full` or `config-only`) |
-| `POST` | `/api/backup/restore` | Yes | JSON `{filename}` | Restore from backup |
-| `POST` | `/api/backup/delete` | Yes | `?filename=` | Delete backup |
-| `GET` | `/api/backup/download` | Yes | `?filename=` | Download backup (`.tar.gz`) |
-| `POST` | `/api/backup/upload` | Yes | multipart `backup` | Upload backup (max 32 MB) |
-| `GET` | `/api/logs` | Yes | -- | Historical logs + current level |
-| `GET` | `/api/logs/stream` | Yes | -- | SSE live log stream |
-| `GET` | `/api/logs/level` | Yes | -- | Get current log level |
-| `POST` | `/api/logs/level` | Yes | JSON `{level}` | Set log level (`debug`, `info`, `warn`, `error`) |
-
-### HTTPS Relay Object
-
-```json
-{
-  "id": "abc123",
-  "hostname": "myservice",
-  "port": 8080,
-  "target": "192.168.1.10:3000",
-  "tls": true,
-  "trusted_proxies": false,
-  "host_header": "",
-  "enabled": true,
-  "autostart": true,
-  "running": true,
-  "tls_error": ""
-}
-```
-
-### TCP Relay Object
-
-```json
-{
-  "id": "a1b2c3d4e5f6",
-  "listen_port": 9000,
-  "target_host": "192.168.1.10",
-  "target_port": 3000,
-  "enabled": true,
-  "autostart": true
-}
-```
-
-The `GET /api/serve/tcp/list` response wraps each relay in `{"Relay": {...}, "Running": true}`.
-
-### Funnel Relay Object
-
-```json
-{
-  "id": "funnel-10000",
-  "type": "funnel",
-  "funnel_transport": "tcp",
-  "listen_port": 10000,
-  "target_host": "192.168.1.10",
-  "target_port": 22,
-  "target_https": false,
-  "enabled": true,
-  "autostart": true,
-  "running": true
-}
-```
-
-Funnel is only permitted on ports `443`, `8443`, and `10000` — this is a
-hard limitation of Tailscale Funnel. `funnel_transport` selects `https`
-(reverse proxy) or `tcp` (raw TCP forwarder). Using Funnel also requires
-your tailnet's access controls to grant the `funnel` node attribute to
-this device (see [Tailscale Funnel docs](https://tailscale.com/kb/1223/tailscale-funnel)) —
-if it's missing, funnel endpoints return `409 Conflict`.
-
-### Backup Info Object
-
-```json
-{
-  "filename": "tailrelay-backup-20260307-120000.tar.gz",
-  "size": 102400,
-  "timestamp": "2026-03-07T12:00:00Z",
-  "metadata": {
-    "timestamp": "2026-03-07T12:00:00Z",
-    "version": "v0.7.0",
-    "hostname": "my-node",
-    "backup_type": "full"
-  }
-}
-```
-
-### Error Responses
-
-All endpoints return errors as:
-```json
-{
-  "status": "error",
-  "message": "Description of what went wrong"
-}
-```
+The Web UI backend exposes a JSON API on port `8021`. Every `/api/*` route
+requires authentication (Tailscale network identity or session cookie/bearer
+token) except the public setup/login/status/info endpoints — see the
+[API Reference](https://sudocarlos.github.io/tailrelay/api/) for the full
+authentication scheme, every endpoint, and request/response shapes.
 
 ## Contributing
 
@@ -543,7 +422,9 @@ Contributions welcome:
 
 - **Issues**: [GitHub Issues](https://github.com/sudocarlos/tailrelay/issues)
 - **Pull Requests**: [GitHub PRs](https://github.com/sudocarlos/tailrelay/pulls)
-- **Documentation**: Help improve docs or add examples
+- **Documentation**: The docs site lives in `website/` (Docusaurus) and
+  renders `docs/openapi.yaml` as the API reference — see
+  [website/README.md](website/README.md) for the local dev workflow.
 
 ### Development Setup
 
