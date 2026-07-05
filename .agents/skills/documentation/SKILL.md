@@ -80,6 +80,13 @@ reference rendered from it.
 - Register it in `website/sidebars.ts`
 - Verify locally: `cd website && npm run build`
 
+**Ownership split for guide content (Quick Start, Tailscale Setup,
+Troubleshooting, etc.):** `website/docs/*.md` is the canonical, detailed
+version. `README.md` keeps a condensed copy for GitHub browsing (Docker Hub,
+`git clone`, no JS) — when one changes, check whether the other needs the
+same fix. Prefer editing `website/docs/*.md` first, then trim the README's
+copy to match rather than letting them diverge.
+
 ---
 
 ## 2. CHANGELOG.md
