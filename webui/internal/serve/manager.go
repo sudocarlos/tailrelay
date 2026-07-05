@@ -25,6 +25,16 @@ func NewManager(relayFile string) *Manager {
 	}
 }
 
+// NewManagerWithBinary creates a new serve manager that invokes binaryPath
+// instead of the real `tailscale` CLI. Intended for tests that need to stub
+// out CLI behavior (e.g. handler-level tests in other packages); production
+// code should use NewManager.
+func NewManagerWithBinary(relayFile, binaryPath string) *Manager {
+	m := NewManager(relayFile)
+	m.binaryPath = binaryPath
+	return m
+}
+
 // ServeStatusJSON is the structure returned by `tailscale serve status --json`
 type ServeStatusJSON struct {
 	TCP map[string]struct {
