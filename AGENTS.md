@@ -98,6 +98,7 @@ curl -sSL http://localhost:8021                   # Web UI
 ├── tests/                  # Integration test suite (pytest)
 ├── compose-test.yml        # Test Compose config
 ├── docs/openapi.yaml       # OpenAPI 3.1 spec — source of truth for the API
+├── docs/screenshots/       # Screenshot source files (captured via take-screenshots.mjs)
 ├── website/                # Docusaurus docs site (renders docs/openapi.yaml)
 ├── .agents/skills/         # Agent Skills (see table above)
 ├── .agents/workflows/      # Dev workflows (dev-build, docker-test)
