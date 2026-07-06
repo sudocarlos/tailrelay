@@ -13,6 +13,7 @@ const sidebars: SidebarsConfig = {
     'authentication',
     'development',
     'troubleshooting',
+    'screenshots',
     {
       type: 'category',
       label: 'API Reference',
