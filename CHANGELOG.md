@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+- **Docusaurus dependency upgrades** — resolved 9 Dependabot alerts in `website/` by pinning transitive dependencies to patched versions:
+  - `js-yaml` (DoS via merge key aliases, prototype pollution in merge)
+  - `serialize-javascript` (RCE via RegExp flags, CPU exhaustion DoS)
+  - `uuid` (missing buffer bounds check)
+  - `lodash` (code injection via template, prototype pollution)
+  - `yaml` (stack overflow via deeply nested collections)
+
 ## [0.9.3] - 2026-07-05
 
 ### Added
