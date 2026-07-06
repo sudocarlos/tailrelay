@@ -470,10 +470,10 @@ paths:
         "500": { $ref: "#/components/responses/PlainTextError" }
 
   /api/serve/https/update:
-    post: &httpsUpdate
+    put:
       tags: [Serve HTTPS]
       summary: Update an HTTPS relay
-      description: JSON or multipart; `id` is required. Accepts POST or PUT.
+      description: JSON or multipart; `id` is required.
       requestBody:
         required: true
         content:
@@ -491,13 +491,11 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "405": { $ref: "#/components/responses/ServeMethodError" }
         "500": { $ref: "#/components/responses/PlainTextError" }
-    put: *httpsUpdate
 
   /api/serve/https/delete:
-    post: &httpsDelete
+    delete:
       tags: [Serve HTTPS]
       summary: Delete an HTTPS relay
-      description: Accepts POST or DELETE.
       parameters:
         - $ref: "#/components/parameters/RelayId"
       responses:
@@ -507,7 +505,6 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/ServeNotFound" }
         "405": { $ref: "#/components/responses/ServeMethodError" }
-    delete: *httpsDelete
 
   /api/serve/https/toggle:
     post:
@@ -586,10 +583,10 @@ paths:
         "500": { $ref: "#/components/responses/PlainTextError" }
 
   /api/serve/tcp/update:
-    post: &tcpUpdate
+    put:
       tags: [Serve TCP]
       summary: Update a TCP relay
-      description: JSON `ServeRelay`; `id` required. Accepts POST or PUT.
+      description: JSON `ServeRelay`; `id` required.
       requestBody:
         required: true
         content:
@@ -604,13 +601,11 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "405": { $ref: "#/components/responses/ServeMethodError" }
         "500": { $ref: "#/components/responses/PlainTextError" }
-    put: *tcpUpdate
 
   /api/serve/tcp/delete:
-    post: &tcpDelete
+    delete:
       tags: [Serve TCP]
       summary: Delete a TCP relay
-      description: Accepts POST or DELETE.
       parameters:
         - $ref: "#/components/parameters/RelayId"
       responses:
@@ -620,7 +615,6 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/ServeNotFound" }
         "405": { $ref: "#/components/responses/ServeMethodError" }
-    delete: *tcpDelete
 
   /api/serve/tcp/toggle:
     post:
@@ -723,10 +717,10 @@ paths:
         "500": { $ref: "#/components/responses/PlainTextError" }
 
   /api/serve/funnel/update:
-    post: &funnelUpdate
+    put:
       tags: [Serve Funnel]
       summary: Update a funnel relay
-      description: JSON `ServeRelay`; `id` required. Accepts POST or PUT.
+      description: JSON `ServeRelay`; `id` required.
       requestBody:
         required: true
         content:
@@ -742,13 +736,11 @@ paths:
         "405": { $ref: "#/components/responses/ServeMethodError" }
         "409": { $ref: "#/components/responses/FunnelNotAllowed" }
         "500": { $ref: "#/components/responses/PlainTextError" }
-    put: *funnelUpdate
 
   /api/serve/funnel/delete:
-    post: &funnelDelete
+    delete:
       tags: [Serve Funnel]
       summary: Delete a funnel relay
-      description: Accepts POST or DELETE.
       parameters:
         - $ref: "#/components/parameters/RelayId"
       responses:
@@ -758,7 +750,6 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/ServeNotFound" }
         "405": { $ref: "#/components/responses/ServeMethodError" }
-    delete: *funnelDelete
 
   /api/serve/funnel/toggle:
     post:
@@ -845,10 +836,9 @@ paths:
         "500": { $ref: "#/components/responses/PlainTextError" }
 
   /api/backup/delete:
-    post: &backupDelete
+    delete:
       tags: [Backup]
       summary: Delete a backup
-      description: Accepts POST or DELETE.
       parameters:
         - $ref: "#/components/parameters/Filename"
       responses:
@@ -864,7 +854,6 @@ paths:
         "405":
           description: Method not allowed (plain text)
         "500": { $ref: "#/components/responses/PlainTextError" }
-    delete: *backupDelete
 
   /api/backup/rename:
     post:
