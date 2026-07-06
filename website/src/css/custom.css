@@ -31,3 +31,12 @@
   --ifm-color-primary-lightest: #bfdbfe;
   --docusaurus-highlighted-code-line-bg: rgba(96, 165, 250, 0.15);
 }
+
+/* OpenAPI explorer buttons should inherit the site font (not browser default). */
+.openapi-explorer__expand-details-btn,
+.openapi-explorer__response-clear-btn,
+.openapi-explorer__request-btn,
+.openapi-explorer__show-more-btn,
+.openapi-explorer__thin-btn {
+  font-family: inherit;
+}
