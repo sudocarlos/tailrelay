@@ -1,18 +1,20 @@
 ---
 name: documentation
-description: Updating all tailrelay documentation — README, CHANGELOG, release notes, AGENTS.md, SKILL.md files, and webui/README.md. Use when adding user-facing features, releasing a new version, updating component versions, or when any doc's reviewed_at SHA is out of date with HEAD.
-reviewed_at: 056aff5
+description: Updating all tailrelay documentation — README, CHANGELOG, release notes, AGENTS.md, SKILL.md files, webui/README.md, and the Docusaurus docs site. Use when adding user-facing features, releasing a new version, updating component versions, or when any doc's reviewed_at SHA is out of date with HEAD.
+reviewed_at: 6f8a583
 ---
 
 # Documentation
 
 ## Overview
 
-tailrelay documentation spans five locations that must stay consistent with each other and with the source code:
+tailrelay documentation spans six locations that must stay consistent with each other and with the source code:
 
 | Document | Audience | Update Trigger |
 |----------|----------|---------------|
-| `README.md` | End users | Features, Quick Start, version, Tech Stack |
+| `README.md` | End users | Features, Quick Start, version, links to docs site |
+| `docs/openapi.yaml` | API consumers | Any handler/route change in `webui/internal/handlers/`, `webui/internal/web/server.go` |
+| `website/` | End users & developers | Guides (getting started, auth, dev, troubleshooting); rendered API reference is generated from `docs/openapi.yaml` automatically |
 | `CHANGELOG.md` | Users upgrading | Every release; every significant change |
 | `webui/README.md` | Developers building from source | Web UI API, config, build changes |
 | `AGENTS.md` | Coding agents | Skills table, file map, env vars, review SHAs |
@@ -22,34 +24,32 @@ tailrelay documentation spans five locations that must stay consistent with each
 
 ## 1. README.md
 
-### Structure (520 lines)
+### Structure
 
 1. Title + badges (Docker Pulls, GitHub Release, License)
-2. Features bullet list
+2. Documentation site link
 3. Table of Contents
-4. Why tailrelay? section
-5. Technology Stack table
-6. Quick Start (`docker run` command)
-7. Web UI section (SPA features list)
-8. Getting Started (Prerequisites → Tailscale Setup → StartOS Deployment)
-9. Development (Local WebUI Dev → Building → Testing)
-10. API Reference
-11. Troubleshooting
-12. Contributing
+4. Features bullet list + Web UI details (SPA features, auth & access)
+5. Getting Started (Quick Start → Prerequisites → Tailscale Setup → StartOS Deployment)
+6. Troubleshooting
+7. Screenshots
+8. Development (Local WebUI Dev → Building → Testing)
+9. Documentation (link to the published Docusaurus site + API reference)
+10. Contributing
 
 ### What to Update
 
 **New feature added:**
 - Add to the Features bullet list (top of file)
 - Add to the Web UI features list (if it's a UI feature)
-- Add or update the relevant Getting Started / API Reference section
+- Add or update the relevant Getting Started section
+- If it changes the API, update `docs/openapi.yaml` — the README no longer
+  duplicates endpoint documentation; the published site regenerates from
+  the spec automatically
 
 **Version bump:**
 - Update the `[![GitHub Release](...)]` badge URL if needed (it auto-pulls from GitHub Releases, so the badge usually self-updates)
 - Update any version-specific `docker pull` commands or example tags
-
-**Technology Stack table changes:**
-The table columns are `Component | Purpose | Documentation`. Update when adding a new dependency or when a component is replaced.
 
 **Testing section:**
 Keep in sync with actual test commands. The current canonical test commands are:
@@ -57,6 +57,36 @@ Keep in sync with actual test commands. The current canonical test commands are:
 cd webui && go test ./...          # Go unit tests
 pytest tests/integration/ -v       # Integration tests
 ```
+
+---
+
+## 1b. docs/openapi.yaml + website/
+
+`docs/openapi.yaml` is the single source of truth for the HTTP/JSON API —
+grounded directly in the route registration (`webui/internal/web/server.go`)
+and handler implementations (`webui/internal/handlers/`). It is **not**
+hand-duplicated anywhere else; the README and the docs site both link to the
+reference rendered from it.
+
+**When a handler or route changes:**
+- Update the corresponding path/operation in `docs/openapi.yaml` (request
+  body, responses, status codes, error shapes)
+- No other file needs touching — `website/` (via `docusaurus-openapi-docs`)
+  generates MDX from the spec via `docusaurus gen-api-docs all`, and CI
+  (`.github/workflows/docs.yml`) regenerates and redeploys the GitHub Pages
+  site whenever `docs/openapi.yaml` changes
+
+**When adding a new guide page:**
+- Add a Markdown file under `website/docs/`
+- Register it in `website/sidebars.ts`
+- Verify locally: `cd website && npm run docusaurus gen-api-docs all && npm run build`
+
+**Ownership split for guide content (Quick Start, Tailscale Setup,
+Troubleshooting, etc.):** `website/docs/*.md` is the canonical, detailed
+version. `README.md` keeps a condensed copy for GitHub browsing (Docker Hub,
+`git clone`, no JS) — when one changes, check whether the other needs the
+same fix. Prefer editing `website/docs/*.md` first, then trim the README's
+copy to match rather than letting them diverge.
 
 ---
 
@@ -279,7 +309,9 @@ If the output is non-empty the document is stale and must be updated.
 
 | Document | What to check |
 |----------|--------------|
-| `README.md` | Feature list, Quick Start, API examples, version references, Tech Stack |
+| `README.md` | Feature list, Quick Start, version references, docs site link |
+| `docs/openapi.yaml` | Every path/operation matches current handlers and routes |
+| `website/` | Guide pages still accurate; `npm run build` succeeds |
 | `CHANGELOG.md` | New entry for every release since last review |
 | `webui/README.md` | API endpoint list, config settings, build commands |
 | `AGENTS.md` | Skills table, File Map, env vars, Quick Reference commands |
