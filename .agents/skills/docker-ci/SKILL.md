@@ -1,7 +1,7 @@
 ---
 name: docker-ci-pipeline
 description: Docker image building, Compose development environments, CI/CD pipeline, and testing infrastructure. Use when working with Dockerfiles, docker-compose, GitHub Actions CI, Make targets, integration tests, or deployment workflows.
-reviewed_at: 459bdf0
+reviewed_at: e615c2a
 ---
 
 # Docker & CI Pipeline
@@ -26,9 +26,9 @@ docker buildx build -t sudocarlos/tailrelay:latest --load .
 5. **main** (`ghcr.io/tailscale/tailscale:{TAILSCALE_VERSION}`) — based on the official Tailscale image; installs runtime deps (iptables, iproute2, mailcap), copies webui binary from builder stage; restores legacy iptables symlinks for broad host compatibility
 
 Key build args:
-- `TAILSCALE_VERSION` (default: `v1.98.4`) — image tag for `ghcr.io/tailscale/tailscale`
+- `TAILSCALE_VERSION` (default: `v1.98.8`) — image tag for `ghcr.io/tailscale/tailscale`
 - `GO_VERSION` (default: `1.26.4`)
-- `NODE_VERSION` (default: `24.17.0`)
+- `NODE_VERSION` (default: `24.18.0`)
 - `ALPINE_VERSION` (default: `3.22`)
 - `WEBUI_SOURCE` (default: `webui-builder`; set to `binary-dev` for dev builds)
 - `VERSION`, `COMMIT`, `DATE`, `BRANCH`, `BUILDER` — build metadata injected into Go binary and frontend via ldflags / `npm version`
@@ -185,6 +185,6 @@ When updating a pinned version in the Dockerfile, touch every location in the ta
 | Component | Version |
 |-----------|---------|
 | Container | `v0.9.0` (see `start.sh`) |
-| Tailscale | `v1.98.4` (`ghcr.io/tailscale/tailscale` base image) |
+| Tailscale | `v1.98.8` (`ghcr.io/tailscale/tailscale` base image) |
 | Go | `1.26.4` (Dockerfile ARG) |
-| Node.js (CI) | `24.17.0` (GitHub Actions + Dockerfile ARG) |
+| Node.js (CI) | `24.18.0` (GitHub Actions + Dockerfile ARG) |
