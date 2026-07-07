@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tailscale** bumped from `v1.98.4` to `v1.98.8` in Dockerfile
 - **Node.js** bumped from `24.17.0` to `24.18.0` in Dockerfile and CI workflows
 
+### Fixed
+- **GHCR publish failure** — disabled provenance/SBOM attestations on the release Docker build, which GHCR rejected with a `403` when pushing to the brand-new `ghcr.io/sudocarlos/tailrelay` package
+
 ### Security
 - **Docusaurus dependency upgrades** — resolved 9 Dependabot alerts in `website/` by pinning transitive dependencies to patched versions:
   - `js-yaml` (DoS via merge key aliases, prototype pollution in merge)
