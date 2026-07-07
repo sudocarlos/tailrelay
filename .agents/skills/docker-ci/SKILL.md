@@ -1,7 +1,7 @@
 ---
 name: docker-ci-pipeline
 description: Docker image building, Compose development environments, CI/CD pipeline, and testing infrastructure. Use when working with Dockerfiles, docker-compose, GitHub Actions CI, Make targets, integration tests, or deployment workflows.
-reviewed_at: 0a5a4ff
+reviewed_at: 67b91e7
 ---
 
 # Docker & CI Pipeline
@@ -86,10 +86,10 @@ Copy `.env.example` to `.env` and edit before running tests.
 
 ### Jobs
 
-1. **frontend** — `npm install` + `npm run build` in `webui/frontend/` (Node.js 20 in CI)
+1. **frontend** — `npm install` + `npm run build` in `webui/frontend/` (Node.js 24.18.0 in CI)
 2. **backend** — installs Node.js, runs `npm install` + `npm run build` (required for `//go:embed all:web/dist`), then `go vet`, `go test -v`, `go build` in `webui/` (Go 1.24 in CI)
 3. **integration** — Full Docker build + `pytest tests/integration/ -v`
-4. **release** — Runs only on `v*.*.*` tag pushes, after all three above pass; extracts changelog notes, logs in to Docker Hub + GHCR, builds multi-platform image (`linux/amd64`, `linux/arm64`), pushes `vX.Y.Z` + `latest` tags to both registries, and creates a GitHub Release
+4. **release** — Runs only on `v*.*.*` tag pushes, after all three above pass; extracts changelog notes, logs in to Docker Hub + GHCR, builds multi-platform image (`linux/amd64`, `linux/arm64`) with provenance/SBOM attestations disabled (`provenance: false`, `sbom: false` — see Common Pitfalls), pushes `vX.Y.Z` + `latest` tags to both registries, and creates a GitHub Release
 
 ### Integration Test Flow
 
@@ -151,6 +151,8 @@ Handles `SIGTERM`/`SIGINT` for graceful shutdown.
 3. **Docker network**: Use `--net start9` for Start9 deployments to reach embassy services
 4. **TLS certificates**: Must enable HTTPS in Tailscale Admin Console first
 5. **Port conflicts**: Ensure host ports don't conflict with existing services
+6. **GHCR + provenance attestations**: `docker/build-push-action@v6` generates provenance/SBOM attestation manifests by default. Pushing those to a **brand-new** GHCR package (one that's never been published before) fails with `403 Forbidden` on the attestation blob's HEAD request — a known incompatibility, not a permissions bug. The release job sets `provenance: false` / `sbom: false` to avoid it; don't remove these without re-verifying a fresh GHCR package push still works.
+7. **Repo `default_workflow_permissions`**: a job's `permissions:` block can only narrow `GITHUB_TOKEN`, never grant more than the repo's Settings → Actions → General → Workflow permissions default allows. If GHCR pushes or GitHub Release creation start failing with `403`, check `gh api repos/<owner>/<repo>/actions/permissions/workflow` is `write`, not `read`.
 
 ## Bumping Dependencies
 
