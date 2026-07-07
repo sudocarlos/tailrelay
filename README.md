@@ -12,6 +12,7 @@ A Docker container that exposes local services to your Tailscale network. Combin
 
 ```bash
 docker pull sudocarlos/tailrelay:latest
+# or: docker pull ghcr.io/sudocarlos/tailrelay:latest
 
 docker run -d --name tailrelay \
   -v /path/to/data:/var/lib/tailscale \
