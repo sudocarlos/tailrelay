@@ -116,12 +116,12 @@ curl -sSL http://localhost:8021                   # Web UI
 | `AGENTS.md` | `HEAD` | `AGENTS.md`, `Makefile`, `start.sh` |
 | `.agents/skills/serve/SKILL.md` | `ec9e4ac` | `webui/internal/serve/`, `webui/internal/handlers/serve.go` |
 | `.agents/skills/webui/SKILL.md` | `e01406e` | `webui/`, `Makefile` |
-| `.agents/skills/docker-ci/SKILL.md` | `0671a35` | `Dockerfile`, `.github/workflows/`, `compose-test.yml` |
+| `.agents/skills/docker-ci/SKILL.md` | `0a5a4ff` | `Dockerfile`, `.github/workflows/`, `compose-test.yml` |
 | `.agents/skills/tailscale/SKILL.md` | `e01406e` | `webui/internal/tailscale/`, `start.sh` |
 | `webui/README.md` | `ec9e4ac` | `webui/` |
 | `README.md` | `6f8a583` | `README.md`, `webui/internal/web/server.go`, `docs/openapi.yaml` |
 | `.agents/skills/security-review/SKILL.md` | `e615c2a` | `webui/internal/auth/`, `webui/internal/handlers/`, `webui/internal/backup/`, `Dockerfile`, `start.sh` |
-| `.agents/skills/testing-cicd/SKILL.md` | `e01406e` | `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml` |
+| `.agents/skills/testing-cicd/SKILL.md` | `0a5a4ff` | `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml` |
 | `.agents/skills/documentation/SKILL.md` | `6f8a583` | `README.md`, `CHANGELOG.md`, `webui/README.md`, `AGENTS.md`, `.agents/skills/`, `docs/openapi.yaml`, `website/` |
 
 ## Making Changes
