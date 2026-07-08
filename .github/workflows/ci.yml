@@ -153,8 +153,8 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          provenance: false
-          sbom: false
+          provenance: true
+          sbom: true
           build-args: |
             VERSION=${{ github.ref_name }}
             COMMIT=${{ github.sha }}
