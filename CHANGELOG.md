@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-07-07
+
+### Fixed
+- **CI provenance/SBOM attestations re-enabled** — reverted the rollback; attestation changes were not the cause of GHCR publish failures on the v0.9.3 release pipeline
+
+### Security
+- **`golang.org/x/crypto`** bumped from `v0.48.0` to `v0.52.0` (addresses vulnerabilities in SSH and crypto packages)
+
+### Docker
+```
+docker pull sudocarlos/tailrelay:v0.9.4
+docker pull ghcr.io/sudocarlos/tailrelay:v0.9.4
+```
+
 ## [0.9.3] - 2026-07-05
 
 ### Added
