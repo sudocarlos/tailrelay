@@ -9,7 +9,7 @@
   // /api/tailscale/peers — avoids a duplicate request just for this dropdown.
   let { peers = [] } = $props();
 
-  // Sentinel value for the "Advertise this device" option in the exit-node
+  // Sentinel value for the "Run as exit node" option in the exit-node
   // dropdown, distinguishing it from a real peer IP or the "None" ('') value.
   const ADVERTISE_SELF_VALUE = '__advertise_self__';
 
@@ -174,14 +174,14 @@
       const octets = ipv4Match.slice(1).map(Number);
       if (octets.some((o) => o > 255)) return 'Invalid IPv4 address';
       if (!Number.isInteger(bits) || bits < 0 || bits > 32) return 'Prefix length must be 0-32';
-      if (value === '0.0.0.0/0') return 'Select "Advertise this device" in the exit node dropdown instead';
+      if (value === '0.0.0.0/0') return 'Select "Run as exit node" in the exit node dropdown instead';
       if (!isIPv4HostBitsZero(addr, bits)) return 'Host bits must be zero, e.g. 192.168.1.0/24';
       return '';
     }
 
     if (addr.includes(':')) {
       if (!Number.isInteger(bits) || bits < 0 || bits > 128) return 'Prefix length must be 0-128';
-      if (value === '::/0') return 'Select "Advertise this device" in the exit node dropdown instead';
+      if (value === '::/0') return 'Select "Run as exit node" in the exit node dropdown instead';
       return '';
     }
 
@@ -217,8 +217,7 @@
   }
 
   function peerLabel(peer) {
-    const name = peer.DNSName ? peer.DNSName.split('.')[0] : peer.Hostname || peer.IPv4;
-    return `${name} (${peer.IPv4 || peer.IPv6 || '—'})`;
+    return peer.DNSName ? peer.DNSName.split('.')[0] : peer.Hostname || peer.IPv4 || peer.IPv6 || 'Unknown';
   }
 
   onMount(() => {
@@ -245,13 +244,14 @@
         class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
       >
         <option value="">None</option>
-        <option value={ADVERTISE_SELF_VALUE}>Advertise this device as an exit node</option>
+        <option value={ADVERTISE_SELF_VALUE}>Run as exit node</option>
+        <hr />
         {#each exitNodePeers as peer}
           <option value={peer.IPv4 || peer.IPv6}>{peerLabel(peer)}</option>
         {/each}
       </select>
       <p class="text-xs text-gray-500 dark:text-gray-400">
-        Advertising this device must be approved in the admin console before other devices can use it.
+        Running as an exit node must be approved in the admin console before other devices can use it.
         Selecting a peer routes your internet traffic through it instead.
       </p>
 
