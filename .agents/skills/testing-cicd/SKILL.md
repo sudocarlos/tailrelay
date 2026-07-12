@@ -1,7 +1,7 @@
 ---
 name: testing-cicd
 description: Writing tests and CI/CD for tailrelay — Go unit tests, Python integration tests, CI pipeline jobs, and test infrastructure. Use when adding new tests, extending the integration suite, modifying ci.yml, or improving test coverage for any Go package or the container behaviour.
-reviewed_at: 0a5a4ff
+reviewed_at: 26b26a9
 ---
 
 # Tests & CI/CD
@@ -30,10 +30,12 @@ webui/
 │   ├── handlers/
 │   │   ├── auth_test.go                ✓ exists
 │   │   ├── backup_test.go              ✓ exists
+│   │   ├── networking_test.go          ✓ exists (networking settings handlers)
 │   │   └── serve_test.go               ✓ exists (HTTPS, TCP, and Funnel relay handlers)
 │   ├── serve/
 │   │   └── manager_test.go             ✓ exists (HTTPS, TCP, and Funnel relay manager)
-│   ├── tailscale/                      ✗ no tests yet
+│   ├── tailscale/
+│   │   └── networking_test.go          ✓ exists (networking prefs derivation, CLI arg-building)
 │   └── web/
 │       └── server_test.go              ✓ exists
 tests/
@@ -46,9 +48,9 @@ tests/
 ```
 
 **Packages without tests** — prioritise these when adding coverage:
-- `webui/internal/tailscale/` — status parsing, cache behaviour, client mocking
+- `webui/internal/tailscale/` — status parsing and cache behaviour (client mocking now covered for `networking.go` via `NewClientWithBinary`)
 - `webui/internal/config/` — YAML parsing edge cases
-- `webui/internal/handlers/dashboard.go`, `tailscale.go` — handler coverage
+- `webui/internal/handlers/dashboard.go` — handler coverage (`tailscale.go`'s networking endpoints now covered by `networking_test.go`)
 
 ---
 
@@ -341,10 +343,10 @@ Example security job:
 |---------|---------|----------|
 | `internal/auth` | ✓ `middleware_test.go` | Maintain |
 | `internal/backup` | ✓ `backup_test.go` | Maintain |
-| `internal/handlers` | ✓ auth, backup, serve (HTTPS/TCP/Funnel) | Add: dashboard, tailscale handlers |
+| `internal/handlers` | ✓ auth, backup, serve (HTTPS/TCP/Funnel), networking | Add: dashboard handlers |
 | `internal/web` | ✓ `server_test.go` | Maintain |
 | `internal/serve` | ✓ `manager_test.go` | Maintain; add reconcile edge cases |
-| `internal/tailscale` | ✗ none | **High** |
+| `internal/tailscale` | ✓ `networking_test.go` (prefs/CLI arg-building); status/cache untested | Medium |
 | `internal/config` | ✗ none | Medium |
 | `internal/logger` | ✗ none | Low |
 
