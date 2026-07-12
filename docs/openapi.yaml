@@ -410,6 +410,54 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "500": { $ref: "#/components/responses/TailscaleError" }
 
+  /api/tailscale/networking:
+    get:
+      tags: [Tailscale]
+      summary: Networking preferences summary
+      description: |
+        Returns the current exit-node, subnet route, and SSH preferences via
+        `tailscale set`'s underlying prefs. `AdvertiseExitNode` and the
+        exit-node CIDRs (`0.0.0.0/0`, `::/0`) are derived from the same
+        `AdvertiseRoutes` preference used for subnet routes; the `AdvertiseRoutes`
+        field returned here excludes those two, exposing only custom subnet routes.
+      responses:
+        "200":
+          description: Networking preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkingSummary"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/TailscaleError" }
+
+  /api/tailscale/networking/update:
+    post:
+      tags: [Tailscale]
+      summary: Update networking preferences
+      description: |
+        Applies a partial update via a single `tailscale set` invocation.
+        Only fields present in the request body are changed; omitted fields
+        are left untouched. `advertise_routes` entries must be valid CIDRs
+        with no host bits set; `0.0.0.0/0` and `::/0` are rejected since
+        exit-node advertisement is controlled via `advertise_exit_node` instead.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NetworkingUpdateRequest"
+      responses:
+        "200":
+          description: Networking settings updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TailscaleMessage"
+        "400": { $ref: "#/components/responses/TailscaleError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+        "500": { $ref: "#/components/responses/TailscaleError" }
+
   # ── Serve HTTPS ───────────────────────────────────────────────────────────
   /api/serve/https/list:
     get:
@@ -1220,7 +1268,45 @@ components:
         Online: { type: boolean }
         LastSeen: { type: string, format: date-time }
         Relay: { type: string }
-        ExitNode: { type: boolean }
+        ExitNode:
+          type: boolean
+          description: True if this peer is advertising itself as an available exit node.
+
+    NetworkingSummary:
+      type: object
+      description: The Go struct has no JSON tags, so keys are capitalized Go field names.
+      properties:
+        AdvertiseExitNode: { type: boolean }
+        ExitNodeAllowLANAccess: { type: boolean }
+        AdvertiseRoutes:
+          type: array
+          items: { type: string }
+          description: Custom subnet routes only; the exit-node CIDRs (0.0.0.0/0, ::/0) are excluded.
+        AcceptRoutes: { type: boolean }
+        ExitNode:
+          type: string
+          description: IP of the currently-selected exit node, or empty if none is in use.
+        SSH: { type: boolean }
+
+    NetworkingUpdateRequest:
+      type: object
+      description: All fields are optional; only fields present in the request are changed.
+      properties:
+        advertise_exit_node: { type: boolean }
+        exit_node_allow_lan_access: { type: boolean }
+        advertise_routes:
+          type: array
+          items: { type: string }
+          description: >
+            Replaces the full set of advertised subnet routes. Each entry must be a
+            CIDR with no host bits set (e.g. `192.168.1.0/24`). `0.0.0.0/0` and
+            `::/0` are rejected; use `advertise_exit_node` instead. Pass `[]` to
+            clear all advertised routes.
+        accept_routes: { type: boolean }
+        exit_node:
+          type: string
+          description: IP or MagicDNS name of the peer to use as an exit node. Pass `""` to clear.
+        ssh: { type: boolean }
 
     ServeRelay:
       type: object

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Networking section on the Tailscale page** — manage `tailscale set` networking preferences from the dashboard
+  - Advertise as exit node, with **Allow LAN access** as a sub-option
+  - Advertise one or more subnet routes, with CIDR validation (rejects malformed/host-bit-set CIDRs and the reserved exit-node CIDRs `0.0.0.0/0`/`::/0`)
+  - Accept routes advertised by other tailnet nodes
+  - Select an exit node from a dropdown of peers already advertising as exit nodes
+  - Run Tailscale SSH
+  - New `GET /api/tailscale/networking` and `POST /api/tailscale/networking/update` API endpoints
+
 ## [0.9.4] - 2026-07-07
 
 ### Fixed
