@@ -404,6 +404,13 @@
     </div>
   </div>
 
+  <!-- Networking — placed directly next to connection status since these
+       settings are applied via `tailscale set` which requires an active
+       daemon; only rendered once connected. -->
+  {#if status?.BackendState === 'Running'}
+    <NetworkingSection {peers} />
+  {/if}
+
   <!-- Login section — shown when Tailscale needs authentication -->
   {#if status?.BackendState === 'NeedsLogin' || status?.BackendState === 'NoState' || loginURL}
     <div class="rounded-lg border border-amber-200 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 p-5 space-y-3">
@@ -515,14 +522,6 @@
         </div>
       {/if}
     </div>
-  {/if}
-
-
-
-  <!-- Networking — shown once Tailscale is connected, since these settings
-       are applied via `tailscale set` which requires an active daemon. -->
-  {#if status?.BackendState === 'Running'}
-    <NetworkingSection {peers} />
   {/if}
 
   <!-- Machines -->

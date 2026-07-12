@@ -2,18 +2,22 @@
   import { onMount } from 'svelte';
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
-  import { Network, Route, Globe, Terminal, Plus, Trash2, RefreshCw, AlertTriangle } from '@lucide/svelte';
+  import { Network, Route, Terminal, Plus, Trash2, RefreshCw, AlertTriangle } from '@lucide/svelte';
+  import Toggle from './Toggle.svelte';
 
   // `peers` is passed down from Tailscale.svelte, which already fetches
   // /api/tailscale/peers — avoids a duplicate request just for this dropdown.
   let { peers = [] } = $props();
+
+  // Sentinel value for the "Advertise this device" option in the exit-node
+  // dropdown, distinguishing it from a real peer IP or the "None" ('') value.
+  const ADVERTISE_SELF_VALUE = '__advertise_self__';
 
   let networking = $state(null);
   let loading = $state(true);
 
   // Per-control saving flags — each toggle/select applies immediately and
   // only disables itself while in flight, so unrelated controls stay usable.
-  let savingAdvertiseExitNode = $state(false);
   let savingLanAccess = $state(false);
   let savingAcceptRoutes = $state(false);
   let savingExitNode = $state(false);
@@ -28,6 +32,16 @@
   let routesBaseline = $state([]);
 
   const exitNodePeers = $derived(peers.filter((p) => p.ExitNode));
+
+  // The dropdown's current value: the advertise-self sentinel, a peer IP, or
+  // '' for None. AdvertiseExitNode and ExitNode are mutually exclusive in
+  // this UI — selecting one clears the other (see handleExitNodeChange).
+  const exitNodeSelection = $derived(networking?.AdvertiseExitNode ? ADVERTISE_SELF_VALUE : networking?.ExitNode || '');
+
+  // "Allow LAN access" only takes effect while actively using another peer
+  // as an exit node — it has no effect while merely advertising this device
+  // as one, so it's shown only for that selection.
+  const usingPeerExitNode = $derived(!!networking?.ExitNode && !networking?.AdvertiseExitNode);
 
   const routesDirty = $derived.by(() => {
     const cleaned = routesInput.map((r) => r.trim()).filter(Boolean);
@@ -53,19 +67,6 @@
       method: 'POST',
       body: JSON.stringify(partial),
     });
-  }
-
-  async function toggleAdvertiseExitNode(checked) {
-    savingAdvertiseExitNode = true;
-    try {
-      await updateNetworking({ advertise_exit_node: checked });
-      networking.AdvertiseExitNode = checked;
-      showToast('success', checked ? 'Advertising as an exit node' : 'Stopped advertising as an exit node');
-    } catch (err) {
-      showToast('danger', err.message || 'Failed to update exit node advertisement');
-    } finally {
-      savingAdvertiseExitNode = false;
-    }
   }
 
   async function toggleLanAccess(checked) {
@@ -106,12 +107,25 @@
     }
   }
 
-  async function changeExitNode(value) {
+  // Handles the unified exit-node dropdown: selecting "Advertise this
+  // device" enables advertise_exit_node and clears any in-use peer exit
+  // node; selecting a peer does the reverse; "None" clears both.
+  async function handleExitNodeChange(value) {
+    const advertiseSelf = value === ADVERTISE_SELF_VALUE;
+    const peerExitNode = advertiseSelf ? '' : value;
+
     savingExitNode = true;
     try {
-      await updateNetworking({ exit_node: value });
-      networking.ExitNode = value;
-      showToast('success', value ? 'Exit node set' : 'Exit node cleared');
+      await updateNetworking({ advertise_exit_node: advertiseSelf, exit_node: peerExitNode });
+      networking.AdvertiseExitNode = advertiseSelf;
+      networking.ExitNode = peerExitNode;
+      if (advertiseSelf) {
+        showToast('success', 'Advertising as an exit node');
+      } else if (peerExitNode) {
+        showToast('success', 'Exit node set');
+      } else {
+        showToast('success', 'Exit node cleared');
+      }
     } catch (err) {
       showToast('danger', err.message || 'Failed to update exit node');
     } finally {
@@ -160,14 +174,14 @@
       const octets = ipv4Match.slice(1).map(Number);
       if (octets.some((o) => o > 255)) return 'Invalid IPv4 address';
       if (!Number.isInteger(bits) || bits < 0 || bits > 32) return 'Prefix length must be 0-32';
-      if (value === '0.0.0.0/0') return 'Use "Advertise as exit node" instead';
+      if (value === '0.0.0.0/0') return 'Select "Advertise this device" in the exit node dropdown instead';
       if (!isIPv4HostBitsZero(addr, bits)) return 'Host bits must be zero, e.g. 192.168.1.0/24';
       return '';
     }
 
     if (addr.includes(':')) {
       if (!Number.isInteger(bits) || bits < 0 || bits > 128) return 'Prefix length must be 0-128';
-      if (value === '::/0') return 'Use "Advertise as exit node" instead';
+      if (value === '::/0') return 'Select "Advertise this device" in the exit node dropdown instead';
       return '';
     }
 
@@ -221,36 +235,36 @@
   {#if loading}
     <p class="text-sm text-gray-400">Loading networking settings…</p>
   {:else if networking}
-    <!-- Advertise as exit node (+ Allow LAN access sub-option) -->
+    <!-- Exit node selection (includes advertising this device as one) + Allow LAN access sub-option -->
     <div class="space-y-2">
-      <label class="flex items-center justify-between gap-3 cursor-pointer">
-        <span class="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100">
-          <Globe size={15} class="text-gray-400" />
-          Advertise as exit node
-        </span>
-        <input
-          type="checkbox"
-          checked={networking.AdvertiseExitNode}
-          disabled={savingAdvertiseExitNode}
-          onchange={(e) => toggleAdvertiseExitNode(e.target.checked)}
-          class="rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800 disabled:opacity-50"
-        />
-      </label>
+      <span class="text-sm text-gray-900 dark:text-gray-100">Exit node</span>
+      <select
+        value={exitNodeSelection}
+        disabled={savingExitNode}
+        onchange={(e) => handleExitNodeChange(e.target.value)}
+        class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+      >
+        <option value="">None</option>
+        <option value={ADVERTISE_SELF_VALUE}>Advertise this device as an exit node</option>
+        {#each exitNodePeers as peer}
+          <option value={peer.IPv4 || peer.IPv6}>{peerLabel(peer)}</option>
+        {/each}
+      </select>
       <p class="text-xs text-gray-500 dark:text-gray-400">
-        Offer this device as an exit node for internet traffic from the tailnet. Must be approved in the admin console before other devices can use it.
+        Advertising this device must be approved in the admin console before other devices can use it.
+        Selecting a peer routes your internet traffic through it instead.
       </p>
 
-      {#if networking.AdvertiseExitNode}
-        <label class="flex items-center justify-between gap-3 cursor-pointer pl-5 pt-1">
+      {#if usingPeerExitNode}
+        <div class="flex items-center justify-between gap-3 pl-5 pt-1">
           <span class="text-sm text-gray-700 dark:text-gray-300">Allow LAN access</span>
-          <input
-            type="checkbox"
+          <Toggle
             checked={networking.ExitNodeAllowLANAccess}
             disabled={savingLanAccess}
-            onchange={(e) => toggleLanAccess(e.target.checked)}
-            class="rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800 disabled:opacity-50"
+            onChange={toggleLanAccess}
+            label="Allow LAN access while using an exit node"
           />
-        </label>
+        </div>
       {/if}
     </div>
 
@@ -325,55 +339,26 @@
     <hr class="border-gray-100 dark:border-gray-800" />
 
     <!-- Accept routes -->
-    <label class="flex items-center justify-between gap-3 cursor-pointer">
+    <div class="flex items-center justify-between gap-3">
       <span class="text-sm text-gray-900 dark:text-gray-100">Accept routes from other nodes</span>
-      <input
-        type="checkbox"
+      <Toggle
         checked={networking.AcceptRoutes}
         disabled={savingAcceptRoutes}
-        onchange={(e) => toggleAcceptRoutes(e.target.checked)}
-        class="rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800 disabled:opacity-50"
+        onChange={toggleAcceptRoutes}
+        label="Accept routes from other nodes"
       />
-    </label>
-
-    <hr class="border-gray-100 dark:border-gray-800" />
-
-    <!-- Exit node selection -->
-    <div class="space-y-1.5">
-      <span class="text-sm text-gray-900 dark:text-gray-100">Use exit node</span>
-      <select
-        value={networking.ExitNode}
-        disabled={savingExitNode}
-        onchange={(e) => changeExitNode(e.target.value)}
-        class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-      >
-        <option value="">None</option>
-        {#each exitNodePeers as peer}
-          <option value={peer.IPv4 || peer.IPv6}>{peerLabel(peer)}</option>
-        {/each}
-      </select>
-      {#if exitNodePeers.length === 0}
-        <p class="text-xs text-gray-500 dark:text-gray-400">
-          No peers in this tailnet are advertising as exit nodes yet.
-        </p>
-      {/if}
     </div>
 
     <hr class="border-gray-100 dark:border-gray-800" />
 
     <!-- SSH -->
-    <label class="flex items-center justify-between gap-3 cursor-pointer">
+    <div class="flex items-center justify-between gap-3">
       <span class="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100">
         <Terminal size={15} class="text-gray-400" />
         Run Tailscale SSH
       </span>
-      <input
-        type="checkbox"
-        checked={networking.SSH}
-        disabled={savingSSH}
-        onchange={(e) => toggleSSH(e.target.checked)}
-        class="rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800 disabled:opacity-50"
-      />
-    </label>
+      <Toggle checked={networking.SSH} disabled={savingSSH} onChange={toggleSSH} label="Run Tailscale SSH" />
+    </div>
   {/if}
 </div>
+
