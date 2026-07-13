@@ -1,6 +1,6 @@
 <script>
   import { onDestroy } from 'svelte';
-  import { MoreHorizontal, Pencil, Trash2 } from '@lucide/svelte';
+  import { MoreHorizontal, Trash2 } from '@lucide/svelte';
   import { portal } from '../actions/portal.js';
   import Toggle from './Toggle.svelte';
 
@@ -115,7 +115,6 @@
       class="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 transition-colors"
       onclick={selectEdit}
     >
-      <Pencil size={14} />
       Edit
     </button>
 

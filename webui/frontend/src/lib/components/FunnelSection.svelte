@@ -90,7 +90,7 @@
                   class="flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0 transition-colors {statusBadgeClass(toggling, running)}"
                   title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
                 >
-                  <Globe size={14} class={statusIconClass(toggling, running)} />
+                  <Globe size={14} fill="currentColor" class={statusIconClass(toggling, running)} />
                 </span>
                 <a
                   href={funnelUrl}
