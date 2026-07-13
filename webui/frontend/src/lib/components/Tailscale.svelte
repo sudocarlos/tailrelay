@@ -4,6 +4,7 @@
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
   import { Wifi, WifiOff, LogIn, LogOut, RefreshCw, Server, AlertTriangle, ExternalLink, Check, Users } from '@lucide/svelte';
+  import NetworkingSection from './NetworkingSection.svelte';
 
   // ── Local state ───────────────────────────────────────────────────
   let status = $state(null);
@@ -403,6 +404,13 @@
     </div>
   </div>
 
+  <!-- Networking — placed directly next to connection status since these
+       settings are applied via `tailscale set` which requires an active
+       daemon; only rendered once connected. -->
+  {#if status?.BackendState === 'Running'}
+    <NetworkingSection {peers} />
+  {/if}
+
   <!-- Login section — shown when Tailscale needs authentication -->
   {#if status?.BackendState === 'NeedsLogin' || status?.BackendState === 'NoState' || loginURL}
     <div class="rounded-lg border border-amber-200 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 p-5 space-y-3">
@@ -515,8 +523,6 @@
       {/if}
     </div>
   {/if}
-
-
 
   <!-- Machines -->
   <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 space-y-3">

@@ -244,6 +244,8 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.Handle("/api/tailscale/status", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.APIStatus)))
 	mux.Handle("/api/tailscale/peers", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.APIPeers)))
 	mux.Handle("/api/tailscale/poll", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.PollStatus)))
+	mux.Handle("/api/tailscale/networking", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.APINetworking)))
+	mux.Handle("/api/tailscale/networking/update", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.UpdateNetworking)))
 
 	// HTTPS relay routes (/api/serve/https/*)
 	mux.Handle("/api/serve/https/list", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.APIListHTTPS)))

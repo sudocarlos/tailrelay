@@ -139,7 +139,7 @@ paths:
 
 Route handlers for all API endpoints:
 - `serve.go` — Relay CRUD (`/api/serve/*`); uses `writeServeResult` helper for 200/202/500 responses
-- `tailscale.go` — Status, login
+- `tailscale.go` — Status, login, and networking preferences (`GET/POST /api/tailscale/networking*`; see the tailscale skill's "Networking Preferences" section for how these map to `tailscale set`)
 - `backup.go` — Backup operations
 - `dashboard.go` — System overview
 

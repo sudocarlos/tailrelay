@@ -122,6 +122,16 @@ func NewClient() *Client {
 	}
 }
 
+// NewClientWithBinary creates a Tailscale client that shells out to the
+// given binary path instead of the "tailscale" found on PATH. Intended for
+// tests that need to exercise CLI-invoking methods (e.g. SetNetworking)
+// against a fake script, mirroring serve.NewManagerWithBinary.
+func NewClientWithBinary(binaryPath string) *Client {
+	return &Client{
+		binaryPath: binaryPath,
+	}
+}
+
 // GetStatus returns the current Tailscale status via the LocalAPI.
 // Falls back to the CLI ('tailscale status --json') if the socket is unavailable.
 func (c *Client) GetStatus() (*Status, error) {
