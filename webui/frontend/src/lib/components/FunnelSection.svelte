@@ -4,6 +4,7 @@
   import { FUNNEL_PORTS } from '../stores/app.js';
   import Toggle from './Toggle.svelte';
   import ItemMenu from './ItemMenu.svelte';
+  import CopyButton from './CopyButton.svelte';
 
   let {
     funnels = [],
@@ -98,6 +99,7 @@
                   rel="noopener"
                   class="font-medium text-sm truncate hover:underline"
                 >{funnelUrl}</a>
+                <CopyButton text={funnelUrl} />
               </div>
               <p class="font-medium text-sm mt-1 ml-8">
                 &rarr; {formatFunnelTarget(funnel)}
