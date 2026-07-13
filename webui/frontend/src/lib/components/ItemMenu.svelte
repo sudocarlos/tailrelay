@@ -1,5 +1,5 @@
 <script>
-  import { onDestroy } from 'svelte';
+  import { tick, onDestroy } from 'svelte';
   import { MoreHorizontal, SquarePen, SquarePower, Trash2 } from '@lucide/svelte';
   import { portal } from '../actions/portal.js';
   import Toggle from './Toggle.svelte';
@@ -22,15 +22,35 @@
   let menuEl = $state(null);
   let style = $state('');
 
-  function computeStyle() {
-    if (!triggerEl) return;
-    const r = triggerEl.getBoundingClientRect();
-    style = `position:fixed; top:${r.bottom + 4}px; right:${window.innerWidth - r.right}px; z-index:9999;`;
+  function clamp(val, min, max) {
+    return Math.max(min, Math.min(max, val));
   }
 
-  function show() {
-    computeStyle();
+  async function show() {
+    // Initial position: below the trigger, right-aligned.
+    const r = triggerEl.getBoundingClientRect();
+    style = `position:fixed; top:${r.bottom + 4}px; right:${window.innerWidth - r.right}px; z-index:9999;`;
     open = true;
+
+    // Wait for the menu to mount, then clamp to viewport.
+    await tick();
+    if (!menuEl) return;
+    const m = menuEl.getBoundingClientRect();
+    const gap = 4;
+    let top = r.bottom + gap;
+    let left = r.right - m.width;
+
+    // Vertical: flip above if it overflows the bottom.
+    if (top + m.height > window.innerHeight) {
+      top = r.top - m.height - gap;
+    }
+    // Clamp vertical.
+    top = clamp(top, 0, window.innerHeight - m.height);
+
+    // Horizontal: clamp so the menu stays fully visible.
+    left = clamp(left, 0, window.innerWidth - m.width);
+
+    style = `position:fixed; top:${top}px; left:${left}px; z-index:9999;`;
   }
 
   function hide() {
@@ -42,7 +62,20 @@
   }
 
   function reposition() {
-    if (open) computeStyle();
+    if (!open || !triggerEl || !menuEl) return;
+    const r = triggerEl.getBoundingClientRect();
+    const m = menuEl.getBoundingClientRect();
+    const gap = 4;
+    let top = r.bottom + gap;
+    let left = r.right - m.width;
+
+    if (top + m.height > window.innerHeight) {
+      top = r.top - m.height - gap;
+    }
+    top = clamp(top, 0, window.innerHeight - m.height);
+    left = clamp(left, 0, window.innerWidth - m.width);
+
+    style = `position:fixed; top:${top}px; left:${left}px; z-index:9999;`;
   }
 
   function selectEdit() {
