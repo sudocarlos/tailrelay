@@ -1,6 +1,6 @@
 <script>
   import { onDestroy } from 'svelte';
-  import { MoreHorizontal, Trash2 } from '@lucide/svelte';
+  import { MoreHorizontal, SquarePen, SquarePower, Trash2 } from '@lucide/svelte';
   import { portal } from '../actions/portal.js';
   import Toggle from './Toggle.svelte';
 
@@ -115,11 +115,12 @@
       class="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors"
       onclick={selectEdit}
     >
+      <SquarePen size={14} />
       Edit
     </button>
 
     <div class="flex items-center justify-between gap-3 px-3 py-2">
-      <span class="text-gray-700 dark:text-gray-300">Start on boot</span>
+      <span class="flex items-center gap-2 text-gray-700 dark:text-gray-300"><SquarePower size={14} />Start on boot</span>
       <Toggle checked={autostart} onChange={onAutostartChange} label="Start on boot" />
     </div>
 
