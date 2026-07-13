@@ -1,7 +1,8 @@
 <script>
-  import { Network, ShieldCheck, AlertTriangle } from '@lucide/svelte';
+  import { Network, ShieldCheck, AlertTriangle, Copy } from '@lucide/svelte';
   import Toggle from './Toggle.svelte';
   import ItemMenu from './ItemMenu.svelte';
+  import { showToast } from '../stores/toast.js';
 
   let { item, fqdn, toggling = false, onToggle, onAutostart, onEdit, onDelete } = $props();
 
@@ -30,6 +31,11 @@
   function statusIconClass(isToggling, isRunning) {
     return isToggling || isRunning ? 'text-white' : 'text-blue-500';
   }
+
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text);
+    showToast('success', 'Copied to clipboard');
+  }
 </script>
 
 {#if item.type === 'relay'}
@@ -49,6 +55,13 @@
             <Network size={14} fill="currentColor" class={statusIconClass(toggling, running)} />
           </span>
           <span class="font-medium text-sm truncate"><span class="text-sm font-normal text-gray-400 dark:text-gray-500">tcp://{fqdn || 'unknown'}</span><span>:{relay.listen_port}</span></span>
+          <button
+            class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex-shrink-0 transition-colors"
+            onclick={() => copyToClipboard(`tcp://${fqdn || 'unknown'}:${relay.listen_port}`)}
+            title="Copy address"
+          >
+            <Copy size={13} />
+          </button>
         </div>
         <p class="font-medium text-sm mt-1 ml-8">
           &rarr; {formatRelayTarget(relay)}
