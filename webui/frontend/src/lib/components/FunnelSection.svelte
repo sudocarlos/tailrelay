@@ -1,7 +1,9 @@
 <script>
   import { untrack } from 'svelte';
-  import { Globe, Ban, Plus, Play, Pause, Pencil, Trash2, RefreshCw, ChevronDown, ChevronUp } from '@lucide/svelte';
+  import { Globe, Ban, Plus, ChevronDown, ChevronUp } from '@lucide/svelte';
   import { FUNNEL_PORTS } from '../stores/app.js';
+  import Toggle from './Toggle.svelte';
+  import ItemMenu from './ItemMenu.svelte';
 
   let {
     funnels = [],
@@ -34,6 +36,17 @@
 
   function formatFunnelTarget(funnel) {
     return `${funnel.target_host}:${funnel.target_port}`;
+  }
+
+  // Mirrors ItemCard.svelte's status-badge helpers: the type icon doubles
+  // as the status indicator instead of a separate dot.
+  function statusBadgeClass(isToggling, isRunning) {
+    if (isToggling) return 'bg-amber-400 animate-pulse';
+    return isRunning ? 'bg-green-500 status-dot-running' : 'bg-gray-100 dark:bg-gray-800';
+  }
+
+  function statusIconClass(isToggling, isRunning) {
+    return isToggling || isRunning ? 'text-white' : 'text-blue-500';
   }
 </script>
 
@@ -73,67 +86,38 @@
             <!-- Info -->
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2">
-                <Globe size={16} class="text-blue-500 flex-shrink-0" />
+                <span
+                  class="flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0 transition-colors {statusBadgeClass(toggling, running)}"
+                  title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
+                >
+                  <Globe size={14} class={statusIconClass(toggling, running)} />
+                </span>
                 <a
                   href={funnelUrl}
                   target="_blank"
                   rel="noopener"
                   class="font-medium text-sm truncate hover:underline"
                 >{funnelUrl}</a>
-                <span
-                  class="w-2 h-2 rounded-full flex-shrink-0 {toggling ? 'bg-amber-400 animate-pulse' : running ? 'bg-green-500 status-dot-running' : 'bg-gray-400 dark:bg-gray-600'}"
-                  title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
-                ></span>
               </div>
-              <p class="font-medium text-sm mt-1 ml-6">
+              <p class="font-medium text-sm mt-1 ml-8">
                 &rarr; {formatFunnelTarget(funnel)}
               </p>
             </div>
 
             <!-- Actions -->
-            <div class="flex items-center gap-2 ml-6 sm:ml-0">
-              <label class="flex items-center gap-1.5 cursor-pointer" title="Start automatically on boot">
-                <span class="text-xs text-gray-500 dark:text-gray-400">Auto</span>
-                <input
-                  type="checkbox"
-                  checked={autostart}
-                  onchange={(e) => onAutostart(funnel.id, e.target.checked)}
-                  class="rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 h-3.5 w-3.5 dark:bg-gray-800"
-                />
-              </label>
-
-              <div class="w-px h-5 bg-gray-200 dark:bg-gray-700"></div>
-
-              <button
-                class="p-1.5 rounded-md transition-colors {toggling ? 'text-amber-500 cursor-not-allowed' : running ? 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500' : 'hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600'}"
-                onclick={() => onToggle(funnel.id, running)}
+            <div class="flex items-center gap-1 ml-8 sm:ml-0">
+              <Toggle
+                checked={running}
                 disabled={toggling}
-                title={toggling ? 'Updating…' : running ? 'Stop' : 'Start'}
-              >
-                {#if toggling}
-                  <RefreshCw size={15} class="animate-spin" />
-                {:else if running}
-                  <Pause size={15} />
-                {:else}
-                  <Play size={15} />
-                {/if}
-              </button>
-
-              <button
-                class="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors"
-                onclick={() => onEdit(funnel)}
-                title="Edit"
-              >
-                <Pencil size={15} />
-              </button>
-
-              <button
-                class="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors"
-                onclick={() => onDelete(funnel.id, funnelUrl, formatFunnelTarget(funnel))}
-                title="Delete"
-              >
-                <Trash2 size={15} />
-              </button>
+                onChange={() => onToggle(funnel.id, running)}
+                label={running ? 'Stop funnel' : 'Start funnel'}
+              />
+              <ItemMenu
+                {autostart}
+                onAutostartChange={(v) => onAutostart(funnel.id, v)}
+                onEdit={() => onEdit(funnel)}
+                onDelete={() => onDelete(funnel.id, funnelUrl, formatFunnelTarget(funnel))}
+              />
             </div>
           </div>
         </div>

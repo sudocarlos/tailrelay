@@ -1,5 +1,6 @@
 <script>
   import { onDestroy } from 'svelte';
+  import { portal } from '../actions/portal.js';
 
   /**
    * Portal-based tooltip that mounts directly on document.body,
@@ -72,15 +73,6 @@
     window.removeEventListener('resize', reposition);
   });
 
-  // Svelte action: moves element to document.body on mount, removes on destroy
-  function portal(node) {
-    document.body.appendChild(node);
-    return {
-      destroy() {
-        if (node.parentNode) node.parentNode.removeChild(node);
-      }
-    };
-  }
 </script>
 
 <!-- Trigger wrapper — p-2 / -m-2 expands the tap target to ~42×42 px
