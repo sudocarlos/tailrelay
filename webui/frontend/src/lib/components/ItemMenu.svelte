@@ -107,23 +107,23 @@
     {style}
     role="menu"
     use:portal
-    class="min-w-[200px] rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl py-1 text-sm"
+    class="min-w-[200px] rounded-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg p-1 text-sm"
   >
     <button
       type="button"
       role="menuitem"
-      class="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 transition-colors"
+      class="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors"
       onclick={selectEdit}
     >
       Edit
     </button>
 
     <div class="flex items-center justify-between gap-3 px-3 py-2">
-      <span class="text-gray-700 dark:text-gray-200">Start on boot</span>
+      <span class="text-gray-700 dark:text-gray-300">Start on boot</span>
       <Toggle checked={autostart} onChange={onAutostartChange} label="Start on boot" />
     </div>
 
-    <hr class="border-gray-100 dark:border-gray-800 my-1" />
+    <hr class="border-gray-100 dark:border-gray-700 my-1" />
 
     <button
       type="button"
