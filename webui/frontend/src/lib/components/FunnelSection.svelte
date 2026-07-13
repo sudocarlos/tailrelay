@@ -42,7 +42,7 @@
   // as the status indicator instead of a separate dot.
   function statusBadgeClass(isToggling, isRunning) {
     if (isToggling) return 'bg-amber-400 animate-pulse';
-    return isRunning ? 'bg-green-500 status-dot-running' : 'bg-gray-100 dark:bg-gray-800';
+    return isRunning ? 'bg-green-700 status-dot-running' : 'bg-gray-100 dark:bg-gray-800';
   }
 
   function statusIconClass(isToggling, isRunning) {
