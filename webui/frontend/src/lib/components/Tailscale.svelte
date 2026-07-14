@@ -4,6 +4,7 @@
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
   import { Wifi, WifiOff, LogIn, LogOut, RefreshCw, Server, AlertTriangle, ExternalLink, Check, Users } from '@lucide/svelte';
+  import CopyButton from './CopyButton.svelte';
   import NetworkingSection from './NetworkingSection.svelte';
 
   // ── Local state ───────────────────────────────────────────────────
@@ -241,11 +242,6 @@
   onDestroy(() => {
     stopLoginPoll();
   });
-
-  function copyToClipboard(text) {
-    navigator.clipboard.writeText(text);
-    showToast('success', 'Copied to clipboard');
-  }
 
   function handleWindowClick(e) {
     const clickedDetails = e.target.closest('details.address-dropdown');
@@ -600,14 +596,14 @@
                       {#if peer.DNSName}
                         <div class="flex items-center justify-between px-3 py-2 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors">
                           <span class="truncate">{peer.DNSName}</span>
-                          <button class="ml-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" onclick={() => copyToClipboard(peer.DNSName)} title="Copy"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                          <CopyButton text={peer.DNSName} size={14} label="Copy DNS name" />
                         </div>
                       {/if}
                       {#if peer.TailscaleIPs && peer.TailscaleIPs.length > 0}
                         {#each peer.TailscaleIPs as ip}
                           <div class="flex items-center justify-between px-3 py-2 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors border-t border-gray-100 dark:border-gray-700/50">
                             <span>{ip}</span>
-                            <button class="ml-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" onclick={() => copyToClipboard(ip)} title="Copy"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                            <CopyButton text={ip} size={14} label="Copy IP address" />
                           </div>
                         {/each}
                       {/if}
