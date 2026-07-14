@@ -1,6 +1,7 @@
 <script>
   import { onDestroy } from 'svelte';
   import { Copy } from '@lucide/svelte';
+  import { showToast } from '../stores/toast.js';
 
   let { text, label = 'Copy address', size = 13, class: className = '' } = $props();
 
@@ -31,7 +32,7 @@
       clearTimeout(timer);
       timer = setTimeout(() => { copied = false; }, 1500);
     } catch {
-      // silent — clipboard write failed
+      showToast('danger', 'Failed to copy');
     }
   }
 </script>
@@ -42,7 +43,7 @@
   title={copied ? 'Copied' : label}
 >
   {#if copied}
-    <span class="text-green-600 text-[length:inherit] font-medium">Copied</span>
+    <span class="text-green-600 font-medium" style="font-size: {size}px">Copied</span>
   {:else}
     <Copy size={size} />
   {/if}
