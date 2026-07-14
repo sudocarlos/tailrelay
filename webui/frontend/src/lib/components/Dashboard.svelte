@@ -134,7 +134,7 @@
         const entry = findItem(type, id);
         const actualRunning = type === 'relay'
           ? get(relays).find((r) => r.relay.id === id)?.running
-          : (entry?.enabled ?? false);
+          : (entry?.running ?? false);
         if (actualRunning === expected) break;
         await new Promise((r) => setTimeout(r, 500));
       }
