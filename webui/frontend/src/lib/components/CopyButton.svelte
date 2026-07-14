@@ -1,4 +1,5 @@
 <script>
+  import { onDestroy } from 'svelte';
   import { Copy, Check } from '@lucide/svelte';
   import { showToast } from '../stores/toast.js';
 
@@ -6,6 +7,8 @@
 
   let copied = $state(false);
   let timer = null;
+
+  onDestroy(() => clearTimeout(timer));
 
   async function handleCopy() {
     if (copied) return;

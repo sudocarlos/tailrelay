@@ -5,6 +5,7 @@
   import Toggle from './Toggle.svelte';
   import ItemMenu from './ItemMenu.svelte';
   import CopyButton from './CopyButton.svelte';
+  import { statusBadgeClass, statusIconClass } from '../utils/statusBadge.js';
 
   let {
     funnels = [],
@@ -39,16 +40,7 @@
     return `${funnel.target_host}:${funnel.target_port}`;
   }
 
-  // Mirrors ItemCard.svelte's status-badge helpers: the type icon doubles
-  // as the status indicator instead of a separate dot.
-  function statusBadgeClass(isToggling, isRunning) {
-    if (isToggling) return 'bg-amber-400 animate-pulse';
-    return isRunning ? 'bg-green-700 status-dot-running' : 'bg-gray-100 dark:bg-gray-800';
-  }
 
-  function statusIconClass(isToggling, isRunning) {
-    return isToggling || isRunning ? 'text-white' : 'text-blue-500';
-  }
 </script>
 
 <!-- Header -->

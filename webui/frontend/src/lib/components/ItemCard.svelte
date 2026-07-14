@@ -3,6 +3,7 @@
   import Toggle from './Toggle.svelte';
   import ItemMenu from './ItemMenu.svelte';
   import CopyButton from './CopyButton.svelte';
+  import { statusBadgeClass, statusIconClass } from '../utils/statusBadge.js';
 
   let { item, fqdn, toggling = false, onToggle, onAutostart, onEdit, onDelete } = $props();
 
@@ -20,17 +21,7 @@
     return `https://${proxy.hostname || fqdn}${port}`;
   }
 
-  // The type icon (Network/ShieldCheck) doubles as the status indicator:
-  // neutral background + accent icon when stopped, colored background +
-  // white icon when running or mid-toggle (replacing the old status dot).
-  function statusBadgeClass(isToggling, isRunning) {
-    if (isToggling) return 'bg-amber-400 animate-pulse';
-    return isRunning ? 'bg-green-700 status-dot-running' : 'bg-gray-100 dark:bg-gray-800';
-  }
 
-  function statusIconClass(isToggling, isRunning) {
-    return isToggling || isRunning ? 'text-white' : 'text-blue-500';
-  }
 </script>
 
 {#if item.type === 'relay'}
