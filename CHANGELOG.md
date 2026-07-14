@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.5] - 2026-07-14
+
 ### Added
 - **Networking section on the Tailscale page** — manage `tailscale set` networking preferences from the dashboard
   - Exit node dropdown combines a "Run as exit node" option with selecting a peer already advertising as one, with **Allow LAN access** shown as a sub-option while using a peer's exit node
@@ -21,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New `CopyButton` component for one-click address copying on relay/proxy/funnel cards
   - Shared `portal` Svelte action extracted from `Tooltip.svelte` into `actions/portal.js`
 - **Frontend tooling** — bumped `vite` in `webui/frontend/package.json` from `8.1.3` to `8.1.4`
+
+### Docker
+```
+docker pull sudocarlos/tailrelay:v0.9.5
+docker pull ghcr.io/sudocarlos/tailrelay:v0.9.5
+```
 
 ## [0.9.4] - 2026-07-07
 
