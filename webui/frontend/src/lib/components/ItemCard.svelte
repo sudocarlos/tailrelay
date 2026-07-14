@@ -47,7 +47,7 @@
             class="flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0 transition-colors {statusBadgeClass(toggling, running)}"
             title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
           >
-            <Network size={14} fill="currentColor" class={statusIconClass(toggling, running)} />
+            <Network size={14} class={statusIconClass(toggling, running)} />
           </span>
           <span class="font-medium text-sm truncate"><span class="text-sm font-normal text-gray-400 dark:text-gray-500">tcp://{fqdn || 'unknown'}</span><span>:{relay.listen_port}</span></span>
           <CopyButton text={`tcp://${fqdn || 'unknown'}:${relay.listen_port}`} />
@@ -91,7 +91,7 @@
             class="flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0 transition-colors {statusBadgeClass(toggling, running)}"
             title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
           >
-            <ShieldCheck size={14} fill="currentColor" class={statusIconClass(toggling, running)} />
+            <ShieldCheck size={14} class={statusIconClass(toggling, running)} />
           </span>
           <a
             href={proxyUrl}
