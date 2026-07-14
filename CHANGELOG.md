@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New `GET /api/tailscale/networking` and `POST /api/tailscale/networking/update` API endpoints
 
 ### Changed
+- **Relay card UI** — replaced per-card Play/Pause buttons, inline "Auto" checkbox, and separate Edit/Delete buttons with an iOS-style toggle switch and a portal-based "..." overflow menu containing Edit, Start on boot, and Delete actions
+  - Status indicator now lives inside the type icon badge (colored background + white icon when running, amber pulse when toggling, neutral when stopped)
+  - New `CopyButton` component for one-click address copying on relay/proxy/funnel cards
+  - Shared `portal` Svelte action extracted from `Tooltip.svelte` into `actions/portal.js`
 - **Frontend tooling** — bumped `vite` in `webui/frontend/package.json` from `8.1.3` to `8.1.4`
 
 ## [0.9.4] - 2026-07-07

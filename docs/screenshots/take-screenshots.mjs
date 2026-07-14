@@ -106,7 +106,7 @@ async function snap(page, name) {
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 const browser = await chromium.launch({
-  executablePath: `${process.env.HOME}/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome`,
+  executablePath: chromium.executablePath(),
   headless: true,
   args: ['--no-sandbox', '--disable-setuid-sandbox'],
 });
