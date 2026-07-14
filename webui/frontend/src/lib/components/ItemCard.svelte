@@ -113,7 +113,7 @@
         <Toggle
           checked={running}
           disabled={toggling}
-          onChange={() => onToggle('proxy', proxy.id, proxy.enabled)}
+          onChange={() => onToggle('proxy', proxy.id, running)}
           label={running ? 'Stop proxy' : 'Start proxy'}
         />
         <ItemMenu
