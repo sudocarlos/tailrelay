@@ -596,14 +596,14 @@
                       {#if peer.DNSName}
                         <div class="flex items-center justify-between px-3 py-2 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors">
                           <span class="truncate">{peer.DNSName}</span>
-                          <CopyButton text={peer.DNSName} size={14} label="Copy DNS name" />
+                          <CopyButton text={peer.DNSName} size={14} label="Copy DNS name" class="ml-4" />
                         </div>
                       {/if}
                       {#if peer.TailscaleIPs && peer.TailscaleIPs.length > 0}
                         {#each peer.TailscaleIPs as ip}
                           <div class="flex items-center justify-between px-3 py-2 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors border-t border-gray-100 dark:border-gray-700/50">
                             <span>{ip}</span>
-                            <CopyButton text={ip} size={14} label="Copy IP address" />
+                            <CopyButton text={ip} size={14} label="Copy IP address" class="ml-4" />
                           </div>
                         {/each}
                       {/if}
