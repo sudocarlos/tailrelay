@@ -59,8 +59,8 @@ dev-build: frontend-build ## Build webui binary locally for development
 
 dev-docker-build: dev-build ## Build development Docker image using local binary
 	@echo "Building development Docker image..."
-	docker buildx build --load --build-arg WEBUI_SOURCE=binary-dev -t sudocarlos/tailrelay:dev .
-	@echo "✅ Development image built and loaded: sudocarlos/tailrelay:dev"
+	docker buildx build --load --build-arg WEBUI_SOURCE=binary-dev -t sudocarlos/tailrelay:dev -t sudocarlos/tailrelay:dev-$(COMMIT) .
+	@echo "✅ Development image built and loaded: sudocarlos/tailrelay:dev and sudocarlos/tailrelay:dev-$(COMMIT)"
 
 clean: ## Remove build artifacts
 	@echo "Cleaning build artifacts..."
