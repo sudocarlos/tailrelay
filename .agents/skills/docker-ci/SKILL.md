@@ -1,7 +1,7 @@
 ---
 name: docker-ci-pipeline
 description: Docker image building, Compose development environments, CI/CD pipeline, and testing infrastructure. Use when working with Dockerfiles, docker-compose, GitHub Actions CI, Make targets, integration tests, or deployment workflows.
-reviewed_at: 67b91e7
+reviewed_at: a93bcfa
 ---
 
 # Docker & CI Pipeline
@@ -42,6 +42,10 @@ make dev-docker-build    # Build Docker image using local binary
 
 `dev-docker-build` passes `--build-arg WEBUI_SOURCE=binary-dev` so Docker copies `./data/tailrelay-webui` from the build context instead of compiling in-container. No separate `Dockerfile.dev` is needed.
 
+Both `dev-build` and `dev-docker-build` default `GOARCH` to the host's native architecture (via `go env GOARCH`), and `dev-docker-build` passes it through as `--platform linux/$(GOARCH)`. On Apple Silicon this builds a native `linux/arm64` binary/image with no QEMU emulation. Override with `make dev-docker-build GOARCH=amd64` to cross-build for a different arch.
+
+`dev-docker-build` and `release` also auto-detect the container engine via `CONTAINER_ENGINE ?= $(shell command -v docker ... || echo podman)`, so podman-only setups (no `docker` binary — a shell `alias docker=podman` isn't visible to Make's non-interactive recipe shell) work without edits. `BUILDX_LOAD` adds `--load` only for docker, since podman's `buildx build` shim always loads locally and rejects that flag. Override with `make dev-docker-build CONTAINER_ENGINE=podman` if detection picks the wrong engine. Podman's `buildx build` compatibility shim ships with recent Podman Desktop/CLI releases (verified against podman 6.0.1) but isn't guaranteed on every install — a "command not found" here means the podman install lacks the shim, not a bug in the detection logic. `make release`'s multi-platform `--push` hasn't been exercised against podman; if it doesn't push cleanly, run it with `CONTAINER_ENGINE=docker` instead.
+
 ## Make Targets
 
 | Target | Description | Depends On |
@@ -50,8 +54,8 @@ make dev-docker-build    # Build Docker image using local binary
 | `make test` | Run Go unit tests (`cd webui && go test ./...`) | — |
 | `make integration-test` | Run integration tests via pytest | Docker, `.env` |
 | `make frontend-build` | Build SPA assets (npm install + build) | Node.js |
-| `make dev-build` | Build Go binary with metadata | `frontend-build` |
-| `make dev-docker-build` | Build dev Docker image | `dev-build` |
+| `make dev-build` | Build Go binary with metadata (native `GOARCH` by default) | `frontend-build` |
+| `make dev-docker-build` | Build dev Docker image for native host platform (`linux/$(GOARCH)`) | `dev-build` |
 | `make release` | Multi-platform push to Docker Hub + GHCR | Docker Buildx |
 | `make clean` | Remove build artifacts | — |
 
