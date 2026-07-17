@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`make dev-docker-build`/`make release`** — auto-detect the container engine (`docker` or `podman`) instead of hardcoding `docker`, since a shell `alias docker=podman` isn't visible to Make's non-interactive recipe shell. `dev-build`/`dev-docker-build` also now default `GOARCH`/`--platform` to the host's native architecture (`go env GOARCH`) instead of relying on implicit defaults, so builds on Apple Silicon are native `linux/arm64` with no QEMU emulation.
+
 ## [0.9.5] - 2026-07-14
 
 ### Added

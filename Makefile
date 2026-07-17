@@ -12,6 +12,18 @@ DOCKERHUB_REPO ?= sudocarlos/tailrelay
 GHCR_REPO ?= ghcr.io/sudocarlos/tailrelay
 PLATFORMS ?= linux/amd64,linux/arm64
 
+# Host architecture (e.g. arm64 on Apple Silicon, amd64 on Intel/most Linux)
+# used to build native dev binaries/images instead of relying on emulation.
+GOARCH ?= $(shell go env GOARCH)
+
+# Container engine: prefers docker, falls back to podman (aliases aren't
+# visible to Make's non-interactive shell). Override: CONTAINER_ENGINE=podman
+CONTAINER_ENGINE ?= $(shell command -v docker >/dev/null 2>&1 && echo docker || echo podman)
+
+# docker's buildx needs --load to load the image locally; podman's buildx
+# shim always loads locally and rejects --load outright.
+BUILDX_LOAD := $(if $(filter docker,$(CONTAINER_ENGINE)),--load,)
+
 # Go build flags with metadata
 LDFLAGS = -w -s \
 	-X main.Version=$(VERSION) \
@@ -45,8 +57,9 @@ dev-build: frontend-build ## Build webui binary locally for development
 	@echo "  DATE:    $(DATE)"
 	@echo "  BRANCH:  $(BRANCH)"
 	@echo "  BUILDER: $(BUILDER)"
+	@echo "  GOARCH:  $(GOARCH)"
 	@mkdir -p data
-	cd webui && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
+	cd webui && CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build -a -installsuffix cgo \
 		-ldflags="$(LDFLAGS)" \
 		-o ../data/tailrelay-webui ./cmd/webui
 	@if [ -f data/tailrelay-webui ]; then \
@@ -57,9 +70,9 @@ dev-build: frontend-build ## Build webui binary locally for development
 		exit 1; \
 	fi
 
-dev-docker-build: dev-build ## Build development Docker image using local binary
-	@echo "Building development Docker image..."
-	docker buildx build --load --build-arg WEBUI_SOURCE=binary-dev -t sudocarlos/tailrelay:dev -t sudocarlos/tailrelay:dev-$(COMMIT) .
+dev-docker-build: dev-build ## Build development Docker image using local binary (native host arch)
+	@echo "Building development image for linux/$(GOARCH) with $(CONTAINER_ENGINE)..."
+	$(CONTAINER_ENGINE) buildx build $(BUILDX_LOAD) --platform linux/$(GOARCH) --build-arg WEBUI_SOURCE=binary-dev -t sudocarlos/tailrelay:dev -t sudocarlos/tailrelay:dev-$(COMMIT) .
 	@echo "✅ Development image built and loaded: sudocarlos/tailrelay:dev and sudocarlos/tailrelay:dev-$(COMMIT)"
 
 clean: ## Remove build artifacts
@@ -78,7 +91,7 @@ release: ## Build and push multi-platform release to Docker Hub + GHCR
 	@echo "  Platforms: $(PLATFORMS)"
 	@echo "  Docker Hub: $(DOCKERHUB_REPO):$(VERSION)"
 	@echo "  GHCR:       $(GHCR_REPO):$(VERSION)"
-	docker buildx build \
+	$(CONTAINER_ENGINE) buildx build \
 		--platform $(PLATFORMS) \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg COMMIT=$(COMMIT) \
