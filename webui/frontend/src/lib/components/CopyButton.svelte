@@ -1,16 +1,17 @@
 <script>
   import { onDestroy } from 'svelte';
-  import { Copy, Check } from '@lucide/svelte';
+  import { Copy } from '@lucide/svelte';
   import { showToast } from '../stores/toast.js';
 
-  let { text, label = 'Copy address', size = 13 } = $props();
+  let { text, label = 'Copy address', size = 13, class: className = '' } = $props();
 
   let copied = $state(false);
   let timer = null;
 
   onDestroy(() => clearTimeout(timer));
 
-  async function handleCopy() {
+  async function handleCopy(e) {
+    e.stopPropagation();
     if (copied) return;
 
     try {
@@ -28,7 +29,6 @@
         document.body.removeChild(el);
       }
       copied = true;
-      showToast('success', 'Copied to clipboard');
       clearTimeout(timer);
       timer = setTimeout(() => { copied = false; }, 1500);
     } catch {
@@ -38,12 +38,12 @@
 </script>
 
 <button
-  class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex-shrink-0 transition-colors"
+  class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex-shrink-0 transition-colors {className}"
   onclick={handleCopy}
-  title={label}
+  title={copied ? 'Copied' : label}
 >
   {#if copied}
-    <Check size={size} class="text-green-600" />
+    <span class="text-green-600 font-medium" style="font-size: {size}px">Copied</span>
   {:else}
     <Copy size={size} />
   {/if}
