@@ -20,6 +20,14 @@ func ValidateControlServerURL(raw string) error {
 	return nil
 }
 
+// buildLoginArgs builds the `tailscale login` argv used by Login's
+// CLI-based flow when a custom control server is configured. Split out so
+// the argument construction can be unit tested without shelling out,
+// mirroring buildLoginWithAuthKeyArgs.
+func buildLoginArgs(controlServer string) []string {
+	return []string{"login", "--login-server=" + controlServer}
+}
+
 // buildLoginWithAuthKeyArgs builds the `tailscale up` argv used by
 // LoginWithAuthKey, appending --login-server only when controlServer is
 // set. Split out from LoginWithAuthKey so the argument construction can be

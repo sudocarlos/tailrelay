@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -148,5 +149,30 @@ func TestUpdateControlServer_RejectsInvalidJSON(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for invalid JSON body, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+}
+
+func TestUpdateControlServer_RollsBackInMemoryOnSaveFailure(t *testing.T) {
+	h := newControlServerTestHandler(t)
+	h.cfg.Tailscale.ControlServer = "https://original.example.com"
+
+	// Point ConfigFile at a path whose parent is a regular file, so
+	// config.Save's os.MkdirAll fails and the write never happens.
+	dir := t.TempDir()
+	blocker := filepath.Join(dir, "blocker")
+	if err := os.WriteFile(blocker, []byte("not a directory"), 0644); err != nil {
+		t.Fatalf("create blocker file: %v", err)
+	}
+	h.cfg.ConfigFile = filepath.Join(blocker, "webui.yaml")
+
+	rr := postJSON(t, h.UpdateControlServer, "/api/tailscale/control-server/update", map[string]interface{}{
+		"control_server": "https://new.example.com",
+	})
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 when config.Save fails, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	if h.cfg.Tailscale.ControlServer != "https://original.example.com" {
+		t.Errorf("expected in-memory config to roll back to previous value on save failure, got %q", h.cfg.Tailscale.ControlServer)
 	}
 }

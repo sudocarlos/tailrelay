@@ -18,6 +18,8 @@ func TestValidateControlServerURL(t *testing.T) {
 		{name: "unsupported scheme", raw: "ftp://headscale.example.com", wantErr: true},
 		{name: "scheme with no host", raw: "https://", wantErr: true},
 		{name: "not a URL at all", raw: "not a url", wantErr: true},
+		{name: "with query string", raw: "https://headscale.example.com?foo=bar", wantErr: false},
+		{name: "with userinfo", raw: "https://user:pass@headscale.example.com", wantErr: false},
 	}
 
 	for _, tt := range tests {
@@ -27,6 +29,14 @@ func TestValidateControlServerURL(t *testing.T) {
 				t.Errorf("ValidateControlServerURL(%q) error = %v, wantErr %v", tt.raw, err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestBuildLoginArgs(t *testing.T) {
+	got := buildLoginArgs("https://headscale.example.com")
+	want := []string{"login", "--login-server=https://headscale.example.com"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("buildLoginArgs(...) = %v, want %v", got, want)
 	}
 }
 

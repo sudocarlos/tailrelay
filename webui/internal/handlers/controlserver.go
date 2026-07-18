@@ -58,8 +58,13 @@ func (h *TailscaleHandler) UpdateControlServer(w http.ResponseWriter, r *http.Re
 	}
 
 	h.cfgMu.Lock()
+	previous := h.cfg.Tailscale.ControlServer
 	h.cfg.Tailscale.ControlServer = body.ControlServer
 	err := config.Save(h.cfg.ConfigFile, h.cfg)
+	if err != nil {
+		// Keep in-memory state consistent with what's actually on disk.
+		h.cfg.Tailscale.ControlServer = previous
+	}
 	h.cfgMu.Unlock()
 
 	if err != nil {

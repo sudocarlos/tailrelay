@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/netip"
@@ -211,16 +212,21 @@ func (c *Client) GetIP() (ipv4, ipv6 string, err error) {
 // reuses the node's existing prefs. Either way, it then polls
 // GET /localapi/v0/status until AuthURL is populated (up to 10 seconds).
 func (c *Client) Login(controlServer string) (string, error) {
+	controlServer = strings.TrimSpace(controlServer)
 	if controlServer != "" {
 		// tailscaled generates the AuthURL asynchronously and the CLI
 		// blocks until authentication completes, so start it in the
 		// background and let the poll loop below pick up the URL exactly
 		// like the LocalAPI-triggered flow does.
-		cmd := exec.Command(c.binaryPath, "login", "--login-server="+controlServer)
+		cmd := exec.Command(c.binaryPath, buildLoginArgs(controlServer)...)
 		if err := cmd.Start(); err != nil {
 			return "", fmt.Errorf("failed to start login flow: %w", err)
 		}
-		go func() { _ = cmd.Wait() }()
+		go func() {
+			if err := cmd.Wait(); err != nil {
+				log.Printf("tailscale login --login-server=%s exited with error: %v", controlServer, err)
+			}
+		}()
 	} else {
 		// Trigger the login flow. This requires the process to be running as root
 		// (or the configured operator), which is always the case inside the container.
@@ -336,7 +342,7 @@ func (c *Client) LoginWithAuthKey(key, controlServer string) error {
 	if key == "" {
 		return fmt.Errorf("auth key cannot be empty")
 	}
-	cmd := exec.Command(c.binaryPath, buildLoginWithAuthKeyArgs(key, controlServer)...)
+	cmd := exec.Command(c.binaryPath, buildLoginWithAuthKeyArgs(key, strings.TrimSpace(controlServer))...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to authenticate with auth key: %w (output: %s)", err, strings.TrimSpace(string(output)))
