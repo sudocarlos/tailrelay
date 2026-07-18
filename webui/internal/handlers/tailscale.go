@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sudocarlos/tailrelay/internal/auth"
@@ -21,6 +22,9 @@ type TailscaleHandler struct {
 	tsClient  *tailscale.Client
 	authMW    *auth.Middleware
 	serveMgr  *serve.Manager
+	// cfgMu guards reads/writes of cfg.Tailscale.ControlServer, since cfg is
+	// a pointer shared across handlers with no locking of its own.
+	cfgMu sync.Mutex
 }
 
 // NewTailscaleHandler creates a new Tailscale handler
@@ -95,7 +99,7 @@ func (h *TailscaleHandler) LoginWithKey(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := h.tsClient.LoginWithAuthKey(body.AuthKey); err != nil {
+	if err := h.tsClient.LoginWithAuthKey(body.AuthKey, h.controlServer()); err != nil {
 		log.Printf("Error authenticating Tailscale with auth key: %v", err)
 		writeJSONError(w, "Failed to authenticate with auth key: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -117,7 +121,7 @@ func (h *TailscaleHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authURL, err := h.tsClient.Login()
+	authURL, err := h.tsClient.Login(h.controlServer())
 	if err != nil {
 		log.Printf("Error initiating Tailscale login: %v", err)
 		writeJSONError(w, "Failed to get login URL from Tailscale. The daemon may not be running or may already be connected.", http.StatusInternalServerError)

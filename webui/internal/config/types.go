@@ -4,11 +4,12 @@ import "time"
 
 // Config represents the main application configuration
 type Config struct {
-	Server  ServerConfig  `yaml:"server"`
-	Auth    AuthConfig    `yaml:"auth"`
-	Paths   PathsConfig   `yaml:"paths"`
-	Backup  BackupConfig  `yaml:"backup"`
-	Logging LoggingConfig `yaml:"logging"`
+	Server    ServerConfig    `yaml:"server"`
+	Auth      AuthConfig      `yaml:"auth"`
+	Paths     PathsConfig     `yaml:"paths"`
+	Backup    BackupConfig    `yaml:"backup"`
+	Logging   LoggingConfig   `yaml:"logging"`
+	Tailscale TailscaleConfig `yaml:"tailscale"`
 	// Internal fields
 	ConfigFile string `yaml:"-"`
 }
@@ -45,6 +46,14 @@ type BackupConfig struct {
 type LoggingConfig struct {
 	Level  string `yaml:"level"`
 	Format string `yaml:"format"`
+}
+
+// TailscaleConfig contains persisted Tailscale login settings.
+type TailscaleConfig struct {
+	// ControlServer is a custom control server URL (e.g. a self-hosted
+	// Headscale instance) passed as `tailscale login --login-server=<url>`.
+	// Empty means Tailscale's default control plane.
+	ControlServer string `yaml:"control_server"`
 }
 
 // ServeRelay represents a relay backed by `tailscale serve` or `tailscale funnel`.
