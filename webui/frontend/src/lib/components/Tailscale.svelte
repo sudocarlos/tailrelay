@@ -18,6 +18,12 @@
   let connectLoading = $state(false);
   let pollInterval = null;
 
+  // Control server (Headscale) settings
+  let controlServerInput = $state('');
+  let controlServerBaseline = $state('');
+  let controlServerSaving = $state(false);
+  let controlServerError = $state('');
+
   // Auth key tab state
   let authTab = $state('url'); // 'url' | 'key'
   let authKey = $state('');
@@ -93,6 +99,48 @@
       peers = [];
     } finally {
       peersLoading = false;
+    }
+  }
+
+  async function fetchControlServer() {
+    try {
+      const data = await fetchJSON('/api/tailscale/control-server');
+      controlServerInput = data.control_server || '';
+      controlServerBaseline = controlServerInput;
+    } catch {
+      // Non-fatal; leave the field blank if it can't be loaded.
+    }
+  }
+
+  // Best-effort client-side validation for fast feedback; the backend
+  // (net/url.Parse) remains the source of truth.
+  function validateControlServer(raw) {
+    const value = raw.trim();
+    if (!value) return '';
+    if (!/^https?:\/\/.+/.test(value)) {
+      return 'Must be a valid http(s) URL, e.g. https://headscale.example.com';
+    }
+    return '';
+  }
+
+  async function handleSaveControlServer() {
+    const value = controlServerInput.trim();
+    controlServerError = validateControlServer(value);
+    if (controlServerError) return;
+
+    controlServerSaving = true;
+    try {
+      await fetchJSON('/api/tailscale/control-server/update', {
+        method: 'POST',
+        body: JSON.stringify({ control_server: value }),
+      });
+      controlServerInput = value;
+      controlServerBaseline = value;
+      showToast('success', value ? 'Control server updated' : "Reset to Tailscale's default control plane");
+    } catch (err) {
+      controlServerError = err.message || 'Failed to update control server';
+    } finally {
+      controlServerSaving = false;
     }
   }
 
@@ -237,6 +285,7 @@
 
   onMount(() => {
     fetchPeers();
+    fetchControlServer();
   });
 
   onDestroy(() => {
@@ -339,6 +388,57 @@
           <dd class="text-gray-900 dark:text-gray-100">{status.PeerCount ?? 0} ({status.ActivePeers ?? 0} active)</dd>
         </div>
       </dl>
+
+      <!-- Control server (Headscale) — full-width since URLs run long -->
+      <div class="space-y-1.5 pt-1 border-t border-gray-100 dark:border-gray-800">
+        <div class="flex items-center gap-1.5">
+          <Server size={13} class="text-gray-400" />
+          <span class="text-xs text-gray-500 dark:text-gray-400">Control Server</span>
+        </div>
+        <div class="flex gap-2">
+          <input
+            type="text"
+            class="flex-1 w-full rounded-md border {controlServerError ? 'border-red-400 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-transparent px-2 py-1 text-xs font-mono text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 transition-colors"
+            placeholder="https://headscale.example.com"
+            bind:value={controlServerInput}
+            oninput={() => { controlServerError = ''; }}
+            onkeydown={(e) => e.key === 'Enter' && controlServerInput.trim() !== controlServerBaseline && handleSaveControlServer()}
+            autocomplete="off"
+            spellcheck="false"
+          />
+          {#if controlServerInput.trim() !== controlServerBaseline}
+            <button
+              class="inline-flex items-center gap-1 px-2 py-1 text-[10px] uppercase tracking-wider font-semibold rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              onclick={handleSaveControlServer}
+              disabled={controlServerSaving}
+            >
+              {#if controlServerSaving}
+                <RefreshCw size={12} class="animate-spin" />
+              {:else}
+                <Check size={12} />
+              {/if}
+              Apply
+            </button>
+          {/if}
+        </div>
+        {#if controlServerError}
+          <p class="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+            <AlertTriangle size={12} />
+            {controlServerError}
+          </p>
+        {/if}
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          For self-hosted <a
+            href="https://headscale.net"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="underline hover:text-gray-700 dark:hover:text-gray-300"
+          >Headscale</a> servers — used as <code class="font-mono">tailscale login --login-server</code>. Leave empty to use Tailscale's official control plane.
+          {#if status.BackendState === 'Running'}
+            This device is already registered; log out first to switch control servers.
+          {/if}
+        </p>
+      </div>
 
       {#if status.Health && status.Health.length > 0}
         <div class="rounded-md border border-amber-200 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 space-y-1">
