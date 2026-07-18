@@ -253,7 +253,10 @@ paths:
     post:
       tags: [Tailscale]
       summary: Begin interactive Tailscale login
-      description: Starts an interactive login and returns the auth URL to visit.
+      description: |
+        Starts an interactive login and returns the auth URL to visit. If a
+        control server is persisted via `POST /api/tailscale/control-server/update`,
+        it's automatically passed as `tailscale login --login-server=<url>`.
       responses:
         "200":
           description: Auth URL returned
@@ -269,7 +272,11 @@ paths:
     post:
       tags: [Tailscale]
       summary: Non-interactive login with a pre-shared auth key
-      description: Authenticates using a `tskey-` auth key, then asynchronously reconciles relays.
+      description: |
+        Authenticates using a `tskey-` auth key, then asynchronously
+        reconciles relays. If a control server is persisted via
+        `POST /api/tailscale/control-server/update`, it's automatically
+        passed as `tailscale up --login-server=<url>`.
       requestBody:
         required: true
         content:
@@ -348,6 +355,53 @@ paths:
       responses:
         "200":
           description: Hostname changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TailscaleMessage"
+        "400": { $ref: "#/components/responses/TailscaleError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+        "500": { $ref: "#/components/responses/TailscaleError" }
+
+  /api/tailscale/control-server:
+    get:
+      tags: [Tailscale]
+      summary: Get the persisted control server
+      description: |
+        Returns the custom control server URL (e.g. a self-hosted Headscale
+        instance) persisted via `POST /api/tailscale/control-server/update`.
+        An empty value means Tailscale's default control plane.
+      responses:
+        "200":
+          description: Control server returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ControlServerSummary"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "405": { $ref: "#/components/responses/ServeMethodError" }
+
+  /api/tailscale/control-server/update:
+    post:
+      tags: [Tailscale]
+      summary: Set the persisted control server
+      description: |
+        Validates and persists a custom control server URL to `webui.yaml`.
+        It's automatically applied to subsequent `POST /api/tailscale/login`
+        and `POST /api/tailscale/login-with-key` calls. Has no effect on a
+        device that's already registered until it's logged out and
+        re-authenticated. Pass an empty string to reset to Tailscale's
+        default control plane.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ControlServerRequest"
+      responses:
+        "200":
+          description: Control server updated
           content:
             application/json:
               schema:
@@ -1219,6 +1273,24 @@ components:
       properties:
         hostname: { type: string }
       required: [hostname]
+
+    ControlServerSummary:
+      type: object
+      properties:
+        control_server:
+          type: string
+          description: |
+            Persisted custom control server URL (e.g. a self-hosted Headscale
+            instance). Empty means Tailscale's default control plane.
+
+    ControlServerRequest:
+      type: object
+      properties:
+        control_server:
+          type: string
+          description: |
+            Must be a valid `http://` or `https://` URL, or empty to reset to
+            Tailscale's default control plane.
 
     PollResult:
       type: object

@@ -1,7 +1,7 @@
 ---
 name: testing-cicd
 description: Writing tests and CI/CD for tailrelay — Go unit tests, Python integration tests, CI pipeline jobs, and test infrastructure. Use when adding new tests, extending the integration suite, modifying ci.yml, or improving test coverage for any Go package or the container behaviour.
-reviewed_at: 26b26a9
+reviewed_at: f2c24a0
 ---
 
 # Tests & CI/CD
@@ -30,11 +30,13 @@ webui/
 │   ├── handlers/
 │   │   ├── auth_test.go                ✓ exists
 │   │   ├── backup_test.go              ✓ exists
+│   │   ├── controlserver_test.go       ✓ exists (control server settings handlers)
 │   │   ├── networking_test.go          ✓ exists (networking settings handlers)
 │   │   └── serve_test.go               ✓ exists (HTTPS, TCP, and Funnel relay handlers)
 │   ├── serve/
 │   │   └── manager_test.go             ✓ exists (HTTPS, TCP, and Funnel relay manager)
 │   ├── tailscale/
+│   │   ├── controlserver_test.go       ✓ exists (control server URL validation, CLI arg-building)
 │   │   └── networking_test.go          ✓ exists (networking prefs derivation, CLI arg-building)
 │   └── web/
 │       └── server_test.go              ✓ exists

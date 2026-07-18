@@ -1,7 +1,7 @@
 ---
 name: security-review
 description: Security and privacy review for tailrelay — dependency CVE scanning, Go module auditing, auth review, and code-level vulnerability checks. Use when reviewing code for security issues, auditing Dockerfile dependencies, checking for secrets/injection risks, or assessing privacy of logged/persisted data.
-reviewed_at: e615c2a
+reviewed_at: f2c24a0
 ---
 
 # Security & Privacy Review
@@ -182,6 +182,14 @@ grep -n "exec\|Command\|tailscale" webui/internal/serve/manager.go
 
 - [ ] `webui.yaml` is read-only after startup (no hot-reload from untrusted source)
 - [ ] YAML parsing uses `gopkg.in/yaml.v3` strict mode — no arbitrary Go type unmarshalling
+
+### Control Server (Headscale) (`internal/tailscale/controlserver.go`, `internal/handlers/controlserver.go`)
+
+The persisted control server URL is passed to `tailscale login --login-server=<url>` / `tailscale up --authkey=<key> --login-server=<url>` via `exec.Command` argv (not a shell), so there's no command-injection surface from the URL value itself. Check:
+
+- [x] `ValidateControlServerURL` requires an `http`/`https` scheme and non-empty host before the value is ever persisted or passed to `exec.Command`
+- [x] Value passed as a single argv element (`--login-server=` + url), not shell-interpolated
+- [ ] No allowlist restricting which control servers can be configured — any reachable Headscale (or Tailscale-compatible) server is accepted by design; this is an intentional trust boundary the operator controls, not a bug, but worth calling out in a review
 
 ---
 

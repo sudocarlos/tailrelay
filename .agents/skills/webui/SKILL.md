@@ -1,7 +1,7 @@
 ---
 name: webui-development
 description: Go Web UI application development — handlers, authentication, backup, frontend SPA, build workflow, and testing. Use when working with the webui/ directory, Go code, frontend assets, HTML templates, the SPA build system, or any Web UI feature development.
-reviewed_at: e01406e
+reviewed_at: f2c24a0
 ---
 
 # Web UI Development
@@ -140,6 +140,7 @@ paths:
 Route handlers for all API endpoints:
 - `serve.go` — Relay CRUD (`/api/serve/*`); uses `writeServeResult` helper for 200/202/500 responses
 - `tailscale.go` — Status, login, and networking preferences (`GET/POST /api/tailscale/networking*`; see the tailscale skill's "Networking Preferences" section for how these map to `tailscale set`)
+- `controlserver.go` — Persisted custom control server (Headscale) setting (`GET/POST /api/tailscale/control-server*`; see the tailscale skill's "Custom Control Server (Headscale)" section)
 - `backup.go` — Backup operations
 - `dashboard.go` — System overview
 
@@ -181,6 +182,7 @@ Built with **Vite + Svelte 5 + Tailwind CSS 4** via npm:
 | `paths.token_file` | `.webui_token` | Auth token file |
 | `paths.serve_relay_config` | `serve_relays.json` | tailscale serve relay config |
 | `paths.backup_dir` | `backups/` | Backup storage |
+| `tailscale.control_server` | *(empty)* | Custom control server URL for Headscale; empty = Tailscale's default control plane |
 
 ## Testing
 

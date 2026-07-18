@@ -37,6 +37,19 @@ open http://localhost:8021
 3. Verify or set your [Tailnet name](https://tailscale.com/kb/1217/tailnet-name).
 4. Scroll down and enable HTTPS under HTTPS Certificates.
 
+## Using a Custom Control Server (Headscale)
+
+If you run a self-hosted [Headscale](https://headscale.net) instance instead
+of Tailscale's coordination server, set its URL in the **Control Server**
+field on the Tailscale page's connection status card before logging in. This
+is applied as `tailscale login --login-server=<url>` (or
+`tailscale up --authkey=<key> --login-server=<url>` for the auth-key flow)
+and persists across container restarts.
+
+Leave the field empty to use Tailscale's official control plane. Since a
+device is bound to whichever control server it first authenticated with,
+switching an already-connected device requires logging out first.
+
 ## StartOS Deployment
 
 tailrelay is available as a StartOS package via

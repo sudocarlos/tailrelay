@@ -19,3 +19,10 @@ backup:
 logging:
   level: "info"
   format: "text"
+
+tailscale:
+  # Custom control server URL (e.g. a self-hosted Headscale instance).
+  # Leave empty to use Tailscale's default control plane. Managed via the
+  # Control Server field on the Tailscale page, or GET/POST
+  # /api/tailscale/control-server(-/update).
+  control_server: ""
