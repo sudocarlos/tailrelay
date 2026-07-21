@@ -34,7 +34,7 @@ tailrelay combines two networked services (Tailscale and a Go Web UI) inside a s
 All versions are pinned as `ARG` values at the top of `Dockerfile`:
 
 ```
-ARG TAILSCALE_VERSION=v1.98.8
+ARG TAILSCALE_VERSION=v1.98.9
 ARG GO_VERSION=1.26.5
 ARG NODE_VERSION=24.18.0
 ARG ALPINE_VERSION=3.22
