@@ -273,10 +273,10 @@ paths:
       tags: [Tailscale]
       summary: Non-interactive login with a pre-shared auth key
       description: |
-        Authenticates using a `tskey-` auth key, then asynchronously
-        reconciles relays. If a control server is persisted via
-        `POST /api/tailscale/control-server/update`, it's automatically
-        passed as `tailscale up --login-server=<url>`.
+        Authenticates using a `tskey-` (Tailscale) or `hskey-` (Headscale)
+        auth key, then asynchronously reconciles relays. If a control server
+        is persisted via `POST /api/tailscale/control-server/update`, it's
+        automatically passed as `tailscale up --login-server=<url>`.
       requestBody:
         required: true
         content:
@@ -1265,7 +1265,7 @@ components:
       properties:
         auth_key:
           type: string
-          description: Must be non-empty and start with `tskey-`.
+          description: Must be non-empty and start with `tskey-` (Tailscale) or `hskey-` (Headscale).
       required: [auth_key]
 
     HostnameRequest:

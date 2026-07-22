@@ -72,7 +72,8 @@ func (h *TailscaleHandler) reconcileRelaysAsync() {
 }
 
 // LoginWithKey handles non-interactive Tailscale authentication using a pre-generated
-// auth key (e.g. "tskey-auth-k..."). The key is passed directly to `tailscale up
+// auth key (e.g. "tskey-auth-k..." from Tailscale, or "hskey-..." from a
+// self-hosted Headscale instance). The key is passed directly to `tailscale up
 // --authkey=<key>`, authenticating and connecting in a single step without requiring
 // the user to visit an auth URL.
 func (h *TailscaleHandler) LoginWithKey(w http.ResponseWriter, r *http.Request) {
@@ -94,8 +95,8 @@ func (h *TailscaleHandler) LoginWithKey(w http.ResponseWriter, r *http.Request) 
 		writeJSONError(w, "auth_key cannot be empty", http.StatusBadRequest)
 		return
 	}
-	if !strings.HasPrefix(body.AuthKey, "tskey-") {
-		writeJSONError(w, "invalid auth key: must start with 'tskey-'", http.StatusBadRequest)
+	if !strings.HasPrefix(body.AuthKey, "tskey-") && !strings.HasPrefix(body.AuthKey, "hskey-") {
+		writeJSONError(w, "invalid auth key: must start with 'tskey-' or 'hskey-'", http.StatusBadRequest)
 		return
 	}
 

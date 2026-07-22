@@ -9,12 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Control Server field on the Tailscale page** — connect to a self-hosted [Headscale](https://headscale.net) instance instead of Tailscale's default control plane
-  - New "Control Server" input in the connection status card, persisted via `GET /api/tailscale/control-server` and `POST /api/tailscale/control-server/update`
+  - New "Control Server" input in the connection status card, shown only while logged out, persisted via `GET /api/tailscale/control-server` and `POST /api/tailscale/control-server/update`
   - Automatically applied as `tailscale login --login-server=<url>` / `tailscale up --authkey=<key> --login-server=<url>` on subsequent logins
   - URL validation (must be a valid `http://`/`https://` URL) on both the client and server
+- **Headscale auth keys** — the "Auth Key" login flow now also accepts `hskey-` prefixed keys (Headscale) in addition to `tskey-` (Tailscale)
 
 ### Changed
 - **Tailscale** bumped from `v1.98.8` to `v1.98.9` in Dockerfile
+- **Funnel section on the dashboard** — hidden while connected to a custom control server, since Funnel is a Tailscale-cloud-only feature not supported by self-hosted Headscale
 - **Frontend tooling** — bumped `vite` in `webui/frontend/package.json` from `8.1.4` to `8.1.5`
 - **Go** bumped from `1.26.4` to `1.26.5` in Dockerfile
 
