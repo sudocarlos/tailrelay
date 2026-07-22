@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **`make dev-docker-build`/`make release`** — auto-detect the container engine (`docker` or `podman`) instead of hardcoding `docker`, since a shell `alias docker=podman` isn't visible to Make's non-interactive recipe shell. `dev-build`/`dev-docker-build` also now default `GOARCH`/`--platform` to the host's native architecture (`go env GOARCH`) instead of relying on implicit defaults, so builds on Apple Silicon are native `linux/arm64` with no QEMU emulation.
+- **Changing the hostname while connected to a custom control server** — `POST /api/tailscale/hostname` ran `tailscale up --hostname=<name> --reset` without `--login-server`, and `--reset` resets any unspecified flag (including the control server) to Tailscale's default control plane. This detached the node from its self-hosted Headscale instance on every hostname change, which in turn broke `tailscale serve`/`funnel` reconciliation and surfaced as unrelated `500` errors when toggling relays. `ChangeHostname` now passes the persisted control server through, mirroring `Login`/`LoginWithKey`.
 
 ## [0.9.5] - 2026-07-14
 

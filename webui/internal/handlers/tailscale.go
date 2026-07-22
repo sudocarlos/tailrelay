@@ -216,7 +216,7 @@ func (h *TailscaleHandler) ChangeHostname(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := h.tsClient.UpWithHostname(body.Hostname); err != nil {
+	if err := h.tsClient.UpWithHostname(body.Hostname, h.controlServer()); err != nil {
 		log.Printf("Error changing Tailscale hostname: %v", err)
 		writeJSONError(w, "Failed to change hostname: "+err.Error(), http.StatusInternalServerError)
 		return

@@ -69,3 +69,33 @@ func TestBuildLoginWithAuthKeyArgs(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildUpWithHostnameArgs(t *testing.T) {
+	tests := []struct {
+		name          string
+		hostname      string
+		controlServer string
+		want          []string
+	}{
+		{
+			name:     "no control server",
+			hostname: "my-device",
+			want:     []string{"up", "--hostname=my-device", "--reset"},
+		},
+		{
+			name:          "with custom control server",
+			hostname:      "my-device",
+			controlServer: "https://headscale.example.com",
+			want:          []string{"up", "--hostname=my-device", "--reset", "--login-server=https://headscale.example.com"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildUpWithHostnameArgs(tt.hostname, tt.controlServer)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("buildUpWithHostnameArgs(%q, %q) = %v, want %v", tt.hostname, tt.controlServer, got, tt.want)
+			}
+		})
+	}
+}

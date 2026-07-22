@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/sudocarlos/tailrelay/internal/config"
@@ -96,5 +97,70 @@ func TestLoginWithKey_AcceptsHskeyPrefix(t *testing.T) {
 	}
 	if got := readLog(t, logFile); got == "" {
 		t.Error("expected `tailscale up` to be invoked")
+	}
+}
+
+// --- ChangeHostname ---
+
+func TestChangeHostname_RejectsNonPOST(t *testing.T) {
+	h, _ := newLoginWithKeyTestHandler(t, 0)
+	req := httptest.NewRequest(http.MethodGet, "/api/tailscale/hostname", nil)
+	rr := httptest.NewRecorder()
+	h.ChangeHostname(rr, req)
+
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+}
+
+func TestChangeHostname_RejectsEmptyHostname(t *testing.T) {
+	h, _ := newLoginWithKeyTestHandler(t, 0)
+	rr := postJSON(t, h.ChangeHostname, "/api/tailscale/hostname", map[string]interface{}{
+		"hostname": "   ",
+	})
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+}
+
+func TestChangeHostname_NoControlServerOmitsLoginServer(t *testing.T) {
+	h, logFile := newLoginWithKeyTestHandler(t, 0)
+	rr := postJSON(t, h.ChangeHostname, "/api/tailscale/hostname", map[string]interface{}{
+		"hostname": "my-device",
+	})
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	got := readLog(t, logFile)
+	if !strings.Contains(got, "--hostname=my-device") {
+		t.Errorf("expected `tailscale up --hostname=my-device`, got %q", got)
+	}
+	if strings.Contains(got, "--login-server") {
+		t.Errorf("expected no --login-server without a configured control server, got %q", got)
+	}
+}
+
+// TestChangeHostname_PassesLoginServerWhenControlServerSet is a regression
+// test: `tailscale up --reset` resets ControlURL to Tailscale's default
+// control plane unless --login-server is re-specified, so ChangeHostname
+// must pass the persisted control server through on every hostname change
+// or a device registered to a self-hosted Headscale instance gets detached
+// from it.
+func TestChangeHostname_PassesLoginServerWhenControlServerSet(t *testing.T) {
+	h, logFile := newLoginWithKeyTestHandler(t, 0)
+	h.cfg.Tailscale.ControlServer = "https://headscale.example.com"
+
+	rr := postJSON(t, h.ChangeHostname, "/api/tailscale/hostname", map[string]interface{}{
+		"hostname": "my-device",
+	})
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	got := readLog(t, logFile)
+	if !strings.Contains(got, "--login-server=https://headscale.example.com") {
+		t.Errorf("expected `--login-server=https://headscale.example.com`, got %q", got)
 	}
 }

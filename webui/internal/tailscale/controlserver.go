@@ -39,3 +39,19 @@ func buildLoginWithAuthKeyArgs(key, controlServer string) []string {
 	}
 	return args
 }
+
+// buildUpWithHostnameArgs builds the `tailscale up` argv used by
+// UpWithHostname. --reset is required so unspecified flags (e.g. any prior
+// --advertise-routes) revert to their defaults instead of erroring, but per
+// `tailscale up`'s own semantics that also resets ControlURL/--login-server
+// to Tailscale's default control plane unless it's re-specified — so
+// --login-server is appended whenever controlServer is set, mirroring
+// buildLoginWithAuthKeyArgs, to avoid detaching the node from its Headscale
+// server on every hostname change.
+func buildUpWithHostnameArgs(hostname, controlServer string) []string {
+	args := []string{"up", "--hostname=" + hostname, "--reset"}
+	if controlServer != "" {
+		args = append(args, "--login-server="+controlServer)
+	}
+	return args
+}

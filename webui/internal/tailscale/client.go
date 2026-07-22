@@ -305,14 +305,19 @@ func (c *Client) Up() error {
 }
 
 // UpWithHostname connects to Tailscale with a specific hostname.
-// This runs 'tailscale up --hostname=<hostname>' which updates the device
-// name in the tailnet. Note: this will re-run the Tailscale connection
-// process and may require re-authentication if the node is not yet connected.
-func (c *Client) UpWithHostname(hostname string) error {
+// This runs 'tailscale up --hostname=<hostname> --reset' which updates the
+// device name in the tailnet. Note: this will re-run the Tailscale
+// connection process and may require re-authentication if the node is not
+// yet connected. --reset resets ControlURL to Tailscale's default control
+// plane unless --login-server is re-specified, so when controlServer is set
+// (e.g. a self-hosted Headscale instance) it's appended to the same
+// invocation — otherwise the node would be detached from its Headscale
+// server on every hostname change.
+func (c *Client) UpWithHostname(hostname, controlServer string) error {
 	if hostname == "" {
 		return fmt.Errorf("hostname cannot be empty")
 	}
-	cmd := exec.Command(c.binaryPath, "up", "--hostname="+hostname, "--reset")
+	cmd := exec.Command(c.binaryPath, buildUpWithHostnameArgs(hostname, strings.TrimSpace(controlServer))...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to set hostname: %w (output: %s)", err, strings.TrimSpace(string(output)))
