@@ -8,6 +8,7 @@ export const funnels = writable([]);
 export const tailnetFQDN = writable('');
 export const tailscaleStatus = writable(null);
 export const targets = writable([]);
+export const controlServer = writable('');
 
 // ── Funnel-eligible listen ports (see internal/serve.FunnelPorts) ─
 export const FUNNEL_PORTS = [443, 8443, 10000];
@@ -56,6 +57,15 @@ export const tailscaleConnected = derived(
   ($s) => $s?.BackendState === 'Running',
 );
 
+// ── Derived: hide Funnel while connected to a custom control server ──
+// Funnel is a Tailscale-cloud-only feature not supported by self-hosted
+// Headscale, so it's only hidden once actually connected under one —
+// not merely because a control server URL happens to be saved.
+export const hideFunnel = derived(
+  [tailscaleConnected, controlServer],
+  ([$connected, $controlServer]) => $connected && $controlServer !== '',
+);
+
 // ── Navigation ────────────────────────────────────────────────────
 export const currentView = writable('dashboard');
 
@@ -71,12 +81,13 @@ export const lastUpdated = writable('');
  * in parallel and update stores.
  */
 export async function refreshData() {
-  const [relayData, proxyData, funnelData, status, targetData] = await Promise.all([
+  const [relayData, proxyData, funnelData, status, targetData, controlServerData] = await Promise.all([
     fetchJSON('/api/serve/tcp/list'),
     fetchJSON('/api/serve/https/list'),
     fetchJSON('/api/serve/funnel/list'),
     fetchJSON('/api/tailscale/status'),
     fetchJSON('/api/targets'),
+    fetchJSON('/api/tailscale/control-server'),
   ]);
 
   relays.set(
@@ -103,6 +114,7 @@ export async function refreshData() {
   tailnetFQDN.set(status.MagicDNSName || status.magicDNSName || '');
   tailscaleStatus.set(status);
   targets.set(targetData || []);
+  controlServer.set(controlServerData?.control_server || '');
   lastUpdated.set(new Date().toLocaleTimeString());
 }
 

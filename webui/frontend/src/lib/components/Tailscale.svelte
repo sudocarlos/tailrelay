@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { tailscaleStatus, refreshData } from '../stores/app.js';
+  import { tailscaleStatus, refreshData, controlServer as controlServerStore } from '../stores/app.js';
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
   import { Wifi, WifiOff, LogIn, LogOut, RefreshCw, Server, AlertTriangle, ExternalLink, Check, Users } from '@lucide/svelte';
@@ -107,6 +107,7 @@
       const data = await fetchJSON('/api/tailscale/control-server');
       controlServerInput = data.control_server || '';
       controlServerBaseline = controlServerInput;
+      controlServerStore.set(controlServerBaseline);
     } catch {
       // Non-fatal; leave the field blank if it can't be loaded.
     }
@@ -136,6 +137,7 @@
       });
       controlServerInput = value;
       controlServerBaseline = value;
+      controlServerStore.set(value);
       showToast('success', value ? 'Control server updated' : "Reset to Tailscale's default control plane");
     } catch (err) {
       controlServerError = err.message || 'Failed to update control server';
