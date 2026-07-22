@@ -117,7 +117,7 @@ curl -sSL http://localhost:8021                   # Web UI
 | `.agents/skills/serve/SKILL.md` | `ec9e4ac` | `webui/internal/serve/`, `webui/internal/handlers/serve.go` |
 | `.agents/skills/webui/SKILL.md` | `f2c24a0` | `webui/`, `Makefile` |
 | `.agents/skills/docker-ci/SKILL.md` | `67b91e7` | `Dockerfile`, `.github/workflows/`, `compose-test.yml`, `Makefile` |
-| `.agents/skills/tailscale/SKILL.md` | `f2c24a0` | `webui/internal/tailscale/`, `start.sh` |
+| `.agents/skills/tailscale/SKILL.md` | `f01c56f` | `webui/internal/tailscale/`, `start.sh` |
 | `webui/README.md` | `f2c24a0` | `webui/` |
 | `README.md` | `f2c24a0` | `README.md`, `webui/internal/web/server.go`, `docs/openapi.yaml` |
 | `.agents/skills/security-review/SKILL.md` | `f2c24a0` | `webui/internal/auth/`, `webui/internal/handlers/`, `webui/internal/backup/`, `Dockerfile`, `start.sh` |

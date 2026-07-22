@@ -1,7 +1,7 @@
 ---
 name: tailscale-management
 description: Tailscale VPN daemon management, CLI integration, authentication, and networking for the tailrelay container. Use when working with Tailscale configuration, login flows, device authentication, MagicDNS, HTTPS certificates, or network connectivity issues.
-reviewed_at: f2c24a0
+reviewed_at: 5100f3d
 ---
 
 # Tailscale Management
@@ -102,10 +102,16 @@ Server field on the Tailscale page's connection status card.
   polls `/localapi/v0/status` for `AuthURL` exactly like the LocalAPI path.
 - `Client.LoginWithAuthKey(key, controlServer string)`: appends
   `--login-server=<url>` to the existing `tailscale up --authkey=<key>` call.
-- `handlers.TailscaleHandler.Login`/`LoginWithKey` read the persisted control
-  server (guarded by a `sync.Mutex` on the handler, since `*config.Config` has
-  no locking of its own) and pass it through automatically — the frontend
-  doesn't need to resend it with every login request.
+- `Client.UpWithHostname(hostname, controlServer string)`: runs `tailscale up
+  --hostname=<name> --reset`. `--reset` resets any *unspecified* flag
+  (including `ControlURL`) to Tailscale's default control plane, so
+  `--login-server=<url>` is appended whenever `controlServer` is set —
+  otherwise every hostname change would silently detach the node from its
+  Headscale server.
+- `handlers.TailscaleHandler.Login`/`LoginWithKey`/`ChangeHostname` read the
+  persisted control server (guarded by a `sync.Mutex` on the handler, since
+  `*config.Config` has no locking of its own) and pass it through
+  automatically — the frontend doesn't need to resend it with every request.
 - `GET /api/tailscale/control-server` / `POST /api/tailscale/control-server/update`
   read and persist the setting via `config.Save`.
 - Changing the control server has no effect on a device that's already
