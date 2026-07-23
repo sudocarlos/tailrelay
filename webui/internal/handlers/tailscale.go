@@ -195,10 +195,8 @@ func (h *TailscaleHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ChangeHostname changes the Tailscale hostname via 'tailscale up
-// --hostname=<name> --reset', passing the persisted control server through
-// (see UpWithHostname) so --reset doesn't detach the node from a
-// self-hosted Headscale instance.
+// ChangeHostname changes the Tailscale hostname without changing the active
+// control server or other node preferences.
 func (h *TailscaleHandler) ChangeHostname(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSONError(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -219,7 +217,7 @@ func (h *TailscaleHandler) ChangeHostname(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := h.tsClient.UpWithHostname(body.Hostname, h.controlServer()); err != nil {
+	if err := h.tsClient.UpWithHostname(body.Hostname); err != nil {
 		log.Printf("Error changing Tailscale hostname: %v", err)
 		writeJSONError(w, "Failed to change hostname: "+err.Error(), http.StatusInternalServerError)
 		return
