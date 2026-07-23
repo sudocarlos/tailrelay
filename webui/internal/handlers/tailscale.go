@@ -55,14 +55,21 @@ func writeJSONError(w http.ResponseWriter, message string, status int) {
 }
 
 // reconcileRelaysAsync runs Reconcile in the background after a short delay,
-// allowing Tailscale to fully come up before restoring relay state.
-func (h *TailscaleHandler) reconcileRelaysAsync() {
+// allowing Tailscale to fully come up before restoring relay state. The
+// listener scheme changes only after the requested login has connected, so
+// saving a different control server cannot alter active relay listeners.
+func (h *TailscaleHandler) reconcileRelaysAsync(controlServer string) {
 	if h.serveMgr == nil {
 		return
 	}
 	go func() {
 		// Wait for Tailscale to finish connecting before reconciling.
 		time.Sleep(2 * time.Second)
+		connected, _ := h.tsClient.IsConnected()
+		if !connected {
+			return
+		}
+		h.serveMgr.SetCustomControlServer(controlServer != "")
 		if err := h.serveMgr.Reconcile(); err != nil {
 			log.Printf("Warning: failed to reconcile relays after Tailscale connect: %v", err)
 		} else {
@@ -106,7 +113,7 @@ func (h *TailscaleHandler) LoginWithKey(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	h.reconcileRelaysAsync()
+	h.reconcileRelaysAsync(h.controlServer())
 
 	writeJSON(w, map[string]string{
 		"status":  "success",
@@ -128,7 +135,7 @@ func (h *TailscaleHandler) Login(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "Failed to get login URL from Tailscale. The daemon may not be running or may already be connected.", http.StatusInternalServerError)
 		return
 	}
-
+	h.reconcileRelaysAsync(h.controlServer())
 	writeJSON(w, map[string]string{
 		"status":   "success",
 		"auth_url": authURL,
@@ -168,7 +175,7 @@ func (h *TailscaleHandler) Connect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.reconcileRelaysAsync()
+	h.reconcileRelaysAsync(h.controlServer())
 
 	writeJSON(w, map[string]string{
 		"status":  "success",

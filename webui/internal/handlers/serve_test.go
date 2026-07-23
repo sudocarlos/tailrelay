@@ -24,6 +24,10 @@ func newFakeTailscaleScript(t *testing.T, dir string, failOnFunnel bool) string 
 	logFile := filepath.Join(dir, "commands.log")
 
 	script := "#!/bin/sh\n"
+	script += "if [ \"$1 $2 $3\" = \"serve status --json\" ]; then\n" +
+		"  echo '{\"TCP\":{\"3333\":{\"HTTPS\":false}}}'\n" +
+		"  exit 0\n" +
+		"fi\n"
 	if failOnFunnel {
 		script += "if [ \"$1\" = \"funnel\" ]; then\n" +
 			"  echo \"$@\" >> \"" + logFile + "\"\n" +
@@ -162,6 +166,21 @@ func TestCreateHTTPS_UsesHTTPWithCustomControlServer(t *testing.T) {
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/serve/https/list", nil)
+	listRR := httptest.NewRecorder()
+	h.APIListHTTPS(listRR, listReq)
+
+	var relays []struct {
+		Running        bool   `json:"running"`
+		ListenerScheme string `json:"listener_scheme"`
+	}
+	if err := json.NewDecoder(listRR.Body).Decode(&relays); err != nil {
+		t.Fatalf("decode HTTPS relay list: %v", err)
+	}
+	if len(relays) != 1 || !relays[0].Running || relays[0].ListenerScheme != "http" {
+		t.Fatalf("expected running HTTP relay, got: %+v", relays)
 	}
 }
 
