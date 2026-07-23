@@ -18,7 +18,7 @@ operation.
 
 | Type     | Transport                        | Command                                    |
 |----------|-----------------------------------|---------------------------------------------|
-| `https`  | HTTPS termination (tailnet-only)  | `tailscale serve https:<port> ...`           |
+| `https`  | Web reverse proxy (tailnet-only)  | `tailscale serve --https <port> ...` (Tailscale) or `--http <port> ...` (custom control server) |
 | `tcp`    | Raw TCP forward (tailnet-only)    | `tailscale serve tcp:<port> tcp://...`       |
 | `funnel` | Public internet exposure          | `tailscale funnel --https=<port> ...` or `--tcp=<port> ...` |
 
@@ -27,6 +27,12 @@ defaults to `"https"`) to select which `tailscale funnel` flag is used.
 Funnel is only permitted on ports `443`, `8443`, and `10000`
 (`serve.FunnelPorts`, checked via `serve.IsFunnelPort`) — this is a hard
 limitation of Tailscale Funnel, not a tailrelay choice.
+
+Web relays retain the persisted `https` type for compatibility. When a custom
+control server is configured, the manager uses `tailscale serve --http` because
+self-hosted controllers cannot provide Tailscale's HTTPS certificate
+provisioning. HTTPS list responses include `listener_scheme` so the UI can
+render the correct access URL and running state.
 
 ## `serve_relays.json` Format
 
@@ -147,7 +153,8 @@ writeServeResult(w, manager.DeleteRelay(id), "Relay deleted successfully")
 1. Load `serve_relays.json`
 2. `tailscale serve reset` — clears all serve **and** funnel rules
 3. For each enabled relay, run:
-   - HTTPS: `tailscale serve --bg --https <port> http://<host>:<port>`
+   - Web relay: `tailscale serve --bg --https <port> http://<host>:<port>`
+     with Tailscale, or `--http` with a custom control server
    - TCP:   `tailscale serve --bg --tcp <port> tcp://<host>:<port>`
    - Funnel (https transport): `tailscale funnel --bg --https <port> http://<host>:<port>`
    - Funnel (tcp transport): `tailscale funnel --bg --tcp <port> tcp://<host>:<port>`

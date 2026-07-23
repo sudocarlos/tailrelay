@@ -72,6 +72,9 @@ func (h *TailscaleHandler) UpdateControlServer(w http.ResponseWriter, r *http.Re
 		writeJSONError(w, "Failed to save control server setting", http.StatusInternalServerError)
 		return
 	}
+	if h.serveMgr != nil {
+		h.serveMgr.SetCustomControlServer(body.ControlServer != "")
+	}
 
 	message := "Control server updated"
 	if body.ControlServer == "" {

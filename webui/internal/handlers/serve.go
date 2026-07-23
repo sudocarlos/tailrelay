@@ -29,7 +29,7 @@ func NewServeHandler(cfg *config.Config, templates *template.Template) *ServeHan
 	return &ServeHandler{
 		cfg:       cfg,
 		templates: templates,
-		manager:   serve.NewManager(cfg.Paths.ServeRelayConfig),
+		manager:   serve.NewManagerWithCustomControlServer(cfg.Paths.ServeRelayConfig, cfg.Tailscale.ControlServer != ""),
 		tsClient:  tailscale.NewClient(),
 	}
 }
@@ -247,7 +247,8 @@ func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
 
 	type relayStatus struct {
 		config.ServeRelay
-		Running bool `json:"running"`
+		Running        bool   `json:"running"`
+		ListenerScheme string `json:"listener_scheme"`
 	}
 
 	out := make([]relayStatus, 0)
@@ -262,13 +263,17 @@ func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
 		running := false
 		if statusJSON != nil && statusJSON.TCP != nil {
 			if tcpInfo, ok := statusJSON.TCP[strconv.Itoa(relay.ListenPort)]; ok {
-				if tcpInfo.HTTPS {
+				if tcpInfo.HTTPS == (h.manager.WebListenerScheme() == "https") {
 					running = true
 				}
 			}
 		}
 
-		out = append(out, relayStatus{ServeRelay: relay, Running: running})
+		out = append(out, relayStatus{
+			ServeRelay:     relay,
+			Running:        running,
+			ListenerScheme: h.manager.WebListenerScheme(),
+		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")

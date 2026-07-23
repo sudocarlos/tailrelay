@@ -516,10 +516,10 @@ paths:
   /api/serve/https/list:
     get:
       tags: [Serve HTTPS]
-      summary: List HTTPS relays
+      summary: List web relays
       responses:
         "200":
-          description: HTTPS relays with running state
+          description: Web relays with their effective listener scheme and running state. Custom control servers use HTTP because they cannot provision Tailscale HTTPS certificates.
           content:
             application/json:
               schema:
@@ -533,7 +533,7 @@ paths:
   /api/serve/https/get:
     get:
       tags: [Serve HTTPS]
-      summary: Get one HTTPS relay
+      summary: Get one web relay
       parameters:
         - $ref: "#/components/parameters/RelayId"
       responses:
@@ -552,8 +552,8 @@ paths:
   /api/serve/https/create:
     post:
       tags: [Serve HTTPS]
-      summary: Create an HTTPS relay
-      description: Accepts either a JSON `ServeRelay` body or `multipart/form-data`. Type is forced to `https`; ID defaults to `https-<listen_port>`.
+      summary: Create a web relay
+      description: Accepts either a JSON `ServeRelay` body or `multipart/form-data`. Type is forced to `https`; ID defaults to `https-<listen_port>`. The listener uses HTTPS with Tailscale's control plane and HTTP with a custom control server.
       requestBody:
         required: true
         content:
@@ -1404,12 +1404,16 @@ components:
       required: [id, type, listen_port, target_host, target_port, target_https, enabled, autostart]
 
     ServeRelayWithRunning:
-      description: A ServeRelay with an added `running` flag (HTTPS and funnel lists).
+      description: A ServeRelay with an added `running` flag (web and funnel lists).
       allOf:
         - $ref: "#/components/schemas/ServeRelay"
         - type: object
           properties:
             running: { type: boolean }
+            listener_scheme:
+              type: string
+              enum: [http, https]
+              description: Effective listener scheme. Present on web relay list responses.
           required: [running]
 
     TCPRelayStatus:

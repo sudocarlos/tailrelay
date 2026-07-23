@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/sudocarlos/tailrelay/internal/config"
 	"github.com/sudocarlos/tailrelay/internal/logger"
@@ -13,8 +14,10 @@ import (
 
 // Manager manages relay rules backed by `tailscale serve`.
 type Manager struct {
-	binaryPath string
-	relayFile  string
+	binaryPath          string
+	relayFile           string
+	customControlServer bool
+	mu                  sync.RWMutex
 }
 
 // NewManager creates a new serve manager.
@@ -25,6 +28,15 @@ func NewManager(relayFile string) *Manager {
 	}
 }
 
+// NewManagerWithCustomControlServer creates a manager that uses HTTP web
+// listeners because custom control servers do not provide Tailscale HTTPS
+// certificate provisioning.
+func NewManagerWithCustomControlServer(relayFile string, customControlServer bool) *Manager {
+	m := NewManager(relayFile)
+	m.customControlServer = customControlServer
+	return m
+}
+
 // NewManagerWithBinary creates a new serve manager that invokes binaryPath
 // instead of the real `tailscale` CLI. Intended for tests that need to stub
 // out CLI behavior (e.g. handler-level tests in other packages); production
@@ -33,6 +45,24 @@ func NewManagerWithBinary(relayFile, binaryPath string) *Manager {
 	m := NewManager(relayFile)
 	m.binaryPath = binaryPath
 	return m
+}
+
+// WebListenerScheme returns the effective scheme for web relays.
+func (m *Manager) WebListenerScheme() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.customControlServer {
+		return "http"
+	}
+	return "https"
+}
+
+// SetCustomControlServer updates the web listener mode used by future
+// reconciliations.
+func (m *Manager) SetCustomControlServer(customControlServer bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.customControlServer = customControlServer
 }
 
 // ServeStatusJSON is the structure returned by `tailscale serve status --json`
@@ -347,7 +377,7 @@ func (m *Manager) applyRelay(relay config.ServeRelay) error {
 			protocol = "https+insecure"
 		}
 		target = fmt.Sprintf("%s://%s:%d", protocol, relay.TargetHost, relay.TargetPort)
-		return m.run("serve", "--bg", "--https", fmt.Sprintf("%d", relay.ListenPort), target)
+		return m.run("serve", "--bg", "--"+m.WebListenerScheme(), fmt.Sprintf("%d", relay.ListenPort), target)
 	case "tcp":
 		target = fmt.Sprintf("tcp://%s:%d", relay.TargetHost, relay.TargetPort)
 		return m.run("serve", "--bg", "--tcp", fmt.Sprintf("%d", relay.ListenPort), target)

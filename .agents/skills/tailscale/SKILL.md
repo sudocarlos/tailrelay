@@ -148,6 +148,12 @@ See the serve skill (`.agents/skills/serve/SKILL.md`) for `tailscale serve`/
 `funnel` relay management, which is a distinct concern from these node-level
 networking preferences.
 
+### Machine Name
+
+`Client.UpWithHostname` uses `tailscale set --hostname=<name>`. Unlike
+`tailscale up --reset`, `set` changes only the machine name and preserves the
+active control server and all other node preferences.
+
 ## HTTPS Certificates
 
 Tailscale provides automatic TLS certificates for `*.ts.net` domains via `tailscale cert`:

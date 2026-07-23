@@ -68,6 +68,45 @@ func TestManagerUpsertAndReconcile(t *testing.T) {
 	}
 }
 
+func TestManagerUpsertAndReconcileWithCustomControlServer(t *testing.T) {
+	dir := t.TempDir()
+	logFile := filepath.Join(dir, "commands.log")
+	tailscaleScript := filepath.Join(dir, "tailscale")
+	relayFile := filepath.Join(dir, "serve_relays.json")
+
+	script := "#!/bin/sh\n" +
+		"echo \"$@\" >> \"" + logFile + "\"\n" +
+		"exit 0\n"
+	if err := os.WriteFile(tailscaleScript, []byte(script), 0755); err != nil {
+		t.Fatalf("write tailscale script: %v", err)
+	}
+
+	m := NewManagerWithCustomControlServer(relayFile, true)
+	m.binaryPath = tailscaleScript
+	if err := m.UpsertRelay(config.ServeRelay{
+		ID:         "https-3333",
+		Type:       "https",
+		ListenPort: 3333,
+		TargetHost: "whoami-test",
+		TargetPort: 80,
+		Enabled:    true,
+	}); err != nil {
+		t.Fatalf("upsert web relay failed: %v", err)
+	}
+
+	data, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatalf("read log file: %v", err)
+	}
+	out := string(data)
+	if !strings.Contains(out, "serve --bg --http 3333 http://whoami-test:80") {
+		t.Fatalf("expected HTTP serve command, got logs:\n%s", out)
+	}
+	if strings.Contains(out, "--https 3333") {
+		t.Fatalf("expected no HTTPS serve command, got logs:\n%s", out)
+	}
+}
+
 // TestReconcileOnlyAppliesEnabledRelays verifies that Reconcile applies relays
 // with Enabled=true and ignores relays where only Autostart=true.
 func TestReconcileOnlyAppliesEnabledRelays(t *testing.T) {

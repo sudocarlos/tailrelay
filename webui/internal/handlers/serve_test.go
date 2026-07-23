@@ -145,6 +145,26 @@ func TestCreateFunnel_ReturnsFunnelNotAllowedAs409(t *testing.T) {
 	}
 }
 
+func TestCreateHTTPS_UsesHTTPWithCustomControlServer(t *testing.T) {
+	h := newTestServeHandler(t, false)
+	h.cfg.Tailscale.ControlServer = "https://headscale.example.com"
+	h.manager.SetCustomControlServer(true)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/serve/https/create", jsonBody(t, map[string]interface{}{
+		"listen_port": 3333,
+		"target_host": "whoami-test",
+		"target_port": 80,
+		"enabled":     true,
+	}))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.CreateHTTPS(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+}
+
 // --- APIListFunnel ---
 
 func TestAPIListFunnel_ExcludesOtherRelayTypes(t *testing.T) {
