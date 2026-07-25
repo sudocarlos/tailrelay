@@ -416,18 +416,18 @@
       </div>
 
       <!-- Tab switcher -->
-      <div class="flex gap-1 rounded-md bg-amber-100 dark:bg-amber-900/40 p-0.5 w-fit">
+      <div class="flex gap-1 rounded-full bg-amber-100 dark:bg-amber-900/40 p-0.5 w-fit">
         <button
-          class="px-3 py-1 text-xs font-medium rounded transition-colors {authTab === 'url'
-            ? 'bg-white dark:bg-gray-800 text-amber-800 dark:text-amber-200 shadow-sm'
+          class="px-3 py-1 text-xs font-medium rounded-full transition-colors {authTab === 'url'
+            ? 'bg-amber-600 text-white'
             : 'text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200'}"
           onclick={() => { authTab = 'url'; authKeyError = ''; }}
         >
           Login URL
         </button>
         <button
-          class="px-3 py-1 text-xs font-medium rounded transition-colors {authTab === 'key'
-            ? 'bg-white dark:bg-gray-800 text-amber-800 dark:text-amber-200 shadow-sm'
+          class="px-3 py-1 text-xs font-medium rounded-full transition-colors {authTab === 'key'
+            ? 'bg-amber-600 text-white'
             : 'text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200'}"
           onclick={() => { authTab = 'key'; stopLoginPoll(); loginURL = ''; }}
         >
