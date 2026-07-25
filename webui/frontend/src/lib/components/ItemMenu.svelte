@@ -158,10 +158,10 @@
   aria-haspopup="menu"
   aria-expanded={open}
   aria-label="More actions"
-  class="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors"
+  class="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors"
   onclick={toggleMenu}
 >
-  <MoreHorizontal size={15} />
+  <MoreHorizontal size={11} />
 </button>
 
 {#if open}
