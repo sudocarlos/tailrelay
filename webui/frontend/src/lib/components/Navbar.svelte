@@ -69,7 +69,7 @@
       <!-- Brand -->
       <button class="flex items-center gap-2 text-lg font-semibold tracking-tight hover:opacity-80 transition-opacity" onclick={() => switchView('dashboard')}>
         <img src="/icon-192.png" alt="Tailrelay" class="w-7 h-7 rounded-lg object-contain flex-shrink-0" width="28" height="28" />
-        Tailrelay
+        <span>Tail<span class="text-purple-600 dark:text-purple-400">relay</span></span>
       </button>
 
       <!-- Desktop nav -->
