@@ -114,7 +114,7 @@ curl -sSL http://localhost:8021                   # Web UI
 | Document | `reviewed_at` | Paths Covered |
 |----------|---------------|---------------|
 | `AGENTS.md` | `HEAD` | `AGENTS.md`, `Makefile`, `start.sh` |
-| `.agents/skills/serve/SKILL.md` | `ec9e4ac` | `webui/internal/serve/`, `webui/internal/handlers/serve.go` |
+| `.agents/skills/serve/SKILL.md` | `2688353` | `webui/internal/serve/`, `webui/internal/handlers/serve.go` |
 | `.agents/skills/webui/SKILL.md` | `f2c24a0` | `webui/`, `Makefile` |
 | `.agents/skills/docker-ci/SKILL.md` | `67b91e7` | `Dockerfile`, `.github/workflows/`, `compose-test.yml`, `Makefile` |
 | `.agents/skills/tailscale/SKILL.md` | `f01c56f` | `webui/internal/tailscale/`, `start.sh` |
