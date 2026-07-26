@@ -458,6 +458,12 @@
     {/if}
 
     <!-- Connect / Disconnect / Logout -->
+    <!-- Connect only makes sense from "Stopped" (previously authenticated,
+         just brought down): plain `tailscale up` reuses the existing node
+         identity. For "NeedsLogin"/"NoState" that identity may be stale
+         (e.g. authkey already used after tailnet removal), so those states
+         only offer the Authentication Required form below. "Starting" is
+         transient and intentionally shows no action button here. -->
     <div class="flex gap-2 pt-1">
       {#if status?.BackendState === 'Stopped'}
         <button
