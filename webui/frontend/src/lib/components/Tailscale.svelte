@@ -459,7 +459,7 @@
 
     <!-- Connect / Disconnect / Logout -->
     <div class="flex gap-2 pt-1">
-      {#if status?.BackendState !== 'Running'}
+      {#if status?.BackendState === 'Stopped'}
         <button
           class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
           onclick={handleConnect}
@@ -472,7 +472,7 @@
           {/if}
           Connect
         </button>
-      {:else}
+      {:else if status?.BackendState === 'Running'}
         <button
           class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 transition-colors text-gray-700 dark:text-gray-300"
           onclick={handleDisconnect}

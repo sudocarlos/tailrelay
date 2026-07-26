@@ -1,7 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
-  import { authenticated, needsSetup, currentView, tailscaleConnected, refreshData } from './lib/stores/app.js';
+  import { authenticated, needsSetup, currentView, tailscaleConnected, tailscaleStatus, refreshData } from './lib/stores/app.js';
   import { theme } from './lib/stores/theme.js';
   import { showToast } from './lib/stores/toast.js';
   import { fetchJSON } from './lib/api.js';
@@ -37,6 +37,14 @@
     if (!dataLoaded) return;                     // ignore pre-load transitions
     if (wasConnected && !connected && get(authenticated)) {
       currentView.set('tailscale');
+      // Surface the daemon's last-login error (e.g. "authkey already used"
+      // after the machine was removed from the tailnet) so the user knows
+      // why they were logged out and can re-authenticate.
+      const health = get(tailscaleStatus)?.Health || [];
+      const loginError = health.find((msg) => msg.toLowerCase().includes('logged out'));
+      if (loginError) {
+        showToast('warning', loginError);
+      }
     }
     wasConnected = connected;
   });
