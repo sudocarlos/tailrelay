@@ -60,7 +60,6 @@ type TailscaleConfig struct {
 type ServeRelay struct {
 	ID          string `json:"id"`
 	Type        string `json:"type"` // "https", "tcp", or "funnel"
-	Hostname    string `json:"hostname,omitempty"`
 	ListenPort  int    `json:"listen_port"`
 	TargetHost  string `json:"target_host"`
 	TargetPort  int    `json:"target_port"`

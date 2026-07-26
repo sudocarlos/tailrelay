@@ -1388,9 +1388,6 @@ components:
         type:
           type: string
           enum: [https, tcp, funnel]
-        hostname:
-          type: string
-          description: Omitted when empty; defaults to the MagicDNS name in list responses.
         listen_port: { type: integer }
         target_host: { type: string }
         target_port: { type: integer }
@@ -1409,12 +1406,15 @@ components:
         - $ref: "#/components/schemas/ServeRelay"
         - type: object
           properties:
+            hostname:
+              type: string
+              description: Live MagicDNS name, always computed at response time (never persisted).
             running: { type: boolean }
             listener_scheme:
               type: string
               enum: [http, https]
               description: Effective listener scheme. Present on web relay list responses.
-          required: [running]
+          required: [hostname, running]
 
     TCPRelayStatus:
       type: object
@@ -1430,7 +1430,6 @@ components:
       description: Multipart form accepted by HTTPS create/update.
       properties:
         id: { type: string }
-        hostname: { type: string }
         port:
           type: string
           description: Listen port.

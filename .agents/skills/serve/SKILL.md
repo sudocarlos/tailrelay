@@ -45,7 +45,6 @@ Default path: `/var/lib/tailscale/serve_relays.json` (configurable via
     {
       "id": "https-443",
       "type": "https",
-      "hostname": "myhost.example.ts.net",
       "listen_port": 443,
       "target_host": "192.168.1.10",
       "target_port": 8080,
@@ -82,7 +81,6 @@ Default path: `/var/lib/tailscale/serve_relays.json` (configurable via
 type ServeRelay struct {
     ID          string `json:"id"`
     Type        string `json:"type"`          // "https", "tcp", or "funnel"
-    Hostname    string `json:"hostname,omitempty"`
     ListenPort  int    `json:"listen_port"`
     TargetHost  string `json:"target_host"`
     TargetPort  int    `json:"target_port"`
@@ -240,6 +238,15 @@ There is no legacy source for `funnel` relays — they are a new relay type.
 
 **Limitation:** this matching is port-based and can be unreliable if ports
 are reused or serve/funnel config is edited outside the UI.
+
+## Hostname Display
+
+`ServeRelay` has no persisted `Hostname`/`hostname` field. HTTPS and Funnel
+list responses (`APIListHTTPS`, `APIListFunnel`) add a `hostname` field to
+the JSON response computed live from `TSClient.GetStatusSummary().MagicDNSName`
+on every request — it is never stored in `serve_relays.json`. This avoids a
+stale hostname being displayed for relays created before a `tailscale logout`
++ re-`tailscale up`, which assigns a new auto-generated machine name.
 
 ## Testing
 

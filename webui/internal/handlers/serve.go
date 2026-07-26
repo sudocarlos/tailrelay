@@ -247,6 +247,7 @@ func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
 
 	type relayStatus struct {
 		config.ServeRelay
+		Hostname       string `json:"hostname"`
 		Running        bool   `json:"running"`
 		ListenerScheme string `json:"listener_scheme"`
 	}
@@ -255,9 +256,6 @@ func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
 	for _, relay := range relays {
 		if relay.Type != "https" {
 			continue
-		}
-		if relay.Hostname == "" {
-			relay.Hostname = hostname
 		}
 
 		running := false
@@ -271,6 +269,7 @@ func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
 
 		out = append(out, relayStatus{
 			ServeRelay:     relay,
+			Hostname:       hostname,
 			Running:        running,
 			ListenerScheme: h.manager.WebListenerScheme(),
 		})
@@ -388,7 +387,8 @@ func (h *ServeHandler) APIListFunnel(w http.ResponseWriter, _ *http.Request) {
 
 	type relayStatus struct {
 		config.ServeRelay
-		Running bool `json:"running"`
+		Hostname string `json:"hostname"`
+		Running  bool   `json:"running"`
 	}
 
 	out := make([]relayStatus, 0)
@@ -396,11 +396,8 @@ func (h *ServeHandler) APIListFunnel(w http.ResponseWriter, _ *http.Request) {
 		if relay.Type != "funnel" {
 			continue
 		}
-		if relay.Hostname == "" {
-			relay.Hostname = hostname
-		}
 
-		out = append(out, relayStatus{ServeRelay: relay, Running: funnelIsRunning(statusJSON, relay.ListenPort)})
+		out = append(out, relayStatus{ServeRelay: relay, Hostname: hostname, Running: funnelIsRunning(statusJSON, relay.ListenPort)})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -529,7 +526,6 @@ func parseHTTPSRelay(r *http.Request) (config.ServeRelay, error) {
 		targetHost, targetPort, _ := splitServeTarget(r.FormValue("target"))
 		return config.ServeRelay{
 			ID:          r.FormValue("id"),
-			Hostname:    strings.TrimSpace(r.FormValue("hostname")),
 			ListenPort:  port,
 			TargetHost:  targetHost,
 			TargetPort:  targetPort,

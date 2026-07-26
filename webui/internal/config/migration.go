@@ -175,7 +175,6 @@ func MigrateLegacyRelaysToServe(paths PathsConfig) error {
 				addRelay(ServeRelay{
 					ID:          p.ID,
 					Type:        "https",
-					Hostname:    p.Hostname,
 					ListenPort:  p.Port,
 					TargetHost:  host,
 					TargetPort:  port,

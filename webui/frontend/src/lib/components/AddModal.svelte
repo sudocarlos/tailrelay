@@ -158,8 +158,7 @@
   }
 
   async function saveProxy() {
-    const hostname = fqdn.replace(/\.$/, '');
-    if (!hostname) {
+    if (!fqdn.replace(/\.$/, '')) {
       showToast('danger', 'MagicDNS hostname not available. Please ensure Tailscale is connected.');
       return;
     }
@@ -181,7 +180,6 @@
 
 
     const formData = new FormData();
-    formData.append('hostname', hostname);
     formData.append('target', target.trim());
     formData.append('tls', isHttpsTarget.toString());
     formData.append('trusted_proxies', trustedProxies.toString());

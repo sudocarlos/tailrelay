@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`make dev-docker-build`/`make release`** — auto-detect the container engine (`docker` or `podman`) instead of hardcoding `docker`, since a shell `alias docker=podman` isn't visible to Make's non-interactive recipe shell. `dev-build`/`dev-docker-build` also now default `GOARCH`/`--platform` to the host's native architecture (`go env GOARCH`) instead of relying on implicit defaults, so builds on Apple Silicon are native `linux/arm64` with no QEMU emulation.
 - **Changing the hostname while connected to a custom control server** — `POST /api/tailscale/hostname` now uses `tailscale set --hostname=<name>`, which changes only the machine name and preserves the active control server and all other node preferences.
 - **Web relays with a custom control server** — relays stored as `https` now use Tailscale Serve's HTTP listener under Headscale, avoiding its unsupported HTTPS certificate-enablement endpoint. Relay list responses report the effective `listener_scheme`, and dashboard links correctly use `http://` in that mode.
+- **Stale relay hostname after re-authentication** — HTTPS/Funnel relay URLs no longer freeze on the machine name captured at relay-creation time. The `hostname` field is no longer persisted in `serve_relays.json`; list responses now always compute it live from the current Tailscale/Headscale MagicDNS name, so relay links update correctly after a `tailscale logout` + re-`tailscale up` assigns a new auto-generated machine name.
 
 ## [0.9.5] - 2026-07-14
 
