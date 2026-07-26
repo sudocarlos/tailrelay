@@ -254,6 +254,10 @@ func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	hostname, statusJSON := h.currentHostnameAndStatus()
+	// Resolve once per request: WebListenerScheme() may perform a live
+	// LocalAPI prefs lookup, so it must not be called per-relay in the loop
+	// below (see serve.Manager.WebListenerScheme doc comment).
+	scheme := h.manager.WebListenerScheme()
 
 	type relayStatus struct {
 		config.ServeRelay
@@ -271,7 +275,7 @@ func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
 		running := false
 		if statusJSON != nil && statusJSON.TCP != nil {
 			if tcpInfo, ok := statusJSON.TCP[strconv.Itoa(relay.ListenPort)]; ok {
-				if tcpInfo.HTTPS == (h.manager.WebListenerScheme() == "https") {
+				if tcpInfo.HTTPS == (scheme == "https") {
 					running = true
 				}
 			}
@@ -281,7 +285,7 @@ func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
 			ServeRelay:     relay,
 			Hostname:       hostname,
 			Running:        running,
-			ListenerScheme: h.manager.WebListenerScheme(),
+			ListenerScheme: scheme,
 		})
 	}
 

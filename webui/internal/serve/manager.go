@@ -80,6 +80,11 @@ func NewManagerWithBinary(relayFile, binaryPath string) *Manager {
 // a live check of tailscaled's actual control server over the persisted
 // fallback flag so it stays correct even if the node was authenticated
 // outside the Web UI (CLI login, restored state, etc.).
+//
+// This performs a LocalAPI round-trip (via the configured checker) on every
+// call, so it must not be called per-relay inside a loop — callers resolve
+// it once per request/reconcile and reuse the result (see resetAndApply and
+// handlers.ServeHandler.APIListHTTPS).
 func (m *Manager) WebListenerScheme() string {
 	m.mu.RLock()
 	checker := m.controlServerChecker
@@ -393,9 +398,13 @@ func (m *Manager) resetAndApply(relays []config.ServeRelay) error {
 		return relays[i].ListenPort < relays[j].ListenPort
 	})
 
+	// Resolve once per reconcile: WebListenerScheme() may perform a live
+	// LocalAPI prefs lookup, so it must not be called per-relay below.
+	webScheme := m.WebListenerScheme()
+
 	for _, relay := range relays {
 		logger.Debug("serve", "Applying relay %s (type: %s, port: %d)", relay.ID, relay.Type, relay.ListenPort)
-		if err := m.applyRelay(relay); err != nil {
+		if err := m.applyRelay(relay, webScheme); err != nil {
 			if isTailscaleNotReady(err) {
 				logger.Debug("serve", "Tailscale not ready, deferring reconcile: %v", err)
 				return ErrTailscaleNotReady
@@ -412,7 +421,10 @@ func (m *Manager) resetAndApply(relays []config.ServeRelay) error {
 	return nil
 }
 
-func (m *Manager) applyRelay(relay config.ServeRelay) error {
+// applyRelay applies relay via `tailscale serve`/`tailscale funnel`. webScheme
+// is the already-resolved WebListenerScheme() result for this reconcile pass
+// (see resetAndApply), threaded through instead of re-resolved per relay.
+func (m *Manager) applyRelay(relay config.ServeRelay, webScheme string) error {
 	target := ""
 	switch relay.Type {
 	case "https":
@@ -421,7 +433,7 @@ func (m *Manager) applyRelay(relay config.ServeRelay) error {
 			protocol = "https+insecure"
 		}
 		target = fmt.Sprintf("%s://%s:%d", protocol, relay.TargetHost, relay.TargetPort)
-		return m.run("serve", "--bg", "--"+m.WebListenerScheme(), fmt.Sprintf("%d", relay.ListenPort), target)
+		return m.run("serve", "--bg", "--"+webScheme, fmt.Sprintf("%d", relay.ListenPort), target)
 	case "tcp":
 		target = fmt.Sprintf("tcp://%s:%d", relay.TargetHost, relay.TargetPort)
 		return m.run("serve", "--bg", "--tcp", fmt.Sprintf("%d", relay.ListenPort), target)
