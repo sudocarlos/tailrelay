@@ -227,14 +227,10 @@ func (h *ServeHandler) ToggleTCP(w http.ResponseWriter, r *http.Request) {
 
 // ── HTTPS relay handlers (/api/serve/https/*) ─────────────────────────────────
 
-// APIListHTTPS returns all HTTPS relays as JSON.
-func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
-	relays, err := h.manager.ListRelays()
-	if err != nil {
-		http.Error(w, "Failed to load proxies", http.StatusInternalServerError)
-		return
-	}
-
+// currentHostnameAndStatus returns the live MagicDNS name (empty if
+// Tailscale status can't be read) and the current `tailscale serve
+// status --json` snapshot, logging a warning if the latter fails.
+func (h *ServeHandler) currentHostnameAndStatus() (string, *serve.ServeStatusJSON) {
 	hostname := ""
 	if status, err := h.tsClient.GetStatusSummary(); err == nil {
 		hostname = status.MagicDNSName
@@ -244,6 +240,19 @@ func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
 	if statusErr != nil {
 		log.Printf("serve: status check failed, running state may be inaccurate: %v", statusErr)
 	}
+
+	return hostname, statusJSON
+}
+
+// APIListHTTPS returns all HTTPS relays as JSON.
+func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
+	relays, err := h.manager.ListRelays()
+	if err != nil {
+		http.Error(w, "Failed to load proxies", http.StatusInternalServerError)
+		return
+	}
+
+	hostname, statusJSON := h.currentHostnameAndStatus()
 
 	type relayStatus struct {
 		config.ServeRelay
@@ -375,15 +384,7 @@ func (h *ServeHandler) APIListFunnel(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	hostname := ""
-	if status, err := h.tsClient.GetStatusSummary(); err == nil {
-		hostname = status.MagicDNSName
-	}
-
-	statusJSON, statusErr := h.manager.Status()
-	if statusErr != nil {
-		log.Printf("serve: status check failed, running state may be inaccurate: %v", statusErr)
-	}
+	hostname, statusJSON := h.currentHostnameAndStatus()
 
 	type relayStatus struct {
 		config.ServeRelay
