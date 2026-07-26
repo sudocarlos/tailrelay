@@ -391,58 +391,6 @@
         </div>
       </dl>
 
-      <!-- Control server (Headscale) — full-width since URLs run long.
-           Only shown while logged out: an already-registered device keeps
-           using the control server it authenticated against until logout. -->
-      {#if status.BackendState === 'NeedsLogin' || status.BackendState === 'NoState'}
-        <div class="space-y-1.5 pt-1 border-t border-gray-100 dark:border-gray-800">
-          <div class="flex items-center gap-1.5">
-            <Server size={13} class="text-gray-400" />
-            <span class="text-xs text-gray-500 dark:text-gray-400">Control Server</span>
-          </div>
-          <div class="flex gap-2">
-            <input
-              type="text"
-              class="flex-1 w-full rounded-md border {controlServerError ? 'border-red-400 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-transparent px-2 py-1 text-xs font-mono text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 transition-colors"
-              placeholder="https://headscale.example.com"
-              bind:value={controlServerInput}
-              oninput={() => { controlServerError = ''; }}
-              onkeydown={(e) => e.key === 'Enter' && controlServerInput.trim() !== controlServerBaseline && handleSaveControlServer()}
-              autocomplete="off"
-              spellcheck="false"
-            />
-            {#if controlServerInput.trim() !== controlServerBaseline}
-              <button
-                class="inline-flex items-center gap-1 px-2 py-1 text-[10px] uppercase tracking-wider font-semibold rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                onclick={handleSaveControlServer}
-                disabled={controlServerSaving}
-              >
-                {#if controlServerSaving}
-                  <RefreshCw size={12} class="animate-spin" />
-                {:else}
-                  <Check size={12} />
-                {/if}
-                Apply
-              </button>
-            {/if}
-          </div>
-          {#if controlServerError}
-            <p class="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
-              <AlertTriangle size={12} />
-              {controlServerError}
-            </p>
-          {/if}
-          <p class="text-xs text-gray-500 dark:text-gray-400">
-            For self-hosted <a
-              href="https://headscale.net"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="underline hover:text-gray-700 dark:hover:text-gray-300"
-            >Headscale</a> servers — used as <code class="font-mono">tailscale login --login-server</code>. Leave empty to use Tailscale's official control plane.
-          </p>
-        </div>
-      {/if}
-
       {#if status.Health && status.Health.length > 0}
         <div class="rounded-md border border-amber-200 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 space-y-1">
           {#each status.Health as msg}
@@ -626,6 +574,56 @@
           {/if}
         </div>
       {/if}
+
+      <!-- Control server (Headscale) — full-width since URLs run long.
+           Only shown while logged out: an already-registered device keeps
+           using the control server it authenticated against until logout. -->
+      <div class="space-y-1.5 pt-3 border-t border-amber-200 dark:border-amber-700">
+        <div class="flex items-center gap-1.5">
+          <Server size={13} class="text-amber-600 dark:text-amber-400" />
+          <span class="text-xs font-medium text-amber-800 dark:text-amber-300">Control Server</span>
+        </div>
+        <div class="flex gap-2">
+          <input
+            type="text"
+            class="flex-1 w-full rounded-md border {controlServerError ? 'border-red-400 dark:border-red-500' : 'border-amber-300 dark:border-amber-600'} bg-white dark:bg-gray-900 px-2 py-1 text-xs font-mono text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder-gray-400 transition-colors"
+            placeholder="https://headscale.example.com"
+            bind:value={controlServerInput}
+            oninput={() => { controlServerError = ''; }}
+            onkeydown={(e) => e.key === 'Enter' && controlServerInput.trim() !== controlServerBaseline && handleSaveControlServer()}
+            autocomplete="off"
+            spellcheck="false"
+          />
+          {#if controlServerInput.trim() !== controlServerBaseline}
+            <button
+              class="inline-flex items-center gap-1 px-2 py-1 text-[10px] uppercase tracking-wider font-semibold rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+              onclick={handleSaveControlServer}
+              disabled={controlServerSaving}
+            >
+              {#if controlServerSaving}
+                <RefreshCw size={12} class="animate-spin" />
+              {:else}
+                <Check size={12} />
+              {/if}
+              Apply
+            </button>
+          {/if}
+        </div>
+        {#if controlServerError}
+          <p class="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+            <AlertTriangle size={12} />
+            {controlServerError}
+          </p>
+        {/if}
+        <p class="text-xs text-amber-700 dark:text-amber-400">
+          For self-hosted <a
+            href="https://headscale.net"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="underline hover:text-amber-900 dark:hover:text-amber-200"
+          >Headscale</a> servers — used as <code class="font-mono">tailscale login --login-server</code>. Leave empty to use Tailscale's official control plane.
+        </p>
+      </div>
     </div>
   {/if}
 

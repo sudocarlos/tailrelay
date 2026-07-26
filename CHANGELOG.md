@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Control Server field on the Tailscale page** — connect to a self-hosted [Headscale](https://headscale.net) instance instead of Tailscale's default control plane
-  - New "Control Server" input in the connection status card, shown only while logged out, persisted via `GET /api/tailscale/control-server` and `POST /api/tailscale/control-server/update`
+  - New "Control Server" input inside the "Authentication Required" section, shown after the Login URL / Auth Key tabs while logged out, persisted via `GET /api/tailscale/control-server` and `POST /api/tailscale/control-server/update`
   - Automatically applied as `tailscale login --login-server=<url>` / `tailscale up --authkey=<key> --login-server=<url>` on subsequent logins
   - URL validation (must be a valid `http://`/`https://` URL) on both the client and server
 - **Headscale auth keys** — the "Auth Key" login flow now also accepts `hskey-` prefixed keys (Headscale) in addition to `tskey-` (Tailscale)
