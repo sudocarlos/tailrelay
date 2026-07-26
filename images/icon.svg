@@ -6,7 +6,7 @@
    y="0"
    version="1.1"
    viewBox="0 0 512 512"
-   sodipodi:docname="tailrelay-light-icon.svg"
+   sodipodi:docname="tailrelay-light-icon2.svg"
    inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
@@ -112,22 +112,7 @@
    fill="#f0f0f0"
    class="dot-t"
    id="circle10" />
-  <circle
-   cx="322"
-   cy="322"
-   r="44"
-   fill="#ff5252"
-   class="dot-r"
-   id="circle11"
-   style="fill:#5c008e;fill-opacity:1" />
-  <circle
-   cx="454"
-   cy="322"
-   r="44"
-   fill="#ff5252"
-   class="dot-r"
-   id="circle12"
-   style="fill:#5c008e;fill-opacity:1" />
+  
 
   <!-- Row 3: o o r o -->
   <circle
@@ -145,14 +130,7 @@
    class="st0"
    id="circle14"
    style="opacity:1" />
-  <circle
-   cx="322"
-   cy="454"
-   r="44"
-   fill="#ff5252"
-   class="dot-r"
-   id="circle15"
-   style="fill:#5c008e;fill-opacity:1" />
+  
   <circle
    cx="454"
    cy="454"
@@ -160,4 +138,22 @@
    fill="#f0f0f0"
    class="st0"
    id="circle16" />
-</svg>
+<ellipse
+   style="fill:none;stroke:#f0f0f0;stroke-width:22.0002;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+   id="path18"
+   cx="322.00003"
+   cy="323.69623"
+   rx="32.99992"
+   ry="32.999908" /><ellipse
+   style="fill:none;stroke:#f0f0f0;stroke-width:22.0002;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+   id="path18-9"
+   cx="322.00003"
+   cy="454"
+   rx="32.99992"
+   ry="32.999908" /><ellipse
+   style="fill:none;stroke:#f0f0f0;stroke-width:22.0002;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+   id="path18-2"
+   cx="454.00003"
+   cy="322"
+   rx="32.99992"
+   ry="32.999908" /></svg>
