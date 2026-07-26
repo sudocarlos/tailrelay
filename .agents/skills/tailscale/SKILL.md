@@ -1,7 +1,7 @@
 ---
 name: tailscale-management
 description: Tailscale VPN daemon management, CLI integration, authentication, and networking for the tailrelay container. Use when working with Tailscale configuration, login flows, device authentication, MagicDNS, HTTPS certificates, or network connectivity issues.
-reviewed_at: 5100f3d
+reviewed_at: 0fe9352
 ---
 
 # Tailscale Management
@@ -117,6 +117,31 @@ Server field on the Tailscale page's connection status card.
 - Changing the control server has no effect on a device that's already
   registered until it's logged out and re-authenticated — Tailscale binds a
   node identity to whichever control server it first authenticated with.
+- The persisted setting is **only** used to build `--login-server=<url>` for
+  a future login/connect — it does not drive any runtime behaviour (Funnel
+  visibility, serve relay scheme). Those are derived live from tailscaled's
+  actual `ControlURL` preference instead (see `Prefs.IsCustomControlServer`
+  below and `serve.Manager.WebListenerScheme` in the serve skill), so they
+  stay correct even if a device was authenticated against a custom control
+  server outside the Web UI (CLI login, restored state) without this
+  setting ever being saved.
+
+### Live Custom-Control-Server Detection (`networking.go`)
+
+`Prefs.ControlURL` (added to the `/localapi/v0/prefs` decode) holds the
+control plane tailscaled is currently authenticated against.
+`Prefs.IsCustomControlServer()` compares it against the well-known Tailscale
+default (`https://controlplane.tailscale.com`, `ipn.DefaultControlURL`
+upstream); `Client.IsCustomControlServer()` wraps `GetPrefs()` for callers
+that only need the boolean. `GetStatusSummary()` populates
+`StatusSummary.IsCustomControlServer` from this on every `/api/tailscale/status`
+poll — the frontend's `hideFunnel` derived store
+(`webui/frontend/src/lib/stores/app.js`) reads this field rather than the
+persisted control-server setting, and `serve.Manager.WebListenerScheme`
+(see the serve skill) uses the same live signal to pick `--https` vs
+`--http`. If the LocalAPI prefs lookup fails (e.g. daemon still starting),
+both consumers fail safe: the status summary omits the field (false) and the
+serve `Manager` falls back to its persisted flag rather than erroring.
 
 ### Networking Preferences (`networking.go`)
 

@@ -73,11 +73,14 @@ export function findLoggedOutHealthMessage(health) {
 
 // ── Derived: hide Funnel while connected to a custom control server ──
 // Funnel is a Tailscale-cloud-only feature not supported by self-hosted
-// Headscale, so it's only hidden once actually connected under one —
-// not merely because a control server URL happens to be saved.
+// Headscale, so it's driven by tailscaled's live ControlURL (reported as
+// IsCustomControlServer on the status payload) rather than the persisted
+// control_server setting — the node may have been authenticated against a
+// custom control server outside the Web UI (CLI login, restored state),
+// in which case the persisted setting would be stale/empty.
 export const hideFunnel = derived(
-  [tailscaleConnected, controlServer],
-  ([$connected, $controlServer]) => $connected && $controlServer !== '',
+  [tailscaleConnected, tailscaleStatus],
+  ([$connected, $status]) => $connected && !!$status?.IsCustomControlServer,
 );
 
 // ── Navigation ────────────────────────────────────────────────────

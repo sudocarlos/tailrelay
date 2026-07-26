@@ -27,6 +27,26 @@ type Prefs struct {
 	ExitNodeAllowLANAccess bool     `json:"ExitNodeAllowLANAccess"`
 	RunSSH                 bool     `json:"RunSSH"`
 	AdvertiseRoutes        []string `json:"AdvertiseRoutes"`
+	// ControlURL is the control plane tailscaled is currently authenticated
+	// against. It is empty until the node has logged in at least once.
+	ControlURL string `json:"ControlURL"`
+}
+
+// defaultControlURL is the well-known control plane Tailscale's tailscaled
+// uses when no --login-server/--control-url override is in effect. See
+// https://github.com/tailscale/tailscale/blob/main/ipn/prefs.go
+// (ipn.DefaultControlURL).
+const defaultControlURL = "https://controlplane.tailscale.com"
+
+// IsCustomControlServer reports whether tailscaled is currently
+// authenticated against a control server other than Tailscale's default
+// (e.g. a self-hosted Headscale instance). This is derived from the live
+// LocalAPI prefs rather than any persisted Web UI setting, so it stays
+// correct even if the node was authenticated outside the Web UI (CLI login,
+// restored state, etc.) and reflects reality immediately after a control
+// server change takes effect.
+func (p *Prefs) IsCustomControlServer() bool {
+	return p.ControlURL != "" && p.ControlURL != defaultControlURL
 }
 
 // GetPrefs returns the current tailscaled preferences via the LocalAPI.
@@ -44,6 +64,18 @@ func (c *Client) GetPrefs() (*Prefs, error) {
 		return nil, fmt.Errorf("failed to parse prefs: %w", err)
 	}
 	return &prefs, nil
+}
+
+// IsCustomControlServer reports whether tailscaled is currently
+// authenticated against a control server other than Tailscale's default,
+// based on the live ControlURL preference rather than any persisted Web UI
+// setting. See Prefs.IsCustomControlServer.
+func (c *Client) IsCustomControlServer() (bool, error) {
+	prefs, err := c.GetPrefs()
+	if err != nil {
+		return false, err
+	}
+	return prefs.IsCustomControlServer(), nil
 }
 
 // NetworkingSummary is a simplified view of the networking-related Tailscale

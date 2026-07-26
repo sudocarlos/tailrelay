@@ -26,11 +26,12 @@ type ServeHandler struct {
 
 // NewServeHandler creates a new serve handler.
 func NewServeHandler(cfg *config.Config, templates *template.Template) *ServeHandler {
+	tsClient := tailscale.NewClient()
 	return &ServeHandler{
 		cfg:       cfg,
 		templates: templates,
-		manager:   serve.NewManagerWithCustomControlServer(cfg.Paths.ServeRelayConfig, cfg.Tailscale.ControlServer != ""),
-		tsClient:  tailscale.NewClient(),
+		manager:   serve.NewManagerWithControlServerDetection(cfg.Paths.ServeRelayConfig, tsClient, cfg.Tailscale.ControlServer != ""),
+		tsClient:  tsClient,
 	}
 }
 

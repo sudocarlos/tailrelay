@@ -37,6 +37,15 @@ func (h *TailscaleHandler) GetControlServer(w http.ResponseWriter, r *http.Reque
 // connection; it has no effect on a device that's already registered to a
 // control server until it's logged out and re-authenticated. Pass an empty
 // string to reset to Tailscale's default control plane.
+//
+// This persisted value is only used to build the `--login-server=<url>` flag
+// for a future login/connect. It intentionally does NOT drive Funnel
+// visibility or the `--https`/`--http` scheme used by serve relays — those
+// are derived live from tailscaled's actual ControlURL preference (see
+// serve.Manager.WebListenerScheme and tailscale.Prefs.IsCustomControlServer),
+// so they stay correct even if a device was authenticated against a custom
+// control server outside the Web UI (e.g. CLI login, restored state) without
+// this setting ever being saved.
 func (h *TailscaleHandler) UpdateControlServer(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSONError(w, "method not allowed", http.StatusMethodNotAllowed)

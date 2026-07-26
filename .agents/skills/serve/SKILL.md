@@ -1,7 +1,7 @@
 ---
 name: serve-relay-management
 description: tailscale serve and funnel relay management — HTTPS, TCP, and Funnel relay types, serve_relays.json format, reconciliation flow, API endpoints, migration from legacy caddy/socat configs, ErrTailscaleNotReady and ErrFunnelNotAllowed handling. Use when working with internal/serve/, handlers/serve.go, or /api/serve/* endpoints.
-reviewed_at: ec9e4ac
+reviewed_at: 0fe9352
 ---
 
 # Serve Relay Management
@@ -28,10 +28,11 @@ Funnel is only permitted on ports `443`, `8443`, and `10000`
 (`serve.FunnelPorts`, checked via `serve.IsFunnelPort`) — this is a hard
 limitation of Tailscale Funnel, not a tailrelay choice.
 
-Web relays retain the persisted `https` type for compatibility. When a custom
-control server is configured, the manager uses `tailscale serve --http` because
-self-hosted controllers cannot provide Tailscale's HTTPS certificate
-provisioning. HTTPS list responses include `listener_scheme` so the UI can
+Web relays retain the persisted `https` type for compatibility. When tailscaled
+is actually authenticated against a custom control server, the manager uses
+`tailscale serve --http` because self-hosted controllers (e.g. Headscale)
+cannot provide Tailscale's HTTPS certificate provisioning and reject `--https`
+serve requests. HTTPS list responses include `listener_scheme` so the UI can
 render the correct access URL and running state.
 
 ## `serve_relays.json` Format
@@ -99,6 +100,7 @@ type ServeRelay struct {
 | Method | Description |
 |--------|-------------|
 | `NewManager(relayFile string) *Manager` | Create manager with relay config path |
+| `NewManagerWithControlServerDetection(relayFile string, checker controlServerChecker, fallback bool) *Manager` | Production constructor: `WebListenerScheme` prefers a live check via `checker` (satisfied by `*tailscale.Client`), falling back to `fallback` if `checker` is nil or the live check errors |
 | `ListRelays() ([]ServeRelay, error)` | Return all stored relays |
 | `GetRelay(id string) (*ServeRelay, error)` | Get relay by ID |
 | `UpsertRelay(relay ServeRelay) error` | Create/update relay and reconcile |
@@ -107,8 +109,26 @@ type ServeRelay struct {
 | `Reconcile() error` | Reset serve config and reapply all enabled relays |
 | `Status() (*ServeStatusJSON, error)` | Parse `tailscale serve status --json` |
 | `IsFunnelPort(port int) bool` | Whether port is one of `FunnelPorts` (443/8443/10000) |
+| `WebListenerScheme() string` | `"http"` or `"https"` for the next `https`-type relay reconcile — see below |
 
-### `ErrTailscaleNotReady`
+### `WebListenerScheme` and Custom Control Server Detection
+
+`WebListenerScheme()` decides `--https` vs `--http` for `https`-type relays.
+It is **not** driven solely by the persisted `Config.Tailscale.ControlServer`
+setting (which can drift — e.g. a node authenticated against a self-hosted
+Headscale instance outside the Web UI, via CLI login or restored state,
+while the setting stays unsaved/empty). Instead:
+
+1. If a `controlServerChecker` was supplied (production: `*tailscale.Client`,
+   via `IsCustomControlServer()` → live `ControlURL` from
+   `/localapi/v0/prefs`), that live result wins.
+2. If no checker is configured, or the live check errors (e.g. tailscaled
+   unreachable during startup), the manager falls back to the
+   `customControlServer` flag seeded from the persisted config value at
+   construction time (`SetCustomControlServer` updates this fallback after
+   `Login`/`LoginWithKey`/`Connect`; see the tailscale skill's live-detection
+   section for the full picture, including the matching frontend
+   `hideFunnel` derived store).
 
 ```go
 var ErrTailscaleNotReady = fmt.Errorf("tailscale not ready")

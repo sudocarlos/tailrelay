@@ -55,9 +55,13 @@ func writeJSONError(w http.ResponseWriter, message string, status int) {
 }
 
 // reconcileRelaysAsync runs Reconcile in the background after a short delay,
-// allowing Tailscale to fully come up before restoring relay state. The
-// listener scheme changes only after the requested login has connected, so
-// saving a different control server cannot alter active relay listeners.
+// allowing Tailscale to fully come up before restoring relay state.
+// SetCustomControlServer here only updates the fallback used when live
+// control server detection is unavailable (see serve.Manager.WebListenerScheme) —
+// the actual --https/--http choice is otherwise derived live from
+// tailscaled's ControlURL preference on every reconcile, so it reflects
+// reality even if this handler was never invoked (e.g. the node was
+// authenticated outside the Web UI).
 func (h *TailscaleHandler) reconcileRelaysAsync(controlServer string) {
 	if h.serveMgr == nil {
 		return

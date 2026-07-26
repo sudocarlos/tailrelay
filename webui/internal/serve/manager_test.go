@@ -1,6 +1,7 @@
 package serve
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -452,5 +453,55 @@ func TestManagerToggleRelay(t *testing.T) {
 	}
 	if relay.Enabled {
 		t.Fatalf("expected relay to be disabled")
+	}
+}
+
+// fakeControlServerChecker implements controlServerChecker for tests, so
+// live control server detection can be exercised without a real tailscaled.
+type fakeControlServerChecker struct {
+	custom bool
+	err    error
+}
+
+func (f fakeControlServerChecker) IsCustomControlServer() (bool, error) {
+	return f.custom, f.err
+}
+
+func TestWebListenerSchemePrefersLiveDetectionOverFallback(t *testing.T) {
+	dir := t.TempDir()
+	relayFile := filepath.Join(dir, "serve_relays.json")
+
+	// Fallback says "default Tailscale" (https), but the live checker
+	// reports the node is actually authenticated against a custom control
+	// server — the live result must win, since a node authenticated outside
+	// the Web UI (CLI login, restored state) would otherwise be missed.
+	m := NewManagerWithControlServerDetection(relayFile, fakeControlServerChecker{custom: true}, false)
+	if got := m.WebListenerScheme(); got != "http" {
+		t.Fatalf("WebListenerScheme() = %q, want %q", got, "http")
+	}
+}
+
+func TestWebListenerSchemeFallsBackWhenLiveCheckFails(t *testing.T) {
+	dir := t.TempDir()
+	relayFile := filepath.Join(dir, "serve_relays.json")
+
+	// If the live checker errors (e.g. tailscaled unreachable), the manager
+	// should fall back to the persisted/seed value instead of defaulting to
+	// https, which would fail reconcile against a custom control server.
+	m := NewManagerWithControlServerDetection(relayFile, fakeControlServerChecker{err: fmt.Errorf("tailscaled unreachable")}, true)
+	if got := m.WebListenerScheme(); got != "http" {
+		t.Fatalf("WebListenerScheme() = %q, want %q", got, "http")
+	}
+}
+
+func TestWebListenerSchemeWithNoChecker(t *testing.T) {
+	dir := t.TempDir()
+	relayFile := filepath.Join(dir, "serve_relays.json")
+
+	// NewManager/NewManagerWithBinary have no checker configured; the
+	// scheme should simply reflect the fallback flag (default false/https).
+	m := NewManager(relayFile)
+	if got := m.WebListenerScheme(); got != "https" {
+		t.Fatalf("WebListenerScheme() = %q, want %q", got, "https")
 	}
 }

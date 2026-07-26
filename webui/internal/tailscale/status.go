@@ -21,6 +21,14 @@ type StatusSummary struct {
 	ActivePeers  int
 	Health       []string
 	LastCheck    time.Time
+	// IsCustomControlServer reports whether tailscaled is currently
+	// authenticated against a control server other than Tailscale's default
+	// (e.g. a self-hosted Headscale instance), derived live from the
+	// ControlURL preference. The frontend uses this — rather than the
+	// persisted Web UI control server setting — to decide whether to hide
+	// Funnel, so it stays correct even if the node was authenticated
+	// outside the Web UI.
+	IsCustomControlServer bool
 }
 
 // knownBenignWarnings is a list of Tailscale daemon health message substrings
@@ -93,6 +101,13 @@ func (c *Client) GetStatusSummary() (*StatusSummary, error) {
 		summary.TailnetName = status.CurrentTailnet.Name
 	}
 
+	// Best-effort: a prefs lookup failure (e.g. daemon still starting) should
+	// not fail the whole status summary — Funnel visibility simply falls
+	// back to "not custom" until prefs become available.
+	if prefs, err := c.GetPrefs(); err == nil {
+		summary.IsCustomControlServer = prefs.IsCustomControlServer()
+	}
+
 	// Count active peers
 	for _, peer := range status.Peer {
 		if peer.Active && peer.Online {
@@ -105,18 +120,18 @@ func (c *Client) GetStatusSummary() (*StatusSummary, error) {
 
 // PeerInfo provides simplified peer information
 type PeerInfo struct {
-	Hostname string
-	DNSName  string
-	OS          string
-	IPv4        string
-	IPv6        string
+	Hostname     string
+	DNSName      string
+	OS           string
+	IPv4         string
+	IPv6         string
 	TailscaleIPs []string
-	UserEmail   string
-	Active      bool
-	Online      bool
-	LastSeen    time.Time
-	Relay       string
-	ExitNode    bool
+	UserEmail    string
+	Active       bool
+	Online       bool
+	LastSeen     time.Time
+	Relay        string
+	ExitNode     bool
 }
 
 // GetPeers returns a list of peer information
@@ -129,17 +144,17 @@ func (c *Client) GetPeers() ([]PeerInfo, error) {
 	peers := make([]PeerInfo, 0, len(status.Peer))
 	for _, peer := range status.Peer {
 		info := PeerInfo{
-			Hostname:    peer.HostName,
-			DNSName:     strings.TrimSuffix(peer.DNSName, "."),
-			OS:          peer.OS,
-			Active:      peer.Active,
-			Online:      peer.Online,
-			LastSeen:    peer.LastSeen,
-			Relay:       peer.Relay,
-			ExitNode:    peer.ExitNodeOption,
+			Hostname:     peer.HostName,
+			DNSName:      strings.TrimSuffix(peer.DNSName, "."),
+			OS:           peer.OS,
+			Active:       peer.Active,
+			Online:       peer.Online,
+			LastSeen:     peer.LastSeen,
+			Relay:        peer.Relay,
+			ExitNode:     peer.ExitNodeOption,
 			TailscaleIPs: append([]string(nil), peer.TailscaleIPs...),
 		}
-		
+
 		if user, ok := status.User[fmt.Sprintf("%d", peer.UserID)]; ok {
 			info.UserEmail = user.LoginName
 		}

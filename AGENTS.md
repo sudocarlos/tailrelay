@@ -114,10 +114,10 @@ curl -sSL http://localhost:8021                   # Web UI
 | Document | `reviewed_at` | Paths Covered |
 |----------|---------------|---------------|
 | `AGENTS.md` | `HEAD` | `AGENTS.md`, `Makefile`, `start.sh` |
-| `.agents/skills/serve/SKILL.md` | `2688353` | `webui/internal/serve/`, `webui/internal/handlers/serve.go` |
+| `.agents/skills/serve/SKILL.md` | `0fe9352` | `webui/internal/serve/`, `webui/internal/handlers/serve.go` |
 | `.agents/skills/webui/SKILL.md` | `f2c24a0` | `webui/`, `Makefile` |
 | `.agents/skills/docker-ci/SKILL.md` | `67b91e7` | `Dockerfile`, `.github/workflows/`, `compose-test.yml`, `Makefile` |
-| `.agents/skills/tailscale/SKILL.md` | `f01c56f` | `webui/internal/tailscale/`, `start.sh` |
+| `.agents/skills/tailscale/SKILL.md` | `0fe9352` | `webui/internal/tailscale/`, `start.sh` |
 | `webui/README.md` | `f2c24a0` | `webui/` |
 | `README.md` | `f2c24a0` | `README.md`, `webui/internal/web/server.go`, `docs/openapi.yaml` |
 | `.agents/skills/security-review/SKILL.md` | `f2c24a0` | `webui/internal/auth/`, `webui/internal/handlers/`, `webui/internal/backup/`, `Dockerfile`, `start.sh` |
