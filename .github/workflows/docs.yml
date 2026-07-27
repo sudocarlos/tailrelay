@@ -6,6 +6,7 @@ on:
     paths:
       - 'website/**'
       - 'docs/openapi.yaml'
+      - 'docs/screenshots/**'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
@@ -26,6 +27,13 @@ jobs:
         working-directory: website
     steps:
       - uses: actions/checkout@v4
+
+      # The capture script mirrors docs/screenshots/ into the site's static dir,
+      # but only the mirrored copy is published. Fail loudly on drift rather
+      # than deploying stale images that look fine.
+      - name: Verify screenshots are mirrored
+        working-directory: ${{ github.workspace }}
+        run: diff -rq --exclude='*.mjs' --exclude='node_modules' docs/screenshots website/static/img/screenshots
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
