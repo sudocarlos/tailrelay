@@ -111,7 +111,7 @@ func (h *TailscaleHandler) LoginWithKey(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := h.tsClient.LoginWithAuthKey(body.AuthKey, h.controlServer()); err != nil {
+	if err := h.tsClient.LoginWithAuthKey(body.AuthKey, h.controlServer(), h.hostname()); err != nil {
 		log.Printf("Error authenticating Tailscale with auth key: %v", err)
 		writeJSONError(w, "Failed to authenticate with auth key: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -133,7 +133,7 @@ func (h *TailscaleHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authURL, err := h.tsClient.Login(h.controlServer())
+	authURL, err := h.tsClient.Login(h.controlServer(), h.hostname())
 	if err != nil {
 		log.Printf("Error initiating Tailscale login: %v", err)
 		writeJSONError(w, "Failed to get login URL from Tailscale. The daemon may not be running or may already be connected.", http.StatusInternalServerError)
@@ -207,7 +207,11 @@ func (h *TailscaleHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
 }
 
 // ChangeHostname changes the Tailscale hostname without changing the active
-// control server or other node preferences.
+// control server or other node preferences. The new hostname is persisted
+// to webui.yaml so it's reapplied via `--hostname=` on any future
+// `tailscale login`/`up --authkey`, preventing a Logout followed by
+// re-authenticating from silently reverting to tailscaled's OS default
+// hostname (e.g. the container ID).
 func (h *TailscaleHandler) ChangeHostname(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSONError(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -232,6 +236,22 @@ func (h *TailscaleHandler) ChangeHostname(w http.ResponseWriter, r *http.Request
 		log.Printf("Error changing Tailscale hostname: %v", err)
 		writeJSONError(w, "Failed to change hostname: "+err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	h.cfgMu.Lock()
+	previous := h.cfg.Tailscale.Hostname
+	h.cfg.Tailscale.Hostname = body.Hostname
+	err := config.Save(h.cfg.ConfigFile, h.cfg)
+	if err != nil {
+		// Keep in-memory state consistent with what's actually on disk.
+		h.cfg.Tailscale.Hostname = previous
+	}
+	h.cfgMu.Unlock()
+	if err != nil {
+		// The hostname change itself already succeeded against tailscaled;
+		// only the "remember for next login" persistence failed, so warn
+		// rather than fail the request.
+		log.Printf("Warning: failed to persist hostname setting: %v", err)
 	}
 
 	writeJSON(w, map[string]string{

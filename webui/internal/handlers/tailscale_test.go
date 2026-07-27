@@ -100,6 +100,23 @@ func TestLoginWithKey_AcceptsHskeyPrefix(t *testing.T) {
 	}
 }
 
+func TestLoginWithKey_ReappliesPersistedHostname(t *testing.T) {
+	h, logFile := newLoginWithKeyTestHandler(t, 0)
+	h.cfg.Tailscale.Hostname = "my-device"
+
+	rr := postJSON(t, h.LoginWithKey, "/api/tailscale/login-with-key", map[string]interface{}{
+		"auth_key": "tskey-auth-abc123",
+	})
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	got := readLog(t, logFile)
+	if !strings.Contains(got, "--hostname=my-device") {
+		t.Errorf("expected `tailscale up` to reapply the persisted hostname, got %q", got)
+	}
+}
+
 // --- ChangeHostname ---
 
 func TestChangeHostname_RejectsNonPOST(t *testing.T) {
@@ -159,5 +176,30 @@ func TestChangeHostname_DoesNotChangeControlServer(t *testing.T) {
 	}
 	if strings.Contains(got, "--login-server") || strings.Contains(got, "--reset") {
 		t.Errorf("expected no control-server or reset flags, got %q", got)
+	}
+}
+
+func TestChangeHostname_PersistsAndRoundTrips(t *testing.T) {
+	h, _ := newLoginWithKeyTestHandler(t, 0)
+
+	rr := postJSON(t, h.ChangeHostname, "/api/tailscale/hostname", map[string]interface{}{
+		"hostname": "my-device",
+	})
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	if h.cfg.Tailscale.Hostname != "my-device" {
+		t.Errorf("expected in-memory config to be updated, got %q", h.cfg.Tailscale.Hostname)
+	}
+
+	// Confirm it was actually written to disk, not just held in memory, so
+	// it survives a Web UI restart and is reapplied on the next login.
+	reloaded, err := config.Load(h.cfg.ConfigFile)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	if reloaded.Tailscale.Hostname != "my-device" {
+		t.Errorf("expected persisted hostname, got %q", reloaded.Tailscale.Hostname)
 	}
 }

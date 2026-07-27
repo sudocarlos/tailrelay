@@ -54,6 +54,14 @@ type TailscaleConfig struct {
 	// Headscale instance) passed as `tailscale login --login-server=<url>`.
 	// Empty means Tailscale's default control plane.
 	ControlServer string `yaml:"control_server"`
+	// Hostname is the last hostname explicitly set via the Web UI (see
+	// TailscaleHandler.ChangeHostname). It's reapplied as `--hostname=<name>`
+	// on every future `tailscale login`/`up --authkey` so a Logout followed
+	// by re-authenticating doesn't silently fall back to tailscaled's OS
+	// default hostname (e.g. the container ID) and drift from the
+	// previously assigned MagicDNS name. Empty means "no preference set" —
+	// tailscaled picks its own default.
+	Hostname string `yaml:"hostname"`
 }
 
 // ServeRelay represents a relay backed by `tailscale serve` or `tailscale funnel`.

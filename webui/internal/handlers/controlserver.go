@@ -18,6 +18,15 @@ func (h *TailscaleHandler) controlServer() string {
 	return h.cfg.Tailscale.ControlServer
 }
 
+// hostname returns the last hostname explicitly set via ChangeHostname,
+// guarded by cfgMu since cfg is a pointer shared across handlers. Empty
+// means no preference has been persisted yet.
+func (h *TailscaleHandler) hostname() string {
+	h.cfgMu.Lock()
+	defer h.cfgMu.Unlock()
+	return h.cfg.Tailscale.Hostname
+}
+
 // GetControlServer returns the persisted custom control server URL used for
 // `tailscale login`/`up --authkey` (e.g. a self-hosted Headscale instance).
 // An empty value means Tailscale's default control plane.

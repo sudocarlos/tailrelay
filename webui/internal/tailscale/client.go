@@ -64,13 +64,13 @@ func localAPIPost(path string) ([]byte, int, error) {
 
 // Status represents the output of 'tailscale status --json'
 type Status struct {
-	Version        string                `json:"Version"`
-	BackendState   string                `json:"BackendState"`
-	Self           PeerStatus            `json:"Self"`
-	Health         []string              `json:"Health"`
-	MagicDNSSuffix string                `json:"MagicDNSSuffix"`
-	CurrentTailnet *CurrentTailnet       `json:"CurrentTailnet"`
-	Peer           map[string]PeerStatus `json:"Peer"`
+	Version        string                 `json:"Version"`
+	BackendState   string                 `json:"BackendState"`
+	Self           PeerStatus             `json:"Self"`
+	Health         []string               `json:"Health"`
+	MagicDNSSuffix string                 `json:"MagicDNSSuffix"`
+	CurrentTailnet *CurrentTailnet        `json:"CurrentTailnet"`
+	Peer           map[string]PeerStatus  `json:"Peer"`
 	User           map[string]UserProfile `json:"User"`
 }
 
@@ -203,28 +203,31 @@ func (c *Client) GetIP() (ipv4, ipv6 string, err error) {
 // Login triggers the Tailscale interactive login flow and returns the auth
 // URL the user must visit to authenticate this device.
 //
-// When controlServer is empty, it calls POST /localapi/v0/login-interactive
-// to start the flow against whatever control server is already configured.
-// When controlServer is set (e.g. a self-hosted Headscale instance), it
-// instead runs `tailscale login --login-server=<url>` via the CLI, since
-// --login-server is only accepted by the `login`/`up` subcommands — the
-// LocalAPI login-interactive endpoint has no way to pass it and simply
-// reuses the node's existing prefs. Either way, it then polls
+// When controlServer and hostname are both empty, it calls POST
+// /localapi/v0/login-interactive to start the flow against whatever control
+// server is already configured. When either is set (e.g. a self-hosted
+// Headscale instance, or a hostname previously assigned via ChangeHostname),
+// it instead runs `tailscale login --login-server=<url> --hostname=<name>`
+// via the CLI, since neither flag is accepted by the LocalAPI
+// login-interactive endpoint — that endpoint has no way to pass them and
+// simply reuses the node's existing prefs, which a prior Logout may have
+// reset to tailscaled's OS default hostname. Either way, it then polls
 // GET /localapi/v0/status until AuthURL is populated (up to 10 seconds).
-func (c *Client) Login(controlServer string) (string, error) {
+func (c *Client) Login(controlServer, hostname string) (string, error) {
 	controlServer = strings.TrimSpace(controlServer)
-	if controlServer != "" {
+	hostname = strings.TrimSpace(hostname)
+	if controlServer != "" || hostname != "" {
 		// tailscaled generates the AuthURL asynchronously and the CLI
 		// blocks until authentication completes, so start it in the
 		// background and let the poll loop below pick up the URL exactly
 		// like the LocalAPI-triggered flow does.
-		cmd := exec.Command(c.binaryPath, buildLoginArgs(controlServer)...)
+		cmd := exec.Command(c.binaryPath, buildLoginArgs(controlServer, hostname)...)
 		if err := cmd.Start(); err != nil {
 			return "", fmt.Errorf("failed to start login flow: %w", err)
 		}
 		go func() {
 			if err := cmd.Wait(); err != nil {
-				log.Printf("tailscale login --login-server=%s exited with error: %v", controlServer, err)
+				log.Printf("tailscale login --login-server=%s --hostname=%s exited with error: %v", controlServer, hostname, err)
 			}
 		}()
 	} else {
@@ -335,12 +338,15 @@ func (c *Client) GetVersion() (string, error) {
 // Login(): instead of returning a URL for the user to visit, the key is passed
 // directly to `tailscale up --authkey=<key>`, which authenticates and connects
 // in a single step. When controlServer is set (e.g. a self-hosted Headscale
-// instance), `--login-server=<url>` is appended to the same invocation.
-func (c *Client) LoginWithAuthKey(key, controlServer string) error {
+// instance), `--login-server=<url>` is appended to the same invocation. When
+// hostname is set (a name previously assigned via ChangeHostname),
+// `--hostname=<name>` is appended too, so a Logout followed by re-authenticating
+// doesn't silently fall back to tailscaled's OS default hostname.
+func (c *Client) LoginWithAuthKey(key, controlServer, hostname string) error {
 	if key == "" {
 		return fmt.Errorf("auth key cannot be empty")
 	}
-	cmd := exec.Command(c.binaryPath, buildLoginWithAuthKeyArgs(key, strings.TrimSpace(controlServer))...)
+	cmd := exec.Command(c.binaryPath, buildLoginWithAuthKeyArgs(key, strings.TrimSpace(controlServer), strings.TrimSpace(hostname))...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to authenticate with auth key: %w (output: %s)", err, strings.TrimSpace(string(output)))

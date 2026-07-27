@@ -21,21 +21,37 @@ func ValidateControlServerURL(raw string) error {
 }
 
 // buildLoginArgs builds the `tailscale login` argv used by Login's
-// CLI-based flow when a custom control server is configured. Split out so
-// the argument construction can be unit tested without shelling out,
-// mirroring buildLoginWithAuthKeyArgs.
-func buildLoginArgs(controlServer string) []string {
-	return []string{"login", "--login-server=" + controlServer}
+// CLI-based flow when a custom control server and/or a persisted hostname
+// preference is configured. hostname reapplies the last name set via
+// ChangeHostname so a Logout followed by re-authenticating doesn't silently
+// fall back to tailscaled's OS default hostname. Split out so the argument
+// construction can be unit tested without shelling out, mirroring
+// buildLoginWithAuthKeyArgs.
+func buildLoginArgs(controlServer, hostname string) []string {
+	args := []string{"login"}
+	if controlServer != "" {
+		args = append(args, "--login-server="+controlServer)
+	}
+	if hostname != "" {
+		args = append(args, "--hostname="+hostname)
+	}
+	return args
 }
 
 // buildLoginWithAuthKeyArgs builds the `tailscale up` argv used by
-// LoginWithAuthKey, appending --login-server only when controlServer is
-// set. Split out from LoginWithAuthKey so the argument construction can be
-// unit tested without shelling out, mirroring buildNetworkingSetArgs.
-func buildLoginWithAuthKeyArgs(key, controlServer string) []string {
+// LoginWithAuthKey, appending --login-server and --hostname only when set.
+// hostname reapplies the last name set via ChangeHostname so a Logout
+// followed by re-authenticating doesn't silently fall back to tailscaled's
+// OS default hostname. Split out from LoginWithAuthKey so the argument
+// construction can be unit tested without shelling out, mirroring
+// buildNetworkingSetArgs.
+func buildLoginWithAuthKeyArgs(key, controlServer, hostname string) []string {
 	args := []string{"up", "--authkey=" + key}
 	if controlServer != "" {
 		args = append(args, "--login-server="+controlServer)
+	}
+	if hostname != "" {
+		args = append(args, "--hostname="+hostname)
 	}
 	return args
 }

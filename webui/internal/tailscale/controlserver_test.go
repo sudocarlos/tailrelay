@@ -33,10 +33,41 @@ func TestValidateControlServerURL(t *testing.T) {
 }
 
 func TestBuildLoginArgs(t *testing.T) {
-	got := buildLoginArgs("https://headscale.example.com")
-	want := []string{"login", "--login-server=https://headscale.example.com"}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("buildLoginArgs(...) = %v, want %v", got, want)
+	tests := []struct {
+		name          string
+		controlServer string
+		hostname      string
+		want          []string
+	}{
+		{
+			name:          "control server only",
+			controlServer: "https://headscale.example.com",
+			want:          []string{"login", "--login-server=https://headscale.example.com"},
+		},
+		{
+			name:     "hostname only",
+			hostname: "my-device",
+			want:     []string{"login", "--hostname=my-device"},
+		},
+		{
+			name:          "control server and hostname",
+			controlServer: "https://headscale.example.com",
+			hostname:      "my-device",
+			want:          []string{"login", "--login-server=https://headscale.example.com", "--hostname=my-device"},
+		},
+		{
+			name: "neither set",
+			want: []string{"login"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildLoginArgs(tt.controlServer, tt.hostname)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("buildLoginArgs(%q, %q) = %v, want %v", tt.controlServer, tt.hostname, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -45,10 +76,11 @@ func TestBuildLoginWithAuthKeyArgs(t *testing.T) {
 		name          string
 		key           string
 		controlServer string
+		hostname      string
 		want          []string
 	}{
 		{
-			name: "no control server",
+			name: "no control server or hostname",
 			key:  "tskey-auth-abc123",
 			want: []string{"up", "--authkey=tskey-auth-abc123"},
 		},
@@ -58,13 +90,26 @@ func TestBuildLoginWithAuthKeyArgs(t *testing.T) {
 			controlServer: "https://headscale.example.com",
 			want:          []string{"up", "--authkey=tskey-auth-abc123", "--login-server=https://headscale.example.com"},
 		},
+		{
+			name:     "with hostname",
+			key:      "tskey-auth-abc123",
+			hostname: "my-device",
+			want:     []string{"up", "--authkey=tskey-auth-abc123", "--hostname=my-device"},
+		},
+		{
+			name:          "with custom control server and hostname",
+			key:           "tskey-auth-abc123",
+			controlServer: "https://headscale.example.com",
+			hostname:      "my-device",
+			want:          []string{"up", "--authkey=tskey-auth-abc123", "--login-server=https://headscale.example.com", "--hostname=my-device"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildLoginWithAuthKeyArgs(tt.key, tt.controlServer)
+			got := buildLoginWithAuthKeyArgs(tt.key, tt.controlServer, tt.hostname)
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("buildLoginWithAuthKeyArgs(%q, %q) = %v, want %v", tt.key, tt.controlServer, got, tt.want)
+				t.Errorf("buildLoginWithAuthKeyArgs(%q, %q, %q) = %v, want %v", tt.key, tt.controlServer, tt.hostname, got, tt.want)
 			}
 		})
 	}
