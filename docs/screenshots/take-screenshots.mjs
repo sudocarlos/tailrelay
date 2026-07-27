@@ -3,107 +3,185 @@
  * Uses Playwright with mocked API responses — no backend required.
  * Requires Vite dev server running: cd webui/frontend && npm run dev
  * Run: node take-screenshots.mjs
+ *
+ * Each capture is written here and mirrored into the Docusaurus static dir so
+ * the published docs site never drifts from the sources committed under docs/.
  */
 import { chromium } from 'playwright';
+import { copyFile, mkdir } from 'fs/promises';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const OUT = __dir;
+const SITE_OUT = resolve(__dir, '../../website/static/img/screenshots');
 const BASE = 'http://localhost:5173';
 
 // ── Mock data ────────────────────────────────────────────────────────────────
 
+const FQDN = 'tailrelay.homelab.ts.net';
+
+// /api/serve/tcp/list → [{ relay: ServeRelay, running: bool }]
 const MOCK_TCP_RELAYS = [
-  { relay: { id: 'tcp-1', type: 'tcp', name: 'plex',      listen_port: 32400, target_host: '192.168.1.10', target_port: 32400, enabled: true,  autostart: true  }, running: true  },
-  { relay: { id: 'tcp-2', type: 'tcp', name: 'minecraft', listen_port: 25565, target_host: '192.168.1.20', target_port: 25565, enabled: false, autostart: false }, running: false },
-  { relay: { id: 'tcp-3', type: 'tcp', name: 'jellyfin',  listen_port: 8096,  target_host: '192.168.1.10', target_port: 8096,  enabled: true,  autostart: true  }, running: true  },
+  { relay: { id: 'tcp-32400', type: 'tcp', listen_port: 32400, target_host: '192.168.1.10', target_port: 32400, enabled: true,  autostart: true  }, running: true  },
+  { relay: { id: 'tcp-25565', type: 'tcp', listen_port: 25565, target_host: '192.168.1.20', target_port: 25565, enabled: false, autostart: false }, running: false },
+  { relay: { id: 'tcp-8096',  type: 'tcp', listen_port: 8096,  target_host: '192.168.1.10', target_port: 8096,  enabled: true,  autostart: true  }, running: true  },
 ];
 
+// /api/serve/https/list → [ServeRelay + { hostname, running, listener_scheme }]
 const MOCK_HTTPS_RELAYS = [
-  { id: 'https-1', type: 'https', hostname: 'grafana.homelab.ts.net',   listen_port: 443,  target_host: '192.168.1.10', target_port: 3000, enabled: true,  autostart: true,  running: true  },
-  { id: 'https-2', type: 'https', hostname: 'portainer.homelab.ts.net', listen_port: 8443, target_host: '192.168.1.10', target_port: 9000, enabled: true,  autostart: true,  running: true  },
-  { id: 'https-3', type: 'https', hostname: 'nginx.homelab.ts.net',     listen_port: 7443, target_host: '192.168.1.30', target_port: 80,   enabled: false, autostart: false, running: false },
+  { id: 'https-443',  type: 'https', listen_port: 443,  target_host: '192.168.1.10', target_port: 3000, target_https: false, enabled: true,  autostart: true,  hostname: FQDN, running: true,  listener_scheme: 'https' },
+  { id: 'https-8443', type: 'https', listen_port: 8443, target_host: '192.168.1.10', target_port: 9000, target_https: false, enabled: true,  autostart: true,  hostname: FQDN, running: true,  listener_scheme: 'https' },
+  { id: 'https-7443', type: 'https', listen_port: 7443, target_host: '192.168.1.30', target_port: 80,   target_https: false, enabled: false, autostart: false, hostname: FQDN, running: false, listener_scheme: 'https' },
 ];
 
+// /api/serve/funnel/list → [ServeRelay + { hostname, running }]
+const MOCK_FUNNEL_RELAYS = [
+  { id: 'funnel-10000', type: 'funnel', funnel_transport: 'https', listen_port: 10000, target_host: '192.168.1.10', target_port: 8080, target_https: false, enabled: true, autostart: true, hostname: FQDN, running: true },
+];
+
+// /api/tailscale/status → tailscale.StatusSummary (Go field names, no json tags)
 const MOCK_TS_STATUS = {
+  Connected: true,
   BackendState: 'Running',
-  Self: { HostName: 'tailrelay', TailscaleIPs: ['100.97.110.112'], DNSName: 'tailrelay.homelab.ts.net.', OS: 'linux' },
-  MagicDNSName: 'tailrelay.homelab.ts.net.',
-  MagicDNSSuffix: 'homelab.ts.net',
+  Hostname: 'tailrelay',
+  MagicDNSName: FQDN,
+  IPv4: '100.97.110.112',
+  IPv6: 'fd7a:115c:a1e0::5a01:6e70',
+  TailnetName: 'homelab.ts.net',
+  Version: '1.90.8',
   PeerCount: 7,
   ActivePeers: 5,
-  CurrentTailnet: { Name: 'homelab.ts.net', MagicDNSEnabled: true, MagicDNSSuffix: 'homelab.ts.net' },
-  Version: '1.76.6',
   Health: [],
+  LastCheck: new Date().toISOString(),
+  IsCustomControlServer: false,
+  ControlServer: '',
 };
 
+// /api/tailscale/peers → []tailscale.PeerInfo (Go field names, no json tags)
 const MOCK_TS_PEERS = [
-  { DNSName: 'macbook-pro.homelab.ts.net.', Hostname: 'macbook-pro', TailscaleIPs: ['100.97.110.50'], IPv4: '100.97.110.50', OS: 'macos',   Active: true,  Online: true,  LastSeen: new Date().toISOString() },
-  { DNSName: 'iphone.homelab.ts.net.',      Hostname: 'iphone',      TailscaleIPs: ['100.97.110.75'], IPv4: '100.97.110.75', OS: 'ios',     Active: false, Online: true,  LastSeen: new Date(Date.now() - 120000).toISOString() },
-  { DNSName: 'home-server.homelab.ts.net.', Hostname: 'home-server', TailscaleIPs: ['100.97.110.30'], IPv4: '100.97.110.30', OS: 'linux',   Active: true,  Online: true,  LastSeen: new Date().toISOString() },
-  { DNSName: 'proxmox-ve.homelab.ts.net.',  Hostname: 'proxmox-ve',  TailscaleIPs: ['100.97.110.20'], IPv4: '100.97.110.20', OS: 'linux',   Active: true,  Online: true,  LastSeen: new Date().toISOString() },
-  { DNSName: 'nas-storage.homelab.ts.net.', Hostname: 'nas-storage', TailscaleIPs: ['100.97.110.25'], IPv4: '100.97.110.25', OS: 'freebsd', Active: true,  Online: true,  LastSeen: new Date().toISOString() },
-  { DNSName: 'ipad.homelab.ts.net.',        Hostname: 'ipad',        TailscaleIPs: ['100.97.110.76'], IPv4: '100.97.110.76', OS: 'ios',     Active: false, Online: false, LastSeen: new Date(Date.now() - 3600000).toISOString() },
-  { DNSName: 'work-laptop.homelab.ts.net.', Hostname: 'work-laptop', TailscaleIPs: ['100.97.110.90'], IPv4: '100.97.110.90', OS: 'windows', Active: false, Online: false, LastSeen: new Date(Date.now() - 86400000).toISOString() },
+  { Hostname: 'macbook-pro', DNSName: 'macbook-pro.homelab.ts.net', OS: 'macos',   IPv4: '100.97.110.50', TailscaleIPs: ['100.97.110.50'], Active: true,  Online: true,  LastSeen: new Date().toISOString(),                        Relay: 'nyc', ExitNode: false },
+  { Hostname: 'iphone',      DNSName: 'iphone.homelab.ts.net',      OS: 'ios',     IPv4: '100.97.110.75', TailscaleIPs: ['100.97.110.75'], Active: false, Online: true,  LastSeen: new Date(Date.now() - 120000).toISOString(),     Relay: 'nyc', ExitNode: false },
+  { Hostname: 'home-server', DNSName: 'home-server.homelab.ts.net', OS: 'linux',   IPv4: '100.97.110.30', TailscaleIPs: ['100.97.110.30'], Active: true,  Online: true,  LastSeen: new Date().toISOString(),                        Relay: 'nyc', ExitNode: true  },
+  { Hostname: 'proxmox-ve',  DNSName: 'proxmox-ve.homelab.ts.net',  OS: 'linux',   IPv4: '100.97.110.20', TailscaleIPs: ['100.97.110.20'], Active: true,  Online: true,  LastSeen: new Date().toISOString(),                        Relay: 'nyc', ExitNode: false },
+  { Hostname: 'nas-storage', DNSName: 'nas-storage.homelab.ts.net', OS: 'freebsd', IPv4: '100.97.110.25', TailscaleIPs: ['100.97.110.25'], Active: true,  Online: true,  LastSeen: new Date().toISOString(),                        Relay: 'nyc', ExitNode: false },
+  { Hostname: 'ipad',        DNSName: 'ipad.homelab.ts.net',        OS: 'ios',     IPv4: '100.97.110.76', TailscaleIPs: ['100.97.110.76'], Active: false, Online: false, LastSeen: new Date(Date.now() - 3600000).toISOString(),    Relay: 'chi', ExitNode: false },
+  { Hostname: 'work-laptop', DNSName: 'work-laptop.homelab.ts.net', OS: 'windows', IPv4: '100.97.110.90', TailscaleIPs: ['100.97.110.90'], Active: false, Online: false, LastSeen: new Date(Date.now() - 86400000).toISOString(),   Relay: 'chi', ExitNode: false },
 ];
 
+// /api/tailscale/networking → tailscale.NetworkingSummary (Go field names)
+const MOCK_TS_NETWORKING = {
+  AdvertiseExitNode: false,
+  ExitNodeAllowLANAccess: true,
+  AdvertiseRoutes: ['192.168.1.0/24'],
+  AcceptRoutes: true,
+  ExitNode: '',
+  SSH: false,
+};
+
+// /api/backup/list → []config.BackupInfo
 const MOCK_BACKUPS = [
-  { filename: 'tailrelay-full-2026-03-13T10-00-00.tar.gz', size: 48320, date: '2026-03-13T10:00:00Z', type: 'full' },
-  { filename: 'tailrelay-full-2026-03-12T10-00-00.tar.gz', size: 47918, date: '2026-03-12T10:00:00Z', type: 'full' },
-  { filename: 'tailrelay-full-2026-03-11T10-00-00.tar.gz', size: 46204, date: '2026-03-11T10:00:00Z', type: 'full' },
+  { filename: 'tailrelay-full-2026-03-13T10-00-00.tar.gz', size: 48320, timestamp: '2026-03-13T10:00:00Z', metadata: { timestamp: '2026-03-13T10:00:00Z', version: 'v0.9.6', hostname: 'tailrelay', backup_type: 'full' } },
+  { filename: 'tailrelay-full-2026-03-12T10-00-00.tar.gz', size: 47918, timestamp: '2026-03-12T10:00:00Z', metadata: { timestamp: '2026-03-12T10:00:00Z', version: 'v0.9.6', hostname: 'tailrelay', backup_type: 'full' } },
+  { filename: 'tailrelay-cfg-2026-03-11T10-00-00.tar.gz',  size: 6204,  timestamp: '2026-03-11T10:00:00Z', metadata: { timestamp: '2026-03-11T10:00:00Z', version: 'v0.9.5', hostname: 'tailrelay', backup_type: 'config-only' } },
 ];
 
-const MOCK_LOGS = [
-  { level: 'INFO',  message: 'serve relay started: plex (tcp :32400 → 192.168.1.10:32400)',    timestamp: new Date().toISOString() },
-  { level: 'INFO',  message: 'serve relay started: jellyfin (tcp :8096 → 192.168.1.10:8096)',  timestamp: new Date().toISOString() },
-  { level: 'WARN',  message: 'Tailscale: peer work-laptop went offline',                        timestamp: new Date(Date.now() - 60000).toISOString() },
-  { level: 'INFO',  message: 'serve relay started: grafana (https :443 → 192.168.1.10:3000)',   timestamp: new Date(Date.now() - 120000).toISOString() },
-  { level: 'ERROR', message: 'Failed to reload tailscale serve config: timeout',                timestamp: new Date(Date.now() - 180000).toISOString() },
-  { level: 'DEBUG', message: 'Polling tailscale status',                                        timestamp: new Date(Date.now() - 240000).toISOString() },
+// /api/logs → { logs: []logger.Entry, level }; /api/logs/stream → SSE of the same entries
+const MOCK_LOG_ENTRIES = [
+  { level: 'INFO',  source: 'serve',     message: 'HTTPS relay started: 443 → 192.168.1.10:3000',        timestamp: new Date(Date.now() - 300000).toISOString() },
+  { level: 'INFO',  source: 'serve',     message: 'TCP relay started: 32400 → 192.168.1.10:32400',       timestamp: new Date(Date.now() - 240000).toISOString() },
+  { level: 'INFO',  source: 'serve',     message: 'TCP relay started: 8096 → 192.168.1.10:8096',         timestamp: new Date(Date.now() - 180000).toISOString() },
+  { level: 'WARN',  source: 'tailscale', message: 'Peer work-laptop went offline',                       timestamp: new Date(Date.now() - 120000).toISOString() },
+  { level: 'ERROR', source: 'serve',     message: 'Failed to reconcile serve config: connection timeout', timestamp: new Date(Date.now() - 60000).toISOString() },
+  { level: 'INFO',  source: 'serve',     message: 'Serve config reconciled successfully',                 timestamp: new Date(Date.now() - 30000).toISOString() },
+  { level: 'DEBUG', source: 'tailscale', message: 'Polling tailscale status',                             timestamp: new Date().toISOString() },
 ];
 
+// /api/targets → targets.json entries used to populate the "Preset Target" select
 const MOCK_TARGETS = [
-  { label: 'Plex',       value: '192.168.1.10:32400' },
-  { label: 'Jellyfin',   value: '192.168.1.10:8096'  },
-  { label: 'Grafana',    value: '192.168.1.10:3000'  },
-  { label: 'Portainer',  value: '192.168.1.10:9000'  },
+  { target_name: 'Plex',      app_id: 'plex',      host: '192.168.1.10', port: 32400, type: 'tcp',   protocol: 'tcp'   },
+  { target_name: 'Jellyfin',  app_id: 'jellyfin',  host: '192.168.1.10', port: 8096,  type: 'tcp',   protocol: 'tcp'   },
+  { target_name: 'Grafana',   app_id: 'grafana',   host: '192.168.1.10', port: 3000,  type: 'https', protocol: 'http'  },
+  { target_name: 'Portainer', app_id: 'portainer', host: '192.168.1.10', port: 9000,  type: 'https', protocol: 'https' },
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+const json = (body) => ({ contentType: 'application/json', body: JSON.stringify(body) });
+
 async function setupMocks(page, { authenticated = true } = {}) {
-  page.on('console', msg => console.log('PAGE LOG:', msg.text()));
   page.on('pageerror', err => console.error('PAGE ERROR:', err.message));
 
-  await page.route('**/api/auth/status',      r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ authenticated, needsSetup: false }) }));
-  await page.route('**/api/auth/login',       r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true }) }));
-  await page.route('**/api/serve/tcp/list',   r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(MOCK_TCP_RELAYS) }));
-  await page.route('**/api/serve/https/list', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(MOCK_HTTPS_RELAYS) }));
-  await page.route('**/api/tailscale/status', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(MOCK_TS_STATUS) }));
-  await page.route('**/api/tailscale/peers',  r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(MOCK_TS_PEERS) }));
-  await page.route('**/api/backup/list',      r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(MOCK_BACKUPS) }));
-  await page.route('**/api/logs',             r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(MOCK_LOGS) }));
-  await page.route('**/api/logs/stream',      r => r.abort());
-  await page.route('**/api/targets',          r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(MOCK_TARGETS) }));
-  await page.route('**/api/info',             r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ version: 'v0.7.0' }) }));
+  // Catch-all first: Playwright matches most-recently-registered routes first,
+  // so the specific handlers below take precedence. Without this fallback an
+  // unmocked endpoint hits a real backend, and a 401 there logs the app out
+  // mid-capture — silently yielding login screenshots.
+  await page.route('**/api/**', r => {
+    console.warn(`  unmocked API request: ${r.request().url()}`);
+    return r.fulfill(json({}));
+  });
+
+  await page.route('**/api/auth/status',          r => r.fulfill(json({ authenticated, needsSetup: false })));
+  await page.route('**/api/auth/login',           r => r.fulfill(json({ ok: true })));
+  await page.route('**/api/serve/tcp/list',       r => r.fulfill(json(MOCK_TCP_RELAYS)));
+  await page.route('**/api/serve/https/list',     r => r.fulfill(json(MOCK_HTTPS_RELAYS)));
+  await page.route('**/api/serve/funnel/list',    r => r.fulfill(json(MOCK_FUNNEL_RELAYS)));
+  await page.route('**/api/tailscale/status',     r => r.fulfill(json(MOCK_TS_STATUS)));
+  await page.route('**/api/tailscale/peers',      r => r.fulfill(json(MOCK_TS_PEERS)));
+  await page.route('**/api/tailscale/networking', r => r.fulfill(json(MOCK_TS_NETWORKING)));
+  await page.route('**/api/tailscale/control-server', r => r.fulfill(json({ control_server: '' })));
+  await page.route('**/api/backup/list',          r => r.fulfill(json(MOCK_BACKUPS)));
+  await page.route('**/api/logs',                 r => r.fulfill(json({ logs: MOCK_LOG_ENTRIES, level: 'INFO' })));
+  await page.route('**/api/logs/level',           r => r.fulfill(json({ level: 'INFO' })));
+  // Fulfilled responses can't be held open, so the stream closes immediately.
+  // A long `retry` hint stops EventSource from reconnecting every few seconds
+  // for the rest of the run. History from /api/logs is enough for the capture;
+  // replaying it here would duplicate every line in the console.
+  await page.route('**/api/logs/stream',          r => r.fulfill({
+    contentType: 'text/event-stream',
+    headers: { 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
+    body: 'retry: 3600000\n\ndata: {"connected":true}\n\n',
+  }));
+  await page.route('**/api/targets',              r => r.fulfill(json(MOCK_TARGETS)));
+  await page.route('**/api/info',                 r => r.fulfill(json({ version: 'v0.9.6', commit: 'abc1234' })));
 }
 
+/**
+ * Switch the app between light and dark.
+ *
+ * Poking localStorage and the `dark` class directly is not enough: the brand
+ * icon is a derived store off `theme` (see stores/theme.js), so bypassing the
+ * store leaves the logo on the previous theme's PNG — invisible against the
+ * new background. Drive the real toggle where one exists (the navbar), and
+ * fall back to a reload for views that have no toggle (login, setup).
+ */
 async function setTheme(page, mode) {
-  await page.evaluate((m) => {
-    localStorage.setItem('theme', m);
-    document.documentElement.classList.toggle('dark', m === 'dark');
-  }, mode);
+  const current = await page.evaluate(() => (document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
+  if (current === mode) return;
+
+  const toggle = page.locator('button[title="Toggle theme"]').first();
+  if (await toggle.isVisible().catch(() => false)) {
+    await toggle.click();
+    // Drop the focus ring and hover highlight the click leaves behind.
+    await page.evaluate(() => document.activeElement?.blur());
+    await page.mouse.move(0, 0);
+  } else {
+    await page.evaluate((m) => localStorage.setItem('theme', m), mode);
+    await page.reload({ waitUntil: 'networkidle' });
+  }
   await page.waitForTimeout(300);
 }
 
 async function snap(page, name) {
   const path = resolve(OUT, `${name}.png`);
   await page.screenshot({ path, fullPage: false });
+  await copyFile(path, resolve(SITE_OUT, `${name}.png`));
   console.log(`  saved ${name}.png`);
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
+
+await mkdir(SITE_OUT, { recursive: true });
 
 const browser = await chromium.launch({
   executablePath: chromium.executablePath(),
@@ -162,23 +240,14 @@ console.log('\n[2/4] Dashboard');
   await setTheme(page, 'dark');
   await snap(page, 'dashboard-dark-desktop');
 
-  // Log console expanded
+  // Log console expanded — taller viewport so the whole console fits in frame
   await setTheme(page, 'dark');
-  const logSection = page.locator('button').filter({ hasText: /logs/i }).last();
-  try {
-    await logSection.click({ timeout: 2000 });
-    await page.waitForTimeout(400);
-  } catch {
-    const buttons = await page.locator('button').all();
-    for (const btn of buttons) {
-      const text = await btn.textContent();
-      if (text && /log|console|terminal/i.test(text)) {
-        await btn.click().catch(() => {});
-        await page.waitForTimeout(300);
-        break;
-      }
-    }
-  }
+  await page.setViewportSize({ width: 1280, height: 1100 });
+  const logToggle = page.locator('button').filter({ hasText: /^\s*Logs/ }).last();
+  await logToggle.click();
+  await page.waitForTimeout(500);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await page.waitForTimeout(300);
   await snap(page, 'dashboard-logs-dark-desktop');
 
   await page.close();

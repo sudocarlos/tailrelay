@@ -10,10 +10,16 @@ Essential information for coding agents working with the tailrelay codebase.
 
 1. **Prefer Make targets and documented scripts** before inventing new commands.
 2. **Avoid long-running daemons** unless explicitly requested (e.g., `docker compose up -d`).
-3. **Do not mutate host state** (system packages, global config) without explicit request.
-4. **Use .env for tests** and never hardcode secrets or tokens.
-5. **When running commands**, keep output small and relevant (pipe/grep if needed).
-6. **If a change affects external behavior**, update README or release notes as required.
+3. **Never stop a process with `pkill -f <pattern>`.** `-f` matches full command
+   lines, including the shell running your own command, so `pkill -f vite` kills
+   the session mid-command — any uncommitted work in that command is lost. Use
+   `pgrep -af <pattern> | grep -v pgrep | awk '{print $1}' | xargs -r kill`, or
+   better, spawn and tear down the process inside a single script. Never chain a
+   kill onto a `git commit`/`git push`.
+4. **Do not mutate host state** (system packages, global config) without explicit request.
+5. **Use .env for tests** and never hardcode secrets or tokens.
+6. **When running commands**, keep output small and relevant (pipe/grep if needed).
+7. **If a change affects external behavior**, update README or release notes as required.
 
 ## Skills Directory
 
@@ -27,7 +33,7 @@ Detailed component knowledge is organized into Agent Skills at `.agents/skills/`
 | **Docker/CI** | `.agents/skills/docker-ci/SKILL.md` | Dockerfile, Compose, GitHub Actions, testing |
 | **Security Review** | `.agents/skills/security-review/SKILL.md` | CVE scanning, auth review, injection risks, privacy audit |
 | **Testing & CI/CD** | `.agents/skills/testing-cicd/SKILL.md` | Writing Go tests, integration tests, extending ci.yml |
-| **Documentation** | `.agents/skills/documentation/SKILL.md` | README, CHANGELOG, release notes, AGENTS.md, SKILL.md files |
+| **Documentation** | `.agents/skills/documentation/SKILL.md` | README, CHANGELOG, release notes, AGENTS.md, SKILL.md files, screenshots |
 
 Read the relevant SKILL.md before making changes to that component.
 
@@ -122,7 +128,7 @@ curl -sSL http://localhost:8021                   # Web UI
 | `README.md` | `f2c24a0` | `README.md`, `webui/internal/web/server.go`, `docs/openapi.yaml` |
 | `.agents/skills/security-review/SKILL.md` | `f2c24a0` | `webui/internal/auth/`, `webui/internal/handlers/`, `webui/internal/backup/`, `Dockerfile`, `start.sh` |
 | `.agents/skills/testing-cicd/SKILL.md` | `f2c24a0` | `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml` |
-| `.agents/skills/documentation/SKILL.md` | `f2c24a0` | `README.md`, `CHANGELOG.md`, `webui/README.md`, `AGENTS.md`, `.agents/skills/`, `docs/openapi.yaml`, `website/` |
+| `.agents/skills/documentation/SKILL.md` | `f2c24a0` | `README.md`, `CHANGELOG.md`, `webui/README.md`, `AGENTS.md`, `.agents/skills/`, `docs/openapi.yaml`, `website/`, `docs/screenshots/` |
 
 ## Making Changes
 
