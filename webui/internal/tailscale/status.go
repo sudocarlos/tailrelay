@@ -29,6 +29,9 @@ type StatusSummary struct {
 	// Funnel, so it stays correct even if the node was authenticated
 	// outside the Web UI.
 	IsCustomControlServer bool
+	// ControlServer is the live custom control server URL when connected to
+	// one. It is empty when using Tailscale's default control plane.
+	ControlServer string
 }
 
 // knownBenignWarnings is a list of Tailscale daemon health message substrings
@@ -106,6 +109,9 @@ func (c *Client) GetStatusSummary() (*StatusSummary, error) {
 	// back to "not custom" until prefs become available.
 	if prefs, err := c.GetPrefs(); err == nil {
 		summary.IsCustomControlServer = prefs.IsCustomControlServer()
+		if summary.IsCustomControlServer {
+			summary.ControlServer = prefs.ControlURL
+		}
 	}
 
 	// Count active peers

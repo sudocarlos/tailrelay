@@ -42,7 +42,8 @@ html {
   animation: slide-in 0.25s ease-out;
 }
 
-/* Outlined "relay" brand text — matches surrounding text color */
+/* Outlined "relay" brand text — matches surrounding text color.
+   Firefox falls back to solid text because it does not support text stroke. */
 .brand-relay {
   -webkit-text-fill-color: transparent;
   -webkit-text-stroke: 1px currentColor;

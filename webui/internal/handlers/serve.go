@@ -18,20 +18,22 @@ import (
 
 // ServeHandler handles relay management through `tailscale serve`.
 type ServeHandler struct {
-	cfg       *config.Config
-	templates *template.Template
-	manager   *serve.Manager
-	tsClient  *tailscale.Client
+	cfg           *config.Config
+	templates     *template.Template
+	manager       *serve.Manager
+	tsClient      *tailscale.Client
+	statusSummary func() (*tailscale.StatusSummary, error)
 }
 
 // NewServeHandler creates a new serve handler.
 func NewServeHandler(cfg *config.Config, templates *template.Template) *ServeHandler {
 	tsClient := tailscale.NewClient()
 	return &ServeHandler{
-		cfg:       cfg,
-		templates: templates,
-		manager:   serve.NewManagerWithControlServerDetection(cfg.Paths.ServeRelayConfig, tsClient, cfg.Tailscale.ControlServer != ""),
-		tsClient:  tsClient,
+		cfg:           cfg,
+		templates:     templates,
+		manager:       serve.NewManagerWithControlServerDetection(cfg.Paths.ServeRelayConfig, tsClient, cfg.Tailscale.ControlServer != ""),
+		tsClient:      tsClient,
+		statusSummary: tsClient.GetStatusSummary,
 	}
 }
 
@@ -233,7 +235,7 @@ func (h *ServeHandler) ToggleTCP(w http.ResponseWriter, r *http.Request) {
 // status --json` snapshot, logging a warning if the latter fails.
 func (h *ServeHandler) currentHostnameAndStatus() (string, *serve.ServeStatusJSON) {
 	hostname := ""
-	if status, err := h.tsClient.GetStatusSummary(); err == nil {
+	if status, err := h.statusSummary(); err == nil {
 		hostname = status.MagicDNSName
 	}
 

@@ -56,8 +56,9 @@ func newTestServeHandler(t *testing.T, failOnFunnel bool) *ServeHandler {
 		cfg: &config.Config{
 			Paths: config.PathsConfig{ServeRelayConfig: relayFile},
 		},
-		manager:  serve.NewManagerWithBinary(relayFile, scriptPath),
-		tsClient: tailscale.NewClient(),
+		manager:       serve.NewManagerWithBinary(relayFile, scriptPath),
+		tsClient:      tailscale.NewClient(),
+		statusSummary: tailscale.NewClient().GetStatusSummary,
 	}
 }
 
@@ -181,6 +182,41 @@ func TestCreateHTTPS_UsesHTTPWithCustomControlServer(t *testing.T) {
 	}
 	if len(relays) != 1 || !relays[0].Running || relays[0].ListenerScheme != "http" {
 		t.Fatalf("expected running HTTP relay, got: %+v", relays)
+	}
+}
+
+func TestAPIListHTTPS_UsesCurrentMagicDNSName(t *testing.T) {
+	h := newTestServeHandler(t, false)
+	hostnames := []string{"before.ts.net", "after.ts.net"}
+	statusIndex := 0
+	h.statusSummary = func() (*tailscale.StatusSummary, error) {
+		hostname := hostnames[statusIndex]
+		statusIndex++
+		return &tailscale.StatusSummary{MagicDNSName: hostname}, nil
+	}
+	if err := h.manager.UpsertRelay(config.ServeRelay{
+		ID:         "https-443",
+		Type:       "https",
+		ListenPort: 443,
+		TargetHost: "127.0.0.1",
+		TargetPort: 80,
+	}); err != nil {
+		t.Fatalf("seed HTTPS relay failed: %v", err)
+	}
+
+	for _, hostname := range hostnames {
+		rr := httptest.NewRecorder()
+		h.APIListHTTPS(rr, httptest.NewRequest(http.MethodGet, "/api/serve/https/list", nil))
+
+		var relays []struct {
+			Hostname string `json:"hostname"`
+		}
+		if err := json.NewDecoder(rr.Body).Decode(&relays); err != nil {
+			t.Fatalf("decode HTTPS relay list: %v", err)
+		}
+		if len(relays) != 1 || relays[0].Hostname != hostname {
+			t.Fatalf("expected current hostname %q, got %+v", hostname, relays)
+		}
 	}
 }
 
