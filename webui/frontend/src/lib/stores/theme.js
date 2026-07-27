@@ -1,4 +1,4 @@
-import { writable } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
 
 function createThemeStore() {
   const stored = localStorage.getItem('theme') ||
@@ -24,3 +24,9 @@ function createThemeStore() {
 }
 
 export const theme = createThemeStore();
+
+// Brand icon path, swapped between the dark- and light-background PNG
+// variants so it stays legible against the current theme's surface color.
+export const brandIconSrc = derived(theme, ($theme) =>
+  $theme === 'dark' ? '/icon-192.png' : '/icon-light-192.png'
+);

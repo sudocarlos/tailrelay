@@ -1,5 +1,5 @@
 <script>
-  import { theme } from '../stores/theme.js';
+  import { theme, brandIconSrc } from '../stores/theme.js';
   import { currentView, refreshData, lastUpdated, logout, tailscaleConnected } from '../stores/app.js';
   import { showToast } from '../stores/toast.js';
   import { Sun, Moon, RefreshCw, LogOut, Menu, X, KeyRound, AlertTriangle } from '@lucide/svelte';
@@ -68,7 +68,7 @@
     <div class="flex items-center justify-between h-14">
       <!-- Brand -->
       <button class="flex items-center gap-2 text-lg font-semibold tracking-tight hover:opacity-80 transition-opacity" onclick={() => switchView('dashboard')}>
-        <img src={currentTheme === 'dark' ? '/icon-192.png' : '/icon-light-192.png'} alt="Tailrelay" class="w-7 h-7 rounded-lg object-contain flex-shrink-0" width="28" height="28" />
+        <img src={$brandIconSrc} alt="Tailrelay" class="w-7 h-7 rounded-lg object-contain flex-shrink-0" width="28" height="28" />
         <span>Tail<span class="brand-relay">relay</span></span>
       </button>
 

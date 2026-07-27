@@ -1,14 +1,11 @@
 <script>
-  import { theme } from '../stores/theme.js';
+  import { brandIconSrc } from '../stores/theme.js';
   import { authenticated, needsSetup, refreshData } from '../stores/app.js';
   import { fetchJSON } from '../api.js';
 
-  let currentTheme = $state('dark');
   let password = $state('');
   let loading = $state(false);
   let error = $state('');
-
-  theme.subscribe((v) => (currentTheme = v));
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -40,7 +37,7 @@
 <div class="flex-1 flex flex-col items-center justify-center p-4">
   <div class="w-full max-w-sm">
     <div class="text-center mb-8">
-      <img src={currentTheme === 'dark' ? '/icon-192.png' : '/icon-light-192.png'} alt="Tailrelay" class="w-16 h-16 rounded-2xl mb-4 mx-auto" />
+      <img src={$brandIconSrc} alt="Tailrelay" class="w-16 h-16 rounded-2xl mb-4 mx-auto" />
       <h1 class="text-2xl font-bold mb-2">Tail<span class="brand-relay">relay</span></h1>
       <p class="text-gray-500 dark:text-gray-400">
         Enter your admin password to continue.
