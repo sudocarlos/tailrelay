@@ -185,6 +185,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 		{"/apple-touch-icon.png", "image/png"},
 		{"/icon-192.png", "image/png"},
 		{"/icon-512.png", "image/png"},
+		{"/icon-light-192.png", "image/png"},
 		{"/manifest.webmanifest", "application/manifest+json"},
 	} {
 		asset := asset
