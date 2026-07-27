@@ -146,11 +146,29 @@ async function setupMocks(page, { authenticated = true } = {}) {
   await page.route('**/api/info',                 r => r.fulfill(json({ version: 'v0.9.6', commit: 'abc1234' })));
 }
 
+/**
+ * Switch the app between light and dark.
+ *
+ * Poking localStorage and the `dark` class directly is not enough: the brand
+ * icon is a derived store off `theme` (see stores/theme.js), so bypassing the
+ * store leaves the logo on the previous theme's PNG — invisible against the
+ * new background. Drive the real toggle where one exists (the navbar), and
+ * fall back to a reload for views that have no toggle (login, setup).
+ */
 async function setTheme(page, mode) {
-  await page.evaluate((m) => {
-    localStorage.setItem('theme', m);
-    document.documentElement.classList.toggle('dark', m === 'dark');
-  }, mode);
+  const current = await page.evaluate(() => (document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
+  if (current === mode) return;
+
+  const toggle = page.locator('button[title="Toggle theme"]').first();
+  if (await toggle.isVisible().catch(() => false)) {
+    await toggle.click();
+    // Drop the focus ring and hover highlight the click leaves behind.
+    await page.evaluate(() => document.activeElement?.blur());
+    await page.mouse.move(0, 0);
+  } else {
+    await page.evaluate((m) => localStorage.setItem('theme', m), mode);
+    await page.reload({ waitUntil: 'networkidle' });
+  }
   await page.waitForTimeout(300);
 }
 
