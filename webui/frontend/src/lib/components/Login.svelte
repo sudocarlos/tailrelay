@@ -41,7 +41,7 @@
   <div class="w-full max-w-sm">
     <div class="text-center mb-8">
       <img src="/icon-192.png" alt="Tailrelay" class="w-16 h-16 rounded-2xl mb-4 mx-auto" />
-      <h1 class="text-2xl font-bold mb-2">Tail<span class="text-purple-600 dark:text-purple-400">relay</span></h1>
+      <h1 class="text-2xl font-bold mb-2">Tail<span class="brand-relay">relay</span></h1>
       <p class="text-gray-500 dark:text-gray-400">
         Enter your admin password to continue.
       </p>
