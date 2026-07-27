@@ -8,7 +8,7 @@
  * the published docs site never drifts from the sources committed under docs/.
  */
 import { chromium } from 'playwright';
-import { copyFile } from 'fs/promises';
+import { copyFile, mkdir } from 'fs/promises';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -133,12 +133,14 @@ async function setupMocks(page, { authenticated = true } = {}) {
   await page.route('**/api/backup/list',          r => r.fulfill(json(MOCK_BACKUPS)));
   await page.route('**/api/logs',                 r => r.fulfill(json({ logs: MOCK_LOG_ENTRIES, level: 'INFO' })));
   await page.route('**/api/logs/level',           r => r.fulfill(json({ level: 'INFO' })));
-  // SSE stream stays open with no entries; history from /api/logs is enough
-  // and replaying it here would duplicate every line in the console.
+  // Fulfilled responses can't be held open, so the stream closes immediately.
+  // A long `retry` hint stops EventSource from reconnecting every few seconds
+  // for the rest of the run. History from /api/logs is enough for the capture;
+  // replaying it here would duplicate every line in the console.
   await page.route('**/api/logs/stream',          r => r.fulfill({
     contentType: 'text/event-stream',
     headers: { 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
-    body: '',
+    body: 'retry: 3600000\n\ndata: {"connected":true}\n\n',
   }));
   await page.route('**/api/targets',              r => r.fulfill(json(MOCK_TARGETS)));
   await page.route('**/api/info',                 r => r.fulfill(json({ version: 'v0.9.6', commit: 'abc1234' })));
@@ -160,6 +162,8 @@ async function snap(page, name) {
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
+
+await mkdir(SITE_OUT, { recursive: true });
 
 const browser = await chromium.launch({
   executablePath: chromium.executablePath(),
