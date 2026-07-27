@@ -5,7 +5,7 @@ A lightweight web interface for managing Tailscale and `tailscale serve`/`tailsc
 ## Features
 
 - **Dashboard**: System status overview
-- **Tailscale Management**: Login, status, device list
+- **Tailscale Management**: Login, status, device list, custom control server (Headscale) support
 - **HTTPS Relay Management**: Add/edit/delete HTTPS relays via `tailscale serve`
 - **TCP Relay Management**: Add/edit/delete TCP relays via `tailscale serve`
 - **Funnel Management**: Expose a service on the public internet on port `443`, `8443`, or `10000` via `tailscale funnel`
@@ -42,6 +42,7 @@ See `config/webui.yaml` for an example configuration file.
 - **auth.enable_token_auth**: Require authentication token
 - **paths.serve_relay_config**: Path for persisted serve relay metadata (default: `/var/lib/tailscale/serve_relays.json`)
 - **paths.**: Other file paths for configurations and state
+- **tailscale.control_server**: Custom control server URL for a self-hosted Headscale instance (default: empty, meaning Tailscale's default control plane); also settable via the Control Server field on the Tailscale page
 
 ## Authentication
 
@@ -102,8 +103,8 @@ See the main project README for Docker usage instructions.
 
 ## Review Status
 
-<!-- reviewed_at: ec9e4ac | paths: webui/ -->
-Last full review completed at commit `ec9e4ac`. To check what has changed since:
+<!-- reviewed_at: f2c24a0 | paths: webui/ -->
+Last full review completed at commit `f2c24a0`. To check what has changed since:
 ```bash
-git log --oneline ec9e4ac..HEAD -- webui/
+git log --oneline f2c24a0..HEAD -- webui/
 ```

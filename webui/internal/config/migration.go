@@ -27,7 +27,10 @@ type legacySocatRelayList struct {
 }
 
 type legacyCaddyProxy struct {
-	ID        string `json:"id"`
+	ID string `json:"id"`
+	// Hostname is parsed for backward compatibility with legacy proxies.json
+	// files only; it is intentionally dropped during migration since
+	// ServeRelay no longer persists a hostname (always computed live).
 	Hostname  string `json:"hostname"`
 	Port      int    `json:"port"`
 	Target    string `json:"target"`
@@ -175,7 +178,6 @@ func MigrateLegacyRelaysToServe(paths PathsConfig) error {
 				addRelay(ServeRelay{
 					ID:          p.ID,
 					Type:        "https",
-					Hostname:    p.Hostname,
 					ListenPort:  p.Port,
 					TargetHost:  host,
 					TargetPort:  port,

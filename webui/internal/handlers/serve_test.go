@@ -24,6 +24,10 @@ func newFakeTailscaleScript(t *testing.T, dir string, failOnFunnel bool) string 
 	logFile := filepath.Join(dir, "commands.log")
 
 	script := "#!/bin/sh\n"
+	script += "if [ \"$1 $2 $3\" = \"serve status --json\" ]; then\n" +
+		"  echo '{\"TCP\":{\"3333\":{\"HTTPS\":false}}}'\n" +
+		"  exit 0\n" +
+		"fi\n"
 	if failOnFunnel {
 		script += "if [ \"$1\" = \"funnel\" ]; then\n" +
 			"  echo \"$@\" >> \"" + logFile + "\"\n" +
@@ -52,8 +56,9 @@ func newTestServeHandler(t *testing.T, failOnFunnel bool) *ServeHandler {
 		cfg: &config.Config{
 			Paths: config.PathsConfig{ServeRelayConfig: relayFile},
 		},
-		manager:  serve.NewManagerWithBinary(relayFile, scriptPath),
-		tsClient: tailscale.NewClient(),
+		manager:       serve.NewManagerWithBinary(relayFile, scriptPath),
+		tsClient:      tailscale.NewClient(),
+		statusSummary: tailscale.NewClient().GetStatusSummary,
 	}
 }
 
@@ -142,6 +147,76 @@ func TestCreateFunnel_ReturnsFunnelNotAllowedAs409(t *testing.T) {
 	}
 	if resp["status"] != "error" {
 		t.Errorf("expected status=error, got %q", resp["status"])
+	}
+}
+
+func TestCreateHTTPS_UsesHTTPWithCustomControlServer(t *testing.T) {
+	h := newTestServeHandler(t, false)
+	h.cfg.Tailscale.ControlServer = "https://headscale.example.com"
+	h.manager.SetCustomControlServer(true)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/serve/https/create", jsonBody(t, map[string]interface{}{
+		"listen_port": 3333,
+		"target_host": "whoami-test",
+		"target_port": 80,
+		"enabled":     true,
+	}))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.CreateHTTPS(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/serve/https/list", nil)
+	listRR := httptest.NewRecorder()
+	h.APIListHTTPS(listRR, listReq)
+
+	var relays []struct {
+		Running        bool   `json:"running"`
+		ListenerScheme string `json:"listener_scheme"`
+	}
+	if err := json.NewDecoder(listRR.Body).Decode(&relays); err != nil {
+		t.Fatalf("decode HTTPS relay list: %v", err)
+	}
+	if len(relays) != 1 || !relays[0].Running || relays[0].ListenerScheme != "http" {
+		t.Fatalf("expected running HTTP relay, got: %+v", relays)
+	}
+}
+
+func TestAPIListHTTPS_UsesCurrentMagicDNSName(t *testing.T) {
+	h := newTestServeHandler(t, false)
+	hostnames := []string{"before.ts.net", "after.ts.net"}
+	statusIndex := 0
+	h.statusSummary = func() (*tailscale.StatusSummary, error) {
+		hostname := hostnames[statusIndex]
+		statusIndex++
+		return &tailscale.StatusSummary{MagicDNSName: hostname}, nil
+	}
+	if err := h.manager.UpsertRelay(config.ServeRelay{
+		ID:         "https-443",
+		Type:       "https",
+		ListenPort: 443,
+		TargetHost: "127.0.0.1",
+		TargetPort: 80,
+	}); err != nil {
+		t.Fatalf("seed HTTPS relay failed: %v", err)
+	}
+
+	for _, hostname := range hostnames {
+		rr := httptest.NewRecorder()
+		h.APIListHTTPS(rr, httptest.NewRequest(http.MethodGet, "/api/serve/https/list", nil))
+
+		var relays []struct {
+			Hostname string `json:"hostname"`
+		}
+		if err := json.NewDecoder(rr.Body).Decode(&relays); err != nil {
+			t.Fatalf("decode HTTPS relay list: %v", err)
+		}
+		if len(relays) != 1 || relays[0].Hostname != hostname {
+			t.Fatalf("expected current hostname %q, got %+v", hostname, relays)
+		}
 	}
 }
 

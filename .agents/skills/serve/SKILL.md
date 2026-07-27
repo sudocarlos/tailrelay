@@ -1,7 +1,7 @@
 ---
 name: serve-relay-management
 description: tailscale serve and funnel relay management — HTTPS, TCP, and Funnel relay types, serve_relays.json format, reconciliation flow, API endpoints, migration from legacy caddy/socat configs, ErrTailscaleNotReady and ErrFunnelNotAllowed handling. Use when working with internal/serve/, handlers/serve.go, or /api/serve/* endpoints.
-reviewed_at: ec9e4ac
+reviewed_at: 0fe9352
 ---
 
 # Serve Relay Management
@@ -18,7 +18,7 @@ operation.
 
 | Type     | Transport                        | Command                                    |
 |----------|-----------------------------------|---------------------------------------------|
-| `https`  | HTTPS termination (tailnet-only)  | `tailscale serve https:<port> ...`           |
+| `https`  | Web reverse proxy (tailnet-only)  | `tailscale serve --https <port> ...` (Tailscale) or `--http <port> ...` (custom control server) |
 | `tcp`    | Raw TCP forward (tailnet-only)    | `tailscale serve tcp:<port> tcp://...`       |
 | `funnel` | Public internet exposure          | `tailscale funnel --https=<port> ...` or `--tcp=<port> ...` |
 
@@ -27,6 +27,13 @@ defaults to `"https"`) to select which `tailscale funnel` flag is used.
 Funnel is only permitted on ports `443`, `8443`, and `10000`
 (`serve.FunnelPorts`, checked via `serve.IsFunnelPort`) — this is a hard
 limitation of Tailscale Funnel, not a tailrelay choice.
+
+Web relays retain the persisted `https` type for compatibility. When tailscaled
+is actually authenticated against a custom control server, the manager uses
+`tailscale serve --http` because self-hosted controllers (e.g. Headscale)
+cannot provide Tailscale's HTTPS certificate provisioning and reject `--https`
+serve requests. HTTPS list responses include `listener_scheme` so the UI can
+render the correct access URL and running state.
 
 ## `serve_relays.json` Format
 
@@ -39,7 +46,6 @@ Default path: `/var/lib/tailscale/serve_relays.json` (configurable via
     {
       "id": "https-443",
       "type": "https",
-      "hostname": "myhost.example.ts.net",
       "listen_port": 443,
       "target_host": "192.168.1.10",
       "target_port": 8080,
@@ -76,7 +82,6 @@ Default path: `/var/lib/tailscale/serve_relays.json` (configurable via
 type ServeRelay struct {
     ID          string `json:"id"`
     Type        string `json:"type"`          // "https", "tcp", or "funnel"
-    Hostname    string `json:"hostname,omitempty"`
     ListenPort  int    `json:"listen_port"`
     TargetHost  string `json:"target_host"`
     TargetPort  int    `json:"target_port"`
@@ -95,6 +100,7 @@ type ServeRelay struct {
 | Method | Description |
 |--------|-------------|
 | `NewManager(relayFile string) *Manager` | Create manager with relay config path |
+| `NewManagerWithControlServerDetection(relayFile string, checker controlServerChecker, fallback bool) *Manager` | Production constructor: `WebListenerScheme` prefers a live check via `checker` (satisfied by `*tailscale.Client`), falling back to `fallback` if `checker` is nil or the live check errors |
 | `ListRelays() ([]ServeRelay, error)` | Return all stored relays |
 | `GetRelay(id string) (*ServeRelay, error)` | Get relay by ID |
 | `UpsertRelay(relay ServeRelay) error` | Create/update relay and reconcile |
@@ -103,8 +109,26 @@ type ServeRelay struct {
 | `Reconcile() error` | Reset serve config and reapply all enabled relays |
 | `Status() (*ServeStatusJSON, error)` | Parse `tailscale serve status --json` |
 | `IsFunnelPort(port int) bool` | Whether port is one of `FunnelPorts` (443/8443/10000) |
+| `WebListenerScheme() string` | `"http"` or `"https"` for the next `https`-type relay reconcile — see below |
 
-### `ErrTailscaleNotReady`
+### `WebListenerScheme` and Custom Control Server Detection
+
+`WebListenerScheme()` decides `--https` vs `--http` for `https`-type relays.
+It is **not** driven solely by the persisted `Config.Tailscale.ControlServer`
+setting (which can drift — e.g. a node authenticated against a self-hosted
+Headscale instance outside the Web UI, via CLI login or restored state,
+while the setting stays unsaved/empty). Instead:
+
+1. If a `controlServerChecker` was supplied (production: `*tailscale.Client`,
+   via `IsCustomControlServer()` → live `ControlURL` from
+   `/localapi/v0/prefs`), that live result wins.
+2. If no checker is configured, or the live check errors (e.g. tailscaled
+   unreachable during startup), the manager falls back to the
+   `customControlServer` flag seeded from the persisted config value at
+   construction time (`SetCustomControlServer` updates this fallback after
+   `Login`/`LoginWithKey`/`Connect`; see the tailscale skill's live-detection
+   section for the full picture, including the matching frontend
+   `hideFunnel` derived store).
 
 ```go
 var ErrTailscaleNotReady = fmt.Errorf("tailscale not ready")
@@ -147,7 +171,8 @@ writeServeResult(w, manager.DeleteRelay(id), "Relay deleted successfully")
 1. Load `serve_relays.json`
 2. `tailscale serve reset` — clears all serve **and** funnel rules
 3. For each enabled relay, run:
-   - HTTPS: `tailscale serve --bg --https <port> http://<host>:<port>`
+   - Web relay: `tailscale serve --bg --https <port> http://<host>:<port>`
+     with Tailscale, or `--http` with a custom control server
    - TCP:   `tailscale serve --bg --tcp <port> tcp://<host>:<port>`
    - Funnel (https transport): `tailscale funnel --bg --https <port> http://<host>:<port>`
    - Funnel (tcp transport): `tailscale funnel --bg --tcp <port> tcp://<host>:<port>`
@@ -233,6 +258,15 @@ There is no legacy source for `funnel` relays — they are a new relay type.
 
 **Limitation:** this matching is port-based and can be unreliable if ports
 are reused or serve/funnel config is edited outside the UI.
+
+## Hostname Display
+
+`ServeRelay` has no persisted `Hostname`/`hostname` field. HTTPS and Funnel
+list responses (`APIListHTTPS`, `APIListFunnel`) add a `hostname` field to
+the JSON response computed live from `TSClient.GetStatusSummary().MagicDNSName`
+on every request — it is never stored in `serve_relays.json`. This avoids a
+stale hostname being displayed for relays created before a `tailscale logout`
++ re-`tailscale up`, which assigns a new auto-generated machine name.
 
 ## Testing
 

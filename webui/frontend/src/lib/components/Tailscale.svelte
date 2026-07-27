@@ -18,6 +18,12 @@
   let connectLoading = $state(false);
   let pollInterval = null;
 
+  // Control server (Headscale) settings
+  let controlServerInput = $state('');
+  let controlServerBaseline = $state('');
+  let controlServerSaving = $state(false);
+  let controlServerError = $state('');
+
   // Auth key tab state
   let authTab = $state('url'); // 'url' | 'key'
   let authKey = $state('');
@@ -96,6 +102,48 @@
     }
   }
 
+  async function fetchControlServer() {
+    try {
+      const data = await fetchJSON('/api/tailscale/control-server');
+      controlServerInput = data.control_server || '';
+      controlServerBaseline = controlServerInput;
+    } catch {
+      // Non-fatal; leave the field blank if it can't be loaded.
+    }
+  }
+
+  // Best-effort client-side validation for fast feedback; the backend
+  // (net/url.Parse) remains the source of truth.
+  function validateControlServer(raw) {
+    const value = raw.trim();
+    if (!value) return '';
+    if (!/^https?:\/\/.+/.test(value)) {
+      return 'Must be a valid http(s) URL, e.g. https://headscale.example.com';
+    }
+    return '';
+  }
+
+  async function handleSaveControlServer() {
+    const value = controlServerInput.trim();
+    controlServerError = validateControlServer(value);
+    if (controlServerError) return;
+
+    controlServerSaving = true;
+    try {
+      await fetchJSON('/api/tailscale/control-server/update', {
+        method: 'POST',
+        body: JSON.stringify({ control_server: value }),
+      });
+      controlServerInput = value;
+      controlServerBaseline = value;
+      showToast('success', value ? 'Control server updated' : "Reset to Tailscale's default control plane");
+    } catch (err) {
+      controlServerError = err.message || 'Failed to update control server';
+    } finally {
+      controlServerSaving = false;
+    }
+  }
+
   async function handleGetLoginURL() {
     loginLoading = true;
     loginURL = '';
@@ -118,8 +166,8 @@
       authKeyError = 'Auth key cannot be empty';
       return;
     }
-    if (!key.startsWith('tskey-')) {
-      authKeyError = "Invalid key: must start with 'tskey-'";
+    if (!key.startsWith('tskey-') && !key.startsWith('hskey-')) {
+      authKeyError = "Invalid key: must start with 'tskey-' or 'hskey-'";
       return;
     }
     authKeyLoading = true;
@@ -237,6 +285,7 @@
 
   onMount(() => {
     fetchPeers();
+    fetchControlServer();
   });
 
   onDestroy(() => {
@@ -322,6 +371,12 @@
             <dd class="font-mono text-gray-900 dark:text-gray-100 truncate">{status.MagicDNSName}</dd>
           </div>
         {/if}
+        {#if status.IsCustomControlServer && status.ControlServer}
+          <div>
+            <dt class="text-xs text-gray-500 dark:text-gray-400">Control Server</dt>
+            <dd class="font-mono text-gray-900 dark:text-gray-100 truncate" title={status.ControlServer}>{status.ControlServer}</dd>
+          </div>
+        {/if}
         {#if status.TailnetName}
           <div>
             <dt class="text-xs text-gray-500 dark:text-gray-400">Tailnet</dt>
@@ -355,8 +410,14 @@
     {/if}
 
     <!-- Connect / Disconnect / Logout -->
+    <!-- Connect only makes sense from "Stopped" (previously authenticated,
+         just brought down): plain `tailscale up` reuses the existing node
+         identity. For "NeedsLogin"/"NoState" that identity may be stale
+         (e.g. authkey already used after tailnet removal), so those states
+         only offer the Authentication Required form below. "Starting" is
+         transient and intentionally shows no action button here. -->
     <div class="flex gap-2 pt-1">
-      {#if status?.BackendState !== 'Running'}
+      {#if status?.BackendState === 'Stopped'}
         <button
           class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
           onclick={handleConnect}
@@ -369,7 +430,7 @@
           {/if}
           Connect
         </button>
-      {:else}
+      {:else if status?.BackendState === 'Running'}
         <button
           class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 transition-colors text-gray-700 dark:text-gray-300"
           onclick={handleDisconnect}
@@ -475,7 +536,7 @@
       {:else}
         <!-- Auth key flow -->
         <p class="text-sm text-amber-800 dark:text-amber-300">
-          Provide a Tailscale auth key (tskey-auth-...) to authenticate headlessly. Generate an auth key at
+          Provide a Tailscale auth key (tskey-auth-...) or Headscale auth key (hskey-...) to authenticate headlessly. Generate a Tailscale auth key at
           <a
             href="https://login.tailscale.com/admin/settings/keys"
             target="_blank"
@@ -489,7 +550,7 @@
             <input
               type="password"
               class="flex-1 rounded-md border {authKeyError ? 'border-red-400 dark:border-red-500' : 'border-amber-300 dark:border-amber-600'} bg-white dark:bg-gray-900 px-3 py-1.5 text-sm font-mono text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder-gray-400"
-              placeholder="tskey-auth-k…"
+              placeholder="tskey-auth-k… or hskey-…"
               bind:value={authKey}
               onkeydown={(e) => e.key === 'Enter' && handleLoginWithKey()}
               autocomplete="off"
@@ -515,6 +576,62 @@
               {authKeyError}
             </p>
           {/if}
+        </div>
+      {/if}
+
+      <!-- Control server (Headscale) — full-width since URLs run long.
+           Explicitly gated on BackendState (not just the parent section's
+           condition, which also stays true briefly via `|| loginURL` after
+           a successful login until the poll clears it): an already-
+           registered device keeps using the control server it
+           authenticated against until logout, so this must never flash
+           while actually connected. -->
+      {#if status?.BackendState === 'NeedsLogin' || status?.BackendState === 'NoState'}
+        <div class="space-y-1.5 pt-3 border-t border-amber-200 dark:border-amber-700">
+          <div class="flex items-center gap-1.5">
+            <Server size={13} class="text-amber-600 dark:text-amber-400" />
+            <span class="text-xs font-medium text-amber-800 dark:text-amber-300">Control Server</span>
+          </div>
+          <div class="flex gap-2">
+            <input
+              type="text"
+              class="flex-1 w-full rounded-md border {controlServerError ? 'border-red-400 dark:border-red-500' : 'border-amber-300 dark:border-amber-600'} bg-white dark:bg-gray-900 px-2 py-1 text-xs font-mono text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder-gray-400 transition-colors"
+              placeholder="https://headscale.example.com"
+              bind:value={controlServerInput}
+              oninput={() => { controlServerError = ''; }}
+              onkeydown={(e) => e.key === 'Enter' && controlServerInput.trim() !== controlServerBaseline && handleSaveControlServer()}
+              autocomplete="off"
+              spellcheck="false"
+            />
+            {#if controlServerInput.trim() !== controlServerBaseline}
+              <button
+                class="inline-flex items-center gap-1 px-2 py-1 text-[10px] uppercase tracking-wider font-semibold rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                onclick={handleSaveControlServer}
+                disabled={controlServerSaving}
+              >
+                {#if controlServerSaving}
+                  <RefreshCw size={12} class="animate-spin" />
+                {:else}
+                  <Check size={12} />
+                {/if}
+                Apply
+              </button>
+            {/if}
+          </div>
+          {#if controlServerError}
+            <p class="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+              <AlertTriangle size={12} />
+              {controlServerError}
+            </p>
+          {/if}
+          <p class="text-xs text-amber-700 dark:text-amber-400">
+            For self-hosted <a
+              href="https://headscale.net"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="underline hover:text-amber-900 dark:hover:text-amber-200"
+            >Headscale</a> servers — used as <code class="font-mono">tailscale login --login-server</code>. Leave empty to use Tailscale's official control plane.
+          </p>
         </div>
       {/if}
     </div>

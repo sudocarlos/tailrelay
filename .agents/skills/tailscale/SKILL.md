@@ -1,7 +1,7 @@
 ---
 name: tailscale-management
 description: Tailscale VPN daemon management, CLI integration, authentication, and networking for the tailrelay container. Use when working with Tailscale configuration, login flows, device authentication, MagicDNS, HTTPS certificates, or network connectivity issues.
-reviewed_at: 06c104a
+reviewed_at: 0fe9352
 ---
 
 # Tailscale Management
@@ -59,7 +59,7 @@ Key flags:
 The Go package at `webui/internal/tailscale/` wraps CLI commands:
 
 - **Status**: `tailscale status --json` → parsed into Go structs
-- **Login**: `tailscale up --hostname=$TS_HOSTNAME` → returns auth URL
+- **Login**: LocalAPI `login-interactive`, or the CLI `tailscale login`/`up --authkey=` when a custom control server is configured → returns auth URL
 - **Device list**: Extracted from status JSON
 - **Network auth**: Requests from `100.x.y.z` IPs are auto-authenticated
 
@@ -83,6 +83,65 @@ Use `StatusCache.IsReady()` wherever you need to gate on Tailscale connectivity 
 2. If not on Tailscale network → shows login page with Tailscale auth link
 3. Login page polls `/api/tailscale/status` until device is connected
 4. Once connected → session authenticated automatically
+
+### Custom Control Server (Headscale) (`controlserver.go`)
+
+`Config.Tailscale.ControlServer` (persisted in `webui.yaml`) lets the Web UI
+authenticate against a self-hosted [Headscale](https://headscale.net)
+instance instead of Tailscale's default control plane, set via the Control
+Server field on the Tailscale page's connection status card.
+
+- `tailscale.ValidateControlServerURL()` requires an `http`/`https` scheme
+  and non-empty host; an empty string is always valid and means "use
+  Tailscale's default control plane".
+- `Client.Login(controlServer string)`: when `controlServer` is empty, this
+  behaves as before (LocalAPI `login-interactive`). When set, `--login-server`
+  isn't accepted by the LocalAPI endpoint or by `tailscale set` — only by the
+  `login`/`up` CLI subcommands — so it instead runs
+  `tailscale login --login-server=<url>` via the CLI in the background, then
+  polls `/localapi/v0/status` for `AuthURL` exactly like the LocalAPI path.
+- `Client.LoginWithAuthKey(key, controlServer string)`: appends
+  `--login-server=<url>` to the existing `tailscale up --authkey=<key>` call.
+- `Client.UpWithHostname(hostname, controlServer string)`: runs `tailscale up
+  --hostname=<name> --reset`. `--reset` resets any *unspecified* flag
+  (including `ControlURL`) to Tailscale's default control plane, so
+  `--login-server=<url>` is appended whenever `controlServer` is set —
+  otherwise every hostname change would silently detach the node from its
+  Headscale server.
+- `handlers.TailscaleHandler.Login`/`LoginWithKey`/`ChangeHostname` read the
+  persisted control server (guarded by a `sync.Mutex` on the handler, since
+  `*config.Config` has no locking of its own) and pass it through
+  automatically — the frontend doesn't need to resend it with every request.
+- `GET /api/tailscale/control-server` / `POST /api/tailscale/control-server/update`
+  read and persist the setting via `config.Save`.
+- Changing the control server has no effect on a device that's already
+  registered until it's logged out and re-authenticated — Tailscale binds a
+  node identity to whichever control server it first authenticated with.
+- The persisted setting is **only** used to build `--login-server=<url>` for
+  a future login/connect — it does not drive any runtime behaviour (Funnel
+  visibility, serve relay scheme). Those are derived live from tailscaled's
+  actual `ControlURL` preference instead (see `Prefs.IsCustomControlServer`
+  below and `serve.Manager.WebListenerScheme` in the serve skill), so they
+  stay correct even if a device was authenticated against a custom control
+  server outside the Web UI (CLI login, restored state) without this
+  setting ever being saved.
+
+### Live Custom-Control-Server Detection (`networking.go`)
+
+`Prefs.ControlURL` (added to the `/localapi/v0/prefs` decode) holds the
+control plane tailscaled is currently authenticated against.
+`Prefs.IsCustomControlServer()` compares it against the well-known Tailscale
+default (`https://controlplane.tailscale.com`, `ipn.DefaultControlURL`
+upstream); `Client.IsCustomControlServer()` wraps `GetPrefs()` for callers
+that only need the boolean. `GetStatusSummary()` populates
+`StatusSummary.IsCustomControlServer` from this on every `/api/tailscale/status`
+poll — the frontend's `hideFunnel` derived store
+(`webui/frontend/src/lib/stores/app.js`) reads this field rather than the
+persisted control-server setting, and `serve.Manager.WebListenerScheme`
+(see the serve skill) uses the same live signal to pick `--https` vs
+`--http`. If the LocalAPI prefs lookup fails (e.g. daemon still starting),
+both consumers fail safe: the status summary omits the field (false) and the
+serve `Manager` falls back to its persisted flag rather than erroring.
 
 ### Networking Preferences (`networking.go`)
 
@@ -113,6 +172,12 @@ preferences (like the hostname set elsewhere via `UpWithHostname`).
 See the serve skill (`.agents/skills/serve/SKILL.md`) for `tailscale serve`/
 `funnel` relay management, which is a distinct concern from these node-level
 networking preferences.
+
+### Machine Name
+
+`Client.UpWithHostname` uses `tailscale set --hostname=<name>`. Unlike
+`tailscale up --reset`, `set` changes only the machine name and preserves the
+active control server and all other node preferences.
 
 ## HTTPS Certificates
 

@@ -4,11 +4,12 @@ import "time"
 
 // Config represents the main application configuration
 type Config struct {
-	Server  ServerConfig  `yaml:"server"`
-	Auth    AuthConfig    `yaml:"auth"`
-	Paths   PathsConfig   `yaml:"paths"`
-	Backup  BackupConfig  `yaml:"backup"`
-	Logging LoggingConfig `yaml:"logging"`
+	Server    ServerConfig    `yaml:"server"`
+	Auth      AuthConfig      `yaml:"auth"`
+	Paths     PathsConfig     `yaml:"paths"`
+	Backup    BackupConfig    `yaml:"backup"`
+	Logging   LoggingConfig   `yaml:"logging"`
+	Tailscale TailscaleConfig `yaml:"tailscale"`
 	// Internal fields
 	ConfigFile string `yaml:"-"`
 }
@@ -47,11 +48,26 @@ type LoggingConfig struct {
 	Format string `yaml:"format"`
 }
 
+// TailscaleConfig contains persisted Tailscale login settings.
+type TailscaleConfig struct {
+	// ControlServer is a custom control server URL (e.g. a self-hosted
+	// Headscale instance) passed as `tailscale login --login-server=<url>`.
+	// Empty means Tailscale's default control plane.
+	ControlServer string `yaml:"control_server"`
+	// Hostname is the last hostname explicitly set via the Web UI (see
+	// TailscaleHandler.ChangeHostname). It's reapplied as `--hostname=<name>`
+	// on every future `tailscale login`/`up --authkey` so a Logout followed
+	// by re-authenticating doesn't silently fall back to tailscaled's OS
+	// default hostname (e.g. the container ID) and drift from the
+	// previously assigned MagicDNS name. Empty means "no preference set" —
+	// tailscaled picks its own default.
+	Hostname string `yaml:"hostname"`
+}
+
 // ServeRelay represents a relay backed by `tailscale serve` or `tailscale funnel`.
 type ServeRelay struct {
 	ID          string `json:"id"`
 	Type        string `json:"type"` // "https", "tcp", or "funnel"
-	Hostname    string `json:"hostname,omitempty"`
 	ListenPort  int    `json:"listen_port"`
 	TargetHost  string `json:"target_host"`
 	TargetPort  int    `json:"target_port"`

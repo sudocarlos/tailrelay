@@ -6,7 +6,7 @@
    y="0"
    version="1.1"
    viewBox="0 0 512 512"
-   sodipodi:docname="tailrelay-light-icon2.svg"
+   sodipodi:docname="tailrelay-icon-light.svg"
    inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
@@ -33,7 +33,7 @@
   <style
    id="style1">
     .st0 { opacity: .2; enable-background: new; }
-    .dot-t { fill: #f0f0f0; }
+    .dot-t { fill: #000000; }
     .dot-r { fill: #ff5252; }
   </style>
 
@@ -42,28 +42,28 @@
    cx="58"
    cy="58"
    r="44"
-   fill="#f0f0f0"
+   fill="#000000"
    class="st0"
    id="circle1" />
   <circle
    cx="190"
    cy="58"
    r="44"
-   fill="#f0f0f0"
+   fill="#000000"
    class="st0"
    id="circle2" />
   <circle
    cx="322"
    cy="58"
    r="44"
-   fill="#f0f0f0"
+   fill="#000000"
    class="st0"
    id="circle3" />
   <circle
    cx="454"
    cy="58"
    r="44"
-   fill="#f0f0f0"
+   fill="#000000"
    class="st0"
    id="circle4" />
 
@@ -72,28 +72,28 @@
    cx="58"
    cy="190"
    r="44"
-   fill="#f0f0f0"
+   fill="#000000"
    class="dot-t"
    id="circle5" />
   <circle
    cx="190"
    cy="190"
    r="44"
-   fill="#f0f0f0"
+   fill="#000000"
    class="dot-t"
    id="circle6" />
   <circle
    cx="322"
    cy="190"
    r="44"
-   fill="#f0f0f0"
+   fill="#000000"
    class="dot-t"
    id="circle7" />
   <circle
    cx="454"
    cy="190"
    r="44"
-   fill="#f0f0f0"
+   fill="#000000"
    class="st0"
    id="circle8" />
 
@@ -102,14 +102,14 @@
    cx="58"
    cy="322"
    r="44"
-   fill="#f0f0f0"
+   fill="#000000"
    class="st0"
    id="circle9" />
   <circle
    cx="190"
    cy="322"
    r="44"
-   fill="#f0f0f0"
+   fill="#000000"
    class="dot-t"
    id="circle10" />
   
@@ -119,14 +119,14 @@
    cx="58"
    cy="454"
    r="44"
-   fill="#f0f0f0"
+   fill="#000000"
    class="st0"
    id="circle13" />
   <circle
    cx="190"
    cy="454"
    r="44"
-   fill="#f0f0f0"
+   fill="#000000"
    class="st0"
    id="circle14"
    style="opacity:1" />
@@ -135,23 +135,23 @@
    cx="454"
    cy="454"
    r="44"
-   fill="#f0f0f0"
+   fill="#000000"
    class="st0"
    id="circle16" />
 <ellipse
-   style="fill:none;stroke:#f0f0f0;stroke-width:22.0002;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+   style="fill:none;stroke:#000000;stroke-width:22.0002;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
    id="path18"
    cx="322.00003"
    cy="323.69623"
    rx="32.99992"
    ry="32.999908" /><ellipse
-   style="fill:none;stroke:#f0f0f0;stroke-width:22.0002;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+   style="fill:none;stroke:#000000;stroke-width:22.0002;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
    id="path18-9"
    cx="322.00003"
    cy="454"
    rx="32.99992"
    ry="32.999908" /><ellipse
-   style="fill:none;stroke:#f0f0f0;stroke-width:22.0002;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+   style="fill:none;stroke:#000000;stroke-width:22.0002;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
    id="path18-2"
    cx="454.00003"
    cy="322"

@@ -56,6 +56,36 @@ export const tailscaleConnected = derived(
   ($s) => $s?.BackendState === 'Running',
 );
 
+/**
+ * Find a daemon-reported "logged out" health message, e.g. after a machine
+ * is removed from the tailnet and tailscaled reports an authkey-reuse
+ * login error on its next status poll. Returns undefined if none present.
+ *
+ * The daemon's exact wording isn't a stable API contract and may change
+ * across Tailscale versions, so this is only used as a display refinement
+ * on top of the real signal (a BackendState transition away from Running),
+ * never as the sole detector of a logout.
+ */
+export function findLoggedOutHealthMessage(health) {
+  return (health || []).find((msg) => {
+    const normalized = msg.toLowerCase();
+    return /\blogged out\b/.test(normalized)
+      && !/\b(?:not|never)\s+(?:\w+\s+){0,2}logged out\b/.test(normalized);
+  });
+}
+
+// ── Derived: hide Funnel while connected to a custom control server ──
+// Funnel is a Tailscale-cloud-only feature not supported by self-hosted
+// Headscale, so it's driven by tailscaled's live ControlURL (reported as
+// IsCustomControlServer on the status payload) rather than the persisted
+// control_server setting — the node may have been authenticated against a
+// custom control server outside the Web UI (CLI login, restored state),
+// in which case the persisted setting would be stale/empty.
+export const hideFunnel = derived(
+  [tailscaleConnected, tailscaleStatus],
+  ([$connected, $status]) => $connected && !!$status?.IsCustomControlServer,
+);
+
 // ── Navigation ────────────────────────────────────────────────────
 export const currentView = writable('dashboard');
 

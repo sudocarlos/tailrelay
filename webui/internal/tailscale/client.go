@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/netip"
@@ -63,13 +64,13 @@ func localAPIPost(path string) ([]byte, int, error) {
 
 // Status represents the output of 'tailscale status --json'
 type Status struct {
-	Version        string                `json:"Version"`
-	BackendState   string                `json:"BackendState"`
-	Self           PeerStatus            `json:"Self"`
-	Health         []string              `json:"Health"`
-	MagicDNSSuffix string                `json:"MagicDNSSuffix"`
-	CurrentTailnet *CurrentTailnet       `json:"CurrentTailnet"`
-	Peer           map[string]PeerStatus `json:"Peer"`
+	Version        string                 `json:"Version"`
+	BackendState   string                 `json:"BackendState"`
+	Self           PeerStatus             `json:"Self"`
+	Health         []string               `json:"Health"`
+	MagicDNSSuffix string                 `json:"MagicDNSSuffix"`
+	CurrentTailnet *CurrentTailnet        `json:"CurrentTailnet"`
+	Peer           map[string]PeerStatus  `json:"Peer"`
 	User           map[string]UserProfile `json:"User"`
 }
 
@@ -199,20 +200,46 @@ func (c *Client) GetIP() (ipv4, ipv6 string, err error) {
 	return ipv4, ipv6, nil
 }
 
-// Login triggers the Tailscale interactive login flow via the LocalAPI and
-// returns the auth URL the user must visit to authenticate this device.
+// Login triggers the Tailscale interactive login flow and returns the auth
+// URL the user must visit to authenticate this device.
 //
-// It calls POST /localapi/v0/login-interactive to start the flow, then polls
+// When controlServer and hostname are both empty, it calls POST
+// /localapi/v0/login-interactive to start the flow against whatever control
+// server is already configured. When either is set (e.g. a self-hosted
+// Headscale instance, or a hostname previously assigned via ChangeHostname),
+// it instead runs `tailscale login --login-server=<url> --hostname=<name>`
+// via the CLI, since neither flag is accepted by the LocalAPI
+// login-interactive endpoint — that endpoint has no way to pass them and
+// simply reuses the node's existing prefs, which a prior Logout may have
+// reset to tailscaled's OS default hostname. Either way, it then polls
 // GET /localapi/v0/status until AuthURL is populated (up to 10 seconds).
-func (c *Client) Login() (string, error) {
-	// Trigger the login flow. This requires the process to be running as root
-	// (or the configured operator), which is always the case inside the container.
-	body, code, err := localAPIPost("/localapi/v0/login-interactive")
-	if err != nil {
-		return "", fmt.Errorf("failed to start login flow: %w", err)
-	}
-	if code != http.StatusOK && code != http.StatusNoContent {
-		return "", fmt.Errorf("login-interactive returned %d: %s", code, strings.TrimSpace(string(body)))
+func (c *Client) Login(controlServer, hostname string) (string, error) {
+	controlServer = strings.TrimSpace(controlServer)
+	hostname = strings.TrimSpace(hostname)
+	if controlServer != "" || hostname != "" {
+		// tailscaled generates the AuthURL asynchronously and the CLI
+		// blocks until authentication completes, so start it in the
+		// background and let the poll loop below pick up the URL exactly
+		// like the LocalAPI-triggered flow does.
+		cmd := exec.Command(c.binaryPath, buildLoginArgs(controlServer, hostname)...)
+		if err := cmd.Start(); err != nil {
+			return "", fmt.Errorf("failed to start login flow: %w", err)
+		}
+		go func() {
+			if err := cmd.Wait(); err != nil {
+				log.Printf("tailscale login --login-server=%s --hostname=%s exited with error: %v", controlServer, hostname, err)
+			}
+		}()
+	} else {
+		// Trigger the login flow. This requires the process to be running as root
+		// (or the configured operator), which is always the case inside the container.
+		body, code, err := localAPIPost("/localapi/v0/login-interactive")
+		if err != nil {
+			return "", fmt.Errorf("failed to start login flow: %w", err)
+		}
+		if code != http.StatusOK && code != http.StatusNoContent {
+			return "", fmt.Errorf("login-interactive returned %d: %s", code, strings.TrimSpace(string(body)))
+		}
 	}
 
 	// Poll status for AuthURL — the daemon generates it asynchronously.
@@ -280,15 +307,13 @@ func (c *Client) Up() error {
 	return nil
 }
 
-// UpWithHostname connects to Tailscale with a specific hostname.
-// This runs 'tailscale up --hostname=<hostname>' which updates the device
-// name in the tailnet. Note: this will re-run the Tailscale connection
-// process and may require re-authentication if the node is not yet connected.
+// UpWithHostname updates the Tailscale hostname without changing other node
+// preferences or the active control server.
 func (c *Client) UpWithHostname(hostname string) error {
 	if hostname == "" {
 		return fmt.Errorf("hostname cannot be empty")
 	}
-	cmd := exec.Command(c.binaryPath, "up", "--hostname="+hostname, "--reset")
+	cmd := exec.Command(c.binaryPath, buildSetHostnameArgs(hostname)...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to set hostname: %w (output: %s)", err, strings.TrimSpace(string(output)))
@@ -312,12 +337,16 @@ func (c *Client) GetVersion() (string, error) {
 // auth key (e.g. "tskey-auth-k..."). This is a non-interactive alternative to
 // Login(): instead of returning a URL for the user to visit, the key is passed
 // directly to `tailscale up --authkey=<key>`, which authenticates and connects
-// in a single step.
-func (c *Client) LoginWithAuthKey(key string) error {
+// in a single step. When controlServer is set (e.g. a self-hosted Headscale
+// instance), `--login-server=<url>` is appended to the same invocation. When
+// hostname is set (a name previously assigned via ChangeHostname),
+// `--hostname=<name>` is appended too, so a Logout followed by re-authenticating
+// doesn't silently fall back to tailscaled's OS default hostname.
+func (c *Client) LoginWithAuthKey(key, controlServer, hostname string) error {
 	if key == "" {
 		return fmt.Errorf("auth key cannot be empty")
 	}
-	cmd := exec.Command(c.binaryPath, "up", "--authkey="+key)
+	cmd := exec.Command(c.binaryPath, buildLoginWithAuthKeyArgs(key, strings.TrimSpace(controlServer), strings.TrimSpace(hostname))...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to authenticate with auth key: %w (output: %s)", err, strings.TrimSpace(string(output)))

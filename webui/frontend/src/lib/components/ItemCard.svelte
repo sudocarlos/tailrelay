@@ -18,7 +18,7 @@
 
   function formatProxyUrl(proxy) {
     const port = proxy.listen_port && proxy.listen_port !== 443 ? `:${proxy.listen_port}` : '';
-    return `https://${proxy.hostname || fqdn}${port}`;
+    return `${proxy.listener_scheme || 'https'}://${proxy.hostname || fqdn}${port}`;
   }
 
 
@@ -71,6 +71,7 @@
   {@const running = proxy.running ?? proxy.Running}
   {@const autostart = proxy.autostart ?? false}
   {@const proxyUrl = formatProxyUrl(proxy)}
+  {@const listenerScheme = proxy.listener_scheme || 'https'}
   {@const tlsError = proxy.tls_error || proxy.TLSError || ''}
 
   <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-3">
@@ -89,7 +90,7 @@
             target="_blank"
             rel="noopener"
             class="font-medium text-sm truncate hover:underline"
-          ><span class="text-sm font-normal text-gray-400 dark:text-gray-500">https://{proxy.hostname || fqdn}</span><span>{proxy.listen_port && proxy.listen_port !== 443 ? `:${proxy.listen_port}` : ''}</span></a>
+          ><span class="text-sm font-normal text-gray-400 dark:text-gray-500">{listenerScheme}://{proxy.hostname || fqdn}</span><span>{proxy.listen_port && proxy.listen_port !== 443 ? `:${proxy.listen_port}` : ''}</span></a>
           <CopyButton text={proxyUrl} />
           {#if tlsError}
             <span title={tlsError} class="flex-shrink-0 text-amber-500 dark:text-amber-400 cursor-help">

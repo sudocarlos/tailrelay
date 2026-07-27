@@ -1,7 +1,7 @@
 ---
 name: documentation
 description: Updating all tailrelay documentation — README, CHANGELOG, release notes, AGENTS.md, SKILL.md files, webui/README.md, and the Docusaurus docs site. Use when adding user-facing features, releasing a new version, updating component versions, or when any doc's reviewed_at SHA is out of date with HEAD.
-reviewed_at: 6f8a583
+reviewed_at: f2c24a0
 ---
 
 # Documentation

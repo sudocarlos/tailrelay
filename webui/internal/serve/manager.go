@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/sudocarlos/tailrelay/internal/config"
 	"github.com/sudocarlos/tailrelay/internal/logger"
@@ -13,8 +14,20 @@ import (
 
 // Manager manages relay rules backed by `tailscale serve`.
 type Manager struct {
-	binaryPath string
-	relayFile  string
+	binaryPath           string
+	relayFile            string
+	customControlServer  bool
+	controlServerChecker controlServerChecker
+	mu                   sync.RWMutex
+}
+
+// controlServerChecker reports whether tailscaled is currently authenticated
+// against a control server other than Tailscale's default (e.g. a
+// self-hosted Headscale instance). Implemented by *tailscale.Client in
+// production; kept as an interface here so tests can fake it without a
+// dependency cycle or shelling out to a real tailscaled.
+type controlServerChecker interface {
+	IsCustomControlServer() (bool, error)
 }
 
 // NewManager creates a new serve manager.
@@ -25,6 +38,34 @@ func NewManager(relayFile string) *Manager {
 	}
 }
 
+// NewManagerWithCustomControlServer creates a manager that always uses HTTP
+// web listeners (customControlServer=true) or HTTPS (false), with no live
+// detection. Intended for tests; production code should use
+// NewManagerWithControlServerDetection so the scheme reflects tailscaled's
+// actual control server even if it drifts from persisted config.
+func NewManagerWithCustomControlServer(relayFile string, customControlServer bool) *Manager {
+	m := NewManager(relayFile)
+	m.customControlServer = customControlServer
+	return m
+}
+
+// NewManagerWithControlServerDetection creates a manager that determines the
+// web listener scheme (--https vs --http) from tailscaled's live ControlURL
+// preference via checker, since custom control servers (e.g. Headscale) do
+// not provide Tailscale's HTTPS certificate provisioning and reject --https
+// serve requests outright.
+//
+// fallback is used only when checker is nil or the live check fails (e.g.
+// tailscaled isn't reachable yet during startup) — it should be seeded from
+// the persisted Web UI control server setting so relays still reconcile
+// sensibly before the daemon is up.
+func NewManagerWithControlServerDetection(relayFile string, checker controlServerChecker, fallback bool) *Manager {
+	m := NewManager(relayFile)
+	m.controlServerChecker = checker
+	m.customControlServer = fallback
+	return m
+}
+
 // NewManagerWithBinary creates a new serve manager that invokes binaryPath
 // instead of the real `tailscale` CLI. Intended for tests that need to stub
 // out CLI behavior (e.g. handler-level tests in other packages); production
@@ -33,6 +74,44 @@ func NewManagerWithBinary(relayFile, binaryPath string) *Manager {
 	m := NewManager(relayFile)
 	m.binaryPath = binaryPath
 	return m
+}
+
+// WebListenerScheme returns the effective scheme for web relays, preferring
+// a live check of tailscaled's actual control server over the persisted
+// fallback flag so it stays correct even if the node was authenticated
+// outside the Web UI (CLI login, restored state, etc.).
+//
+// This performs a LocalAPI round-trip (via the configured checker) on every
+// call, so it must not be called per-relay inside a loop — callers resolve
+// it once per request/reconcile and reuse the result (see resetAndApply and
+// handlers.ServeHandler.APIListHTTPS).
+func (m *Manager) WebListenerScheme() string {
+	m.mu.RLock()
+	checker := m.controlServerChecker
+	fallback := m.customControlServer
+	m.mu.RUnlock()
+
+	custom := fallback
+	if checker != nil {
+		if live, err := checker.IsCustomControlServer(); err == nil {
+			custom = live
+		} else {
+			logger.Debug("serve", "Falling back to persisted control server setting, live check failed: %v", err)
+		}
+	}
+	if custom {
+		return "http"
+	}
+	return "https"
+}
+
+// SetCustomControlServer updates the fallback web listener mode used when
+// live control server detection is unavailable (no checker configured, or
+// the last live check failed).
+func (m *Manager) SetCustomControlServer(customControlServer bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.customControlServer = customControlServer
 }
 
 // ServeStatusJSON is the structure returned by `tailscale serve status --json`
@@ -319,9 +398,13 @@ func (m *Manager) resetAndApply(relays []config.ServeRelay) error {
 		return relays[i].ListenPort < relays[j].ListenPort
 	})
 
+	// Resolve once per reconcile: WebListenerScheme() may perform a live
+	// LocalAPI prefs lookup, so it must not be called per-relay below.
+	webScheme := m.WebListenerScheme()
+
 	for _, relay := range relays {
 		logger.Debug("serve", "Applying relay %s (type: %s, port: %d)", relay.ID, relay.Type, relay.ListenPort)
-		if err := m.applyRelay(relay); err != nil {
+		if err := m.applyRelay(relay, webScheme); err != nil {
 			if isTailscaleNotReady(err) {
 				logger.Debug("serve", "Tailscale not ready, deferring reconcile: %v", err)
 				return ErrTailscaleNotReady
@@ -338,7 +421,10 @@ func (m *Manager) resetAndApply(relays []config.ServeRelay) error {
 	return nil
 }
 
-func (m *Manager) applyRelay(relay config.ServeRelay) error {
+// applyRelay applies relay via `tailscale serve`/`tailscale funnel`. webScheme
+// is the already-resolved WebListenerScheme() result for this reconcile pass
+// (see resetAndApply), threaded through instead of re-resolved per relay.
+func (m *Manager) applyRelay(relay config.ServeRelay, webScheme string) error {
 	target := ""
 	switch relay.Type {
 	case "https":
@@ -347,7 +433,7 @@ func (m *Manager) applyRelay(relay config.ServeRelay) error {
 			protocol = "https+insecure"
 		}
 		target = fmt.Sprintf("%s://%s:%d", protocol, relay.TargetHost, relay.TargetPort)
-		return m.run("serve", "--bg", "--https", fmt.Sprintf("%d", relay.ListenPort), target)
+		return m.run("serve", "--bg", "--"+webScheme, fmt.Sprintf("%d", relay.ListenPort), target)
 	case "tcp":
 		target = fmt.Sprintf("tcp://%s:%d", relay.TargetHost, relay.TargetPort)
 		return m.run("serve", "--bg", "--tcp", fmt.Sprintf("%d", relay.ListenPort), target)

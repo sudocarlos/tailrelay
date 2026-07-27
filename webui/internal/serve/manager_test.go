@@ -1,6 +1,7 @@
 package serve
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,6 +66,45 @@ func TestManagerUpsertAndReconcile(t *testing.T) {
 	}
 	if !strings.Contains(out, "serve --bg --https 10002 http://whoami-test:80") {
 		t.Fatalf("expected https serve command, got logs:\n%s", out)
+	}
+}
+
+func TestManagerUpsertAndReconcileWithCustomControlServer(t *testing.T) {
+	dir := t.TempDir()
+	logFile := filepath.Join(dir, "commands.log")
+	tailscaleScript := filepath.Join(dir, "tailscale")
+	relayFile := filepath.Join(dir, "serve_relays.json")
+
+	script := "#!/bin/sh\n" +
+		"echo \"$@\" >> \"" + logFile + "\"\n" +
+		"exit 0\n"
+	if err := os.WriteFile(tailscaleScript, []byte(script), 0755); err != nil {
+		t.Fatalf("write tailscale script: %v", err)
+	}
+
+	m := NewManagerWithCustomControlServer(relayFile, true)
+	m.binaryPath = tailscaleScript
+	if err := m.UpsertRelay(config.ServeRelay{
+		ID:         "https-3333",
+		Type:       "https",
+		ListenPort: 3333,
+		TargetHost: "whoami-test",
+		TargetPort: 80,
+		Enabled:    true,
+	}); err != nil {
+		t.Fatalf("upsert web relay failed: %v", err)
+	}
+
+	data, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatalf("read log file: %v", err)
+	}
+	out := string(data)
+	if !strings.Contains(out, "serve --bg --http 3333 http://whoami-test:80") {
+		t.Fatalf("expected HTTP serve command, got logs:\n%s", out)
+	}
+	if strings.Contains(out, "--https 3333") {
+		t.Fatalf("expected no HTTPS serve command, got logs:\n%s", out)
 	}
 }
 
@@ -413,5 +453,55 @@ func TestManagerToggleRelay(t *testing.T) {
 	}
 	if relay.Enabled {
 		t.Fatalf("expected relay to be disabled")
+	}
+}
+
+// fakeControlServerChecker implements controlServerChecker for tests, so
+// live control server detection can be exercised without a real tailscaled.
+type fakeControlServerChecker struct {
+	custom bool
+	err    error
+}
+
+func (f fakeControlServerChecker) IsCustomControlServer() (bool, error) {
+	return f.custom, f.err
+}
+
+func TestWebListenerSchemePrefersLiveDetectionOverFallback(t *testing.T) {
+	dir := t.TempDir()
+	relayFile := filepath.Join(dir, "serve_relays.json")
+
+	// Fallback says "default Tailscale" (https), but the live checker
+	// reports the node is actually authenticated against a custom control
+	// server — the live result must win, since a node authenticated outside
+	// the Web UI (CLI login, restored state) would otherwise be missed.
+	m := NewManagerWithControlServerDetection(relayFile, fakeControlServerChecker{custom: true}, false)
+	if got := m.WebListenerScheme(); got != "http" {
+		t.Fatalf("WebListenerScheme() = %q, want %q", got, "http")
+	}
+}
+
+func TestWebListenerSchemeFallsBackWhenLiveCheckFails(t *testing.T) {
+	dir := t.TempDir()
+	relayFile := filepath.Join(dir, "serve_relays.json")
+
+	// If the live checker errors (e.g. tailscaled unreachable), the manager
+	// should fall back to the persisted/seed value instead of defaulting to
+	// https, which would fail reconcile against a custom control server.
+	m := NewManagerWithControlServerDetection(relayFile, fakeControlServerChecker{err: fmt.Errorf("tailscaled unreachable")}, true)
+	if got := m.WebListenerScheme(); got != "http" {
+		t.Fatalf("WebListenerScheme() = %q, want %q", got, "http")
+	}
+}
+
+func TestWebListenerSchemeWithNoChecker(t *testing.T) {
+	dir := t.TempDir()
+	relayFile := filepath.Join(dir, "serve_relays.json")
+
+	// NewManager/NewManagerWithBinary have no checker configured; the
+	// scheme should simply reflect the fallback flag (default false/https).
+	m := NewManager(relayFile)
+	if got := m.WebListenerScheme(); got != "https" {
+		t.Fatalf("WebListenerScheme() = %q, want %q", got, "https")
 	}
 }

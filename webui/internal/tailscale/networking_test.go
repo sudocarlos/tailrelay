@@ -137,3 +137,35 @@ func TestBuildNetworkingSetArgs(t *testing.T) {
 		})
 	}
 }
+
+func TestPrefsIsCustomControlServer(t *testing.T) {
+	tests := []struct {
+		name  string
+		prefs *Prefs
+		want  bool
+	}{
+		{
+			name:  "not yet logged in",
+			prefs: &Prefs{ControlURL: ""},
+			want:  false,
+		},
+		{
+			name:  "default Tailscale control plane",
+			prefs: &Prefs{ControlURL: defaultControlURL},
+			want:  false,
+		},
+		{
+			name:  "self-hosted Headscale instance",
+			prefs: &Prefs{ControlURL: "https://stubby.dev"},
+			want:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.prefs.IsCustomControlServer(); got != tt.want {
+				t.Errorf("IsCustomControlServer() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

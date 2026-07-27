@@ -7,13 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Control Server field on the Tailscale page** — connect to a self-hosted [Headscale](https://headscale.net) instance instead of Tailscale's default control plane
+  - New "Control Server" input inside the "Authentication Required" section, shown after the Login URL / Auth Key tabs while logged out, persisted via `GET /api/tailscale/control-server` and `POST /api/tailscale/control-server/update`
+  - Automatically applied as `tailscale login --login-server=<url>` / `tailscale up --authkey=<key> --login-server=<url>` on subsequent logins
+  - URL validation (must be a valid `http://`/`https://` URL) on both the client and server
+- **Headscale auth keys** — the "Auth Key" login flow now also accepts `hskey-` prefixed keys (Headscale) in addition to `tskey-` (Tailscale)
+
 ### Changed
 - **Tailscale** bumped from `v1.98.8` to `v1.98.9` in Dockerfile
+- **Funnel section on the dashboard** — hidden while connected to a custom control server, since Funnel is a Tailscale-cloud-only feature not supported by self-hosted Headscale
 - **Frontend tooling** — bumped `vite` in `webui/frontend/package.json` from `8.1.4` to `8.1.5`
 - **Go** bumped from `1.26.4` to `1.26.5` in Dockerfile
 
 ### Fixed
 - **`make dev-docker-build`/`make release`** — auto-detect the container engine (`docker` or `podman`) instead of hardcoding `docker`, since a shell `alias docker=podman` isn't visible to Make's non-interactive recipe shell. `dev-build`/`dev-docker-build` also now default `GOARCH`/`--platform` to the host's native architecture (`go env GOARCH`) instead of relying on implicit defaults, so builds on Apple Silicon are native `linux/arm64` with no QEMU emulation.
+- **Changing the hostname while connected to a custom control server** — `POST /api/tailscale/hostname` now uses `tailscale set --hostname=<name>`, which changes only the machine name and preserves the active control server and all other node preferences.
+- **Web relays with a custom control server** — relays stored as `https` now use Tailscale Serve's HTTP listener under Headscale, avoiding its unsupported HTTPS certificate-enablement endpoint. Relay list responses report the effective `listener_scheme`, and dashboard links correctly use `http://` in that mode.
+- **Stale relay hostname after re-authentication** — HTTPS/Funnel relay URLs no longer freeze on the machine name captured at relay-creation time. The `hostname` field is no longer persisted in `serve_relays.json`; list responses now always compute it live from the current Tailscale/Headscale MagicDNS name, so relay links update correctly after a `tailscale logout` + re-`tailscale up` assigns a new auto-generated machine name.
+- **Silent logout after a machine is removed from the tailnet** — when tailscaled reports "authkey already used" (the stale identity from the invalidated auth key), the connection card now surfaces the daemon's error as a toast and no longer offers a "Connect" reconnect button for this state, since retrying `tailscale up` with the same stale identity fails the same way. The existing re-authentication form (Auth Key / browser login) is shown instead so the user can log back in.
+- **Hostname reverting to the container ID after Logout + re-authenticating** — `tailscale login`/`tailscale up --authkey=<key>` triggered from the Web UI now reapply the hostname last set via the "Change Hostname" field (`--hostname=<name>`), instead of leaving it to tailscaled's own default. Previously, a Logout followed by re-authenticating through the Web UI silently dropped back to tailscaled's OS-default hostname (e.g. the container ID), and the control server could take a while to propagate the resulting rename to `DNSName`, leaving Serve/Funnel relay links pointing at the wrong location in the meantime. The hostname preference is now persisted to `webui.yaml` and reused on every future login.
+- **Funnel/HTTP-scheme detection drifting from the actual control server** — Funnel visibility and the `--https`/`--http` choice for web relays previously relied solely on the persisted Control Server setting, which could be empty/stale if a node was authenticated against a custom control server outside the Web UI (CLI login, restored state). Both are now derived live from tailscaled's `ControlURL` preference (`tailscale debug prefs`), so they stay correct regardless of how the node was authenticated. The persisted setting is still used to build `--login-server=<url>` for the next login/connect.
 
 ## [0.9.5] - 2026-07-14
 

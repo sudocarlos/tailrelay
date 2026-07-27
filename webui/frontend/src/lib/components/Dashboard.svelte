@@ -12,6 +12,7 @@
     refreshData,
     logs,
     logLevel,
+    hideFunnel,
   } from '../stores/app.js';
   import { get } from 'svelte/store';
   import { fetchJSON } from '../api.js';
@@ -58,6 +59,7 @@
   let searchQuery = $state('');
   let fqdn = $state('');
   let targetList = $state([]);
+  let funnelHidden = $state(false);
 
   // Modal state
   let showAddModal = $state(false);
@@ -77,6 +79,7 @@
   lastUpdated.subscribe((v) => (updated = v));
   tailnetFQDN.subscribe((v) => (fqdn = v));
   targets.subscribe((v) => (targetList = v));
+  hideFunnel.subscribe((v) => (funnelHidden = v));
 
   const displayedItems = $derived(
     (() => {
@@ -282,18 +285,22 @@
   {/if}
 </div>
 
-<!-- Funnel -->
-<FunnelSection
-  funnels={funnelList}
-  usedFunnelPorts={usedPorts}
-  {fqdn}
-  {togglingId}
-  onConfigure={openConfigureFunnel}
-  onToggle={(id, running) => handleToggleAction('funnel', id, running)}
-  onAutostart={(id, autostart) => handleAutostartToggle('funnel', id, autostart)}
-  onEdit={(item) => openEdit('funnel', item)}
-  onDelete={(id, name, target) => openDelete('funnel', id, name, target)}
-/>
+<!-- Funnel — hidden while connected to a custom control server, since
+     Funnel is a Tailscale-cloud-only feature not supported by self-hosted
+     Headscale. -->
+{#if !funnelHidden}
+  <FunnelSection
+    funnels={funnelList}
+    usedFunnelPorts={usedPorts}
+    {fqdn}
+    {togglingId}
+    onConfigure={openConfigureFunnel}
+    onToggle={(id, running) => handleToggleAction('funnel', id, running)}
+    onAutostart={(id, autostart) => handleAutostartToggle('funnel', id, autostart)}
+    onEdit={(item) => openEdit('funnel', item)}
+    onDelete={(id, name, target) => openDelete('funnel', id, name, target)}
+  />
+{/if}
 
 <!-- Log Console -->
 <LogConsole />

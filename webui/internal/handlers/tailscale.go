@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sudocarlos/tailrelay/internal/auth"
@@ -21,6 +22,9 @@ type TailscaleHandler struct {
 	tsClient  *tailscale.Client
 	authMW    *auth.Middleware
 	serveMgr  *serve.Manager
+	// cfgMu guards reads/writes of cfg.Tailscale.ControlServer, since cfg is
+	// a pointer shared across handlers with no locking of its own.
+	cfgMu sync.Mutex
 }
 
 // NewTailscaleHandler creates a new Tailscale handler
@@ -52,13 +56,24 @@ func writeJSONError(w http.ResponseWriter, message string, status int) {
 
 // reconcileRelaysAsync runs Reconcile in the background after a short delay,
 // allowing Tailscale to fully come up before restoring relay state.
-func (h *TailscaleHandler) reconcileRelaysAsync() {
+// SetCustomControlServer here only updates the fallback used when live
+// control server detection is unavailable (see serve.Manager.WebListenerScheme) —
+// the actual --https/--http choice is otherwise derived live from
+// tailscaled's ControlURL preference on every reconcile, so it reflects
+// reality even if this handler was never invoked (e.g. the node was
+// authenticated outside the Web UI).
+func (h *TailscaleHandler) reconcileRelaysAsync(controlServer string) {
 	if h.serveMgr == nil {
 		return
 	}
 	go func() {
 		// Wait for Tailscale to finish connecting before reconciling.
 		time.Sleep(2 * time.Second)
+		connected, _ := h.tsClient.IsConnected()
+		if !connected {
+			return
+		}
+		h.serveMgr.SetCustomControlServer(controlServer != "")
 		if err := h.serveMgr.Reconcile(); err != nil {
 			log.Printf("Warning: failed to reconcile relays after Tailscale connect: %v", err)
 		} else {
@@ -68,7 +83,8 @@ func (h *TailscaleHandler) reconcileRelaysAsync() {
 }
 
 // LoginWithKey handles non-interactive Tailscale authentication using a pre-generated
-// auth key (e.g. "tskey-auth-k..."). The key is passed directly to `tailscale up
+// auth key (e.g. "tskey-auth-k..." from Tailscale, or "hskey-..." from a
+// self-hosted Headscale instance). The key is passed directly to `tailscale up
 // --authkey=<key>`, authenticating and connecting in a single step without requiring
 // the user to visit an auth URL.
 func (h *TailscaleHandler) LoginWithKey(w http.ResponseWriter, r *http.Request) {
@@ -90,18 +106,18 @@ func (h *TailscaleHandler) LoginWithKey(w http.ResponseWriter, r *http.Request) 
 		writeJSONError(w, "auth_key cannot be empty", http.StatusBadRequest)
 		return
 	}
-	if !strings.HasPrefix(body.AuthKey, "tskey-") {
-		writeJSONError(w, "invalid auth key: must start with 'tskey-'", http.StatusBadRequest)
+	if !strings.HasPrefix(body.AuthKey, "tskey-") && !strings.HasPrefix(body.AuthKey, "hskey-") {
+		writeJSONError(w, "invalid auth key: must start with 'tskey-' or 'hskey-'", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.tsClient.LoginWithAuthKey(body.AuthKey); err != nil {
+	if err := h.tsClient.LoginWithAuthKey(body.AuthKey, h.controlServer(), h.hostname()); err != nil {
 		log.Printf("Error authenticating Tailscale with auth key: %v", err)
 		writeJSONError(w, "Failed to authenticate with auth key: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	h.reconcileRelaysAsync()
+	h.reconcileRelaysAsync(h.controlServer())
 
 	writeJSON(w, map[string]string{
 		"status":  "success",
@@ -117,13 +133,13 @@ func (h *TailscaleHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authURL, err := h.tsClient.Login()
+	authURL, err := h.tsClient.Login(h.controlServer(), h.hostname())
 	if err != nil {
 		log.Printf("Error initiating Tailscale login: %v", err)
 		writeJSONError(w, "Failed to get login URL from Tailscale. The daemon may not be running or may already be connected.", http.StatusInternalServerError)
 		return
 	}
-
+	h.reconcileRelaysAsync(h.controlServer())
 	writeJSON(w, map[string]string{
 		"status":   "success",
 		"auth_url": authURL,
@@ -163,7 +179,7 @@ func (h *TailscaleHandler) Connect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.reconcileRelaysAsync()
+	h.reconcileRelaysAsync(h.controlServer())
 
 	writeJSON(w, map[string]string{
 		"status":  "success",
@@ -190,7 +206,12 @@ func (h *TailscaleHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ChangeHostname changes the Tailscale hostname via 'tailscale up --hostname=<name>'.
+// ChangeHostname changes the Tailscale hostname without changing the active
+// control server or other node preferences. The new hostname is persisted
+// to webui.yaml so it's reapplied via `--hostname=` on any future
+// `tailscale login`/`up --authkey`, preventing a Logout followed by
+// re-authenticating from silently reverting to tailscaled's OS default
+// hostname (e.g. the container ID).
 func (h *TailscaleHandler) ChangeHostname(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSONError(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -215,6 +236,22 @@ func (h *TailscaleHandler) ChangeHostname(w http.ResponseWriter, r *http.Request
 		log.Printf("Error changing Tailscale hostname: %v", err)
 		writeJSONError(w, "Failed to change hostname: "+err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	h.cfgMu.Lock()
+	previous := h.cfg.Tailscale.Hostname
+	h.cfg.Tailscale.Hostname = body.Hostname
+	err := config.Save(h.cfg.ConfigFile, h.cfg)
+	if err != nil {
+		// Keep in-memory state consistent with what's actually on disk.
+		h.cfg.Tailscale.Hostname = previous
+	}
+	h.cfgMu.Unlock()
+	if err != nil {
+		// The hostname change itself already succeeded against tailscaled;
+		// only the "remember for next login" persistence failed, so warn
+		// rather than fail the request.
+		log.Printf("Warning: failed to persist hostname setting: %v", err)
 	}
 
 	writeJSON(w, map[string]string{

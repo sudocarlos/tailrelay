@@ -18,19 +18,22 @@ import (
 
 // ServeHandler handles relay management through `tailscale serve`.
 type ServeHandler struct {
-	cfg       *config.Config
-	templates *template.Template
-	manager   *serve.Manager
-	tsClient  *tailscale.Client
+	cfg           *config.Config
+	templates     *template.Template
+	manager       *serve.Manager
+	tsClient      *tailscale.Client
+	statusSummary func() (*tailscale.StatusSummary, error)
 }
 
 // NewServeHandler creates a new serve handler.
 func NewServeHandler(cfg *config.Config, templates *template.Template) *ServeHandler {
+	tsClient := tailscale.NewClient()
 	return &ServeHandler{
-		cfg:       cfg,
-		templates: templates,
-		manager:   serve.NewManager(cfg.Paths.ServeRelayConfig),
-		tsClient:  tailscale.NewClient(),
+		cfg:           cfg,
+		templates:     templates,
+		manager:       serve.NewManagerWithControlServerDetection(cfg.Paths.ServeRelayConfig, tsClient, cfg.Tailscale.ControlServer != ""),
+		tsClient:      tsClient,
+		statusSummary: tsClient.GetStatusSummary,
 	}
 }
 
@@ -227,16 +230,12 @@ func (h *ServeHandler) ToggleTCP(w http.ResponseWriter, r *http.Request) {
 
 // ── HTTPS relay handlers (/api/serve/https/*) ─────────────────────────────────
 
-// APIListHTTPS returns all HTTPS relays as JSON.
-func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
-	relays, err := h.manager.ListRelays()
-	if err != nil {
-		http.Error(w, "Failed to load proxies", http.StatusInternalServerError)
-		return
-	}
-
+// currentHostnameAndStatus returns the live MagicDNS name (empty if
+// Tailscale status can't be read) and the current `tailscale serve
+// status --json` snapshot, logging a warning if the latter fails.
+func (h *ServeHandler) currentHostnameAndStatus() (string, *serve.ServeStatusJSON) {
 	hostname := ""
-	if status, err := h.tsClient.GetStatusSummary(); err == nil {
+	if status, err := h.statusSummary(); err == nil {
 		hostname = status.MagicDNSName
 	}
 
@@ -245,9 +244,28 @@ func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
 		log.Printf("serve: status check failed, running state may be inaccurate: %v", statusErr)
 	}
 
+	return hostname, statusJSON
+}
+
+// APIListHTTPS returns all HTTPS relays as JSON.
+func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
+	relays, err := h.manager.ListRelays()
+	if err != nil {
+		http.Error(w, "Failed to load proxies", http.StatusInternalServerError)
+		return
+	}
+
+	hostname, statusJSON := h.currentHostnameAndStatus()
+	// Resolve once per request: WebListenerScheme() may perform a live
+	// LocalAPI prefs lookup, so it must not be called per-relay in the loop
+	// below (see serve.Manager.WebListenerScheme doc comment).
+	scheme := h.manager.WebListenerScheme()
+
 	type relayStatus struct {
 		config.ServeRelay
-		Running bool `json:"running"`
+		Hostname       string `json:"hostname"`
+		Running        bool   `json:"running"`
+		ListenerScheme string `json:"listener_scheme"`
 	}
 
 	out := make([]relayStatus, 0)
@@ -255,20 +273,22 @@ func (h *ServeHandler) APIListHTTPS(w http.ResponseWriter, _ *http.Request) {
 		if relay.Type != "https" {
 			continue
 		}
-		if relay.Hostname == "" {
-			relay.Hostname = hostname
-		}
 
 		running := false
 		if statusJSON != nil && statusJSON.TCP != nil {
 			if tcpInfo, ok := statusJSON.TCP[strconv.Itoa(relay.ListenPort)]; ok {
-				if tcpInfo.HTTPS {
+				if tcpInfo.HTTPS == (scheme == "https") {
 					running = true
 				}
 			}
 		}
 
-		out = append(out, relayStatus{ServeRelay: relay, Running: running})
+		out = append(out, relayStatus{
+			ServeRelay:     relay,
+			Hostname:       hostname,
+			Running:        running,
+			ListenerScheme: scheme,
+		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -371,19 +391,12 @@ func (h *ServeHandler) APIListFunnel(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	hostname := ""
-	if status, err := h.tsClient.GetStatusSummary(); err == nil {
-		hostname = status.MagicDNSName
-	}
-
-	statusJSON, statusErr := h.manager.Status()
-	if statusErr != nil {
-		log.Printf("serve: status check failed, running state may be inaccurate: %v", statusErr)
-	}
+	hostname, statusJSON := h.currentHostnameAndStatus()
 
 	type relayStatus struct {
 		config.ServeRelay
-		Running bool `json:"running"`
+		Hostname string `json:"hostname"`
+		Running  bool   `json:"running"`
 	}
 
 	out := make([]relayStatus, 0)
@@ -391,11 +404,8 @@ func (h *ServeHandler) APIListFunnel(w http.ResponseWriter, _ *http.Request) {
 		if relay.Type != "funnel" {
 			continue
 		}
-		if relay.Hostname == "" {
-			relay.Hostname = hostname
-		}
 
-		out = append(out, relayStatus{ServeRelay: relay, Running: funnelIsRunning(statusJSON, relay.ListenPort)})
+		out = append(out, relayStatus{ServeRelay: relay, Hostname: hostname, Running: funnelIsRunning(statusJSON, relay.ListenPort)})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -524,7 +534,6 @@ func parseHTTPSRelay(r *http.Request) (config.ServeRelay, error) {
 		targetHost, targetPort, _ := splitServeTarget(r.FormValue("target"))
 		return config.ServeRelay{
 			ID:          r.FormValue("id"),
-			Hostname:    strings.TrimSpace(r.FormValue("hostname")),
 			ListenPort:  port,
 			TargetHost:  targetHost,
 			TargetPort:  targetPort,

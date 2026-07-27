@@ -185,6 +185,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 		{"/apple-touch-icon.png", "image/png"},
 		{"/icon-192.png", "image/png"},
 		{"/icon-512.png", "image/png"},
+		{"/icon-light-192.png", "image/png"},
 		{"/manifest.webmanifest", "application/manifest+json"},
 	} {
 		asset := asset
@@ -246,6 +247,8 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.Handle("/api/tailscale/poll", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.PollStatus)))
 	mux.Handle("/api/tailscale/networking", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.APINetworking)))
 	mux.Handle("/api/tailscale/networking/update", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.UpdateNetworking)))
+	mux.Handle("/api/tailscale/control-server", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.GetControlServer)))
+	mux.Handle("/api/tailscale/control-server/update", s.authMW.RequireAuth(http.HandlerFunc(s.tailscaleH.UpdateControlServer)))
 
 	// HTTPS relay routes (/api/serve/https/*)
 	mux.Handle("/api/serve/https/list", s.authMW.RequireAuth(http.HandlerFunc(s.serveH.APIListHTTPS)))
