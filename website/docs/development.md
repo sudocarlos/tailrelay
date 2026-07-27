@@ -184,17 +184,14 @@ npm run build     # or npm start for local dev
 ### Screenshots
 
 Screenshots for the docs site live in `website/static/img/screenshots/` and are
-referenced by the [Screenshots](/docs/screenshots/) page. To add new
-screenshots, run the capture script from the repo root:
+referenced by the [Screenshots](/docs/screenshots/) page. The sources are
+captured under `docs/screenshots/` by a Playwright script that mocks every API
+response, so no running container is needed — only the Vite dev server:
 
 ```bash
+cd webui/frontend && npm run dev   # in one terminal
 node docs/screenshots/take-screenshots.mjs
 ```
 
-Then sync the PNGs to the docs site:
-
-```bash
-cp docs/screenshots/*.png website/static/img/screenshots/
-```
-
-Commit both the new source screenshots and the synced copies together.
+The script writes each capture to `docs/screenshots/` and mirrors it into
+`website/static/img/screenshots/`. Commit both copies together.
