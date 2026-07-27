@@ -1,6 +1,6 @@
 ---
 name: documentation
-description: Updating all tailrelay documentation — README, CHANGELOG, release notes, AGENTS.md, SKILL.md files, webui/README.md, and the Docusaurus docs site. Use when adding user-facing features, releasing a new version, updating component versions, or when any doc's reviewed_at SHA is out of date with HEAD.
+description: Updating all tailrelay documentation — README, CHANGELOG, release notes, AGENTS.md, SKILL.md files, webui/README.md, UI screenshots, and the Docusaurus docs site. Use when adding user-facing features, releasing a new version, updating component versions, or when any doc's reviewed_at SHA is out of date with HEAD.
 reviewed_at: f2c24a0
 ---
 
@@ -8,13 +8,14 @@ reviewed_at: f2c24a0
 
 ## Overview
 
-tailrelay documentation spans six locations that must stay consistent with each other and with the source code:
+tailrelay documentation spans these locations, which must stay consistent with each other and with the source code:
 
 | Document | Audience | Update Trigger |
 |----------|----------|---------------|
 | `README.md` | End users | Features, Quick Start, version, links to docs site |
 | `docs/openapi.yaml` | API consumers | Any handler/route change in `webui/internal/handlers/`, `webui/internal/web/server.go` |
 | `website/` | End users & developers | Guides (getting started, auth, dev, troubleshooting); rendered API reference is generated from `docs/openapi.yaml` automatically |
+| `docs/screenshots/` | End users | Any visible UI change (captures mirrored into `website/static/img/screenshots/`) |
 | `CHANGELOG.md` | Users upgrading | Every release; every significant change |
 | `webui/README.md` | Developers building from source | Web UI API, config, build changes |
 | `AGENTS.md` | Coding agents | Skills table, file map, env vars, review SHAs |
@@ -81,12 +82,71 @@ reference rendered from it.
 - Register it in `website/sidebars.ts`
 - Verify locally: `cd website && npm run docusaurus gen-api-docs all && npm run build`
 
+**Branding:** render the product name with
+`<BrandName />` (`website/src/components/BrandName`) — solid "Tail" plus an
+outlined "relay", matching `.brand-relay` in `webui/frontend/src/app.css`. It's
+used by the navbar (via the swizzled `website/src/theme/Logo`), the homepage
+hero, and the Introduction heading. A page needs the `.mdx` extension to import
+it. Plain `tailrelay` stays lowercase in prose, `siteConfig.title`, and
+metadata, matching the repo and Docker Hub names.
+
 **Ownership split for guide content (Quick Start, Tailscale Setup,
 Troubleshooting, etc.):** `website/docs/*.md` is the canonical, detailed
 version. `README.md` keeps a condensed copy for GitHub browsing (Docker Hub,
 `git clone`, no JS) — when one changes, check whether the other needs the
 same fix. Prefer editing `website/docs/*.md` first, then trim the README's
 copy to match rather than letting them diverge.
+
+---
+
+## 1c. Screenshots
+
+`docs/screenshots/take-screenshots.mjs` captures every UI screenshot with
+Playwright against the Vite dev server, mocking all API responses — no
+container, no Tailscale, no backend. Sources live in `docs/screenshots/`; the
+script mirrors each capture into `website/static/img/screenshots/` (referenced
+by `website/docs/screenshots.mdx`). Commit both copies.
+
+```bash
+cd webui/frontend && npm run dev          # terminal 1
+node docs/screenshots/take-screenshots.mjs
+```
+
+If you background the dev server, stop it with `pgrep`/`kill` — never
+`pkill -f vite`, which also matches the shell running your own command (see
+"LLM Operational Rules" in `AGENTS.md`). Cleanest is to spawn and kill it
+inside a single script.
+
+**Mocks must be grounded in the Go handlers, not guessed.** Read the handler
+and its response struct before adding or editing a mock:
+
+- Field names come from the `json:"..."` tags, and several types have **none** —
+  `tailscale.StatusSummary` and `tailscale.PeerInfo` serialize as Go field
+  names (`Connected`, `MagicDNSName`, `IPv4`), while `config.ServeRelay` is
+  snake_case. `/api/auth/status` is camelCase (`needsSetup`). Don't assume.
+- List endpoints wrap differently per type: `/api/serve/tcp/list` nests as
+  `{relay, running}`, while the HTTPS and funnel lists **flatten** the embedded
+  `ServeRelay` and add `hostname`/`running` (plus `listener_scheme` for HTTPS).
+- `/api/logs` returns `{logs, level}`, not a bare array.
+
+**A missed mock silently produces wrong screenshots.** An unmocked endpoint
+falls through to a real backend; its 401 logs the app out mid-run, so the
+"dashboard" captures come out as the login screen. The script guards this with
+an `**/api/**` catch-all registered *first* (Playwright matches
+most-recently-registered routes first, so specific handlers still win) that
+warns and returns `{}`. When adding an endpoint to the frontend, add its mock
+here too, and watch the run output for `unmocked API request`.
+
+**Theme switching must go through the store.** Writing `localStorage` and
+toggling the `dark` class repaints Tailwind colors but does not notify the
+`theme` store — and the brand icon is a `derived` store off it
+(`webui/frontend/src/lib/stores/theme.js`), so the logo keeps the previous
+theme's PNG and washes out. `setTheme()` clicks the real navbar toggle
+(`button[title="Toggle theme"]`, visible at all breakpoints) and falls back to
+a reload only on views without one (login, setup).
+
+**Always review the output images before committing.** Every failure mode above
+produces a valid-looking PNG. Open the captures, don't just trust the exit code.
 
 ---
 
