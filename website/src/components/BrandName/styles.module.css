@@ -1,0 +1,11 @@
+.brand {
+  white-space: nowrap;
+}
+
+/* Outlined "relay", inheriting the surrounding text color so it works in both
+   color modes. Firefox does not support text-stroke and falls back to solid
+   text, which is the same graceful degradation the Web UI accepts. */
+.relay {
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 1px currentColor;
+}
