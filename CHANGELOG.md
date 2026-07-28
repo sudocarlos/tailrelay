@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Funnel section on the dashboard** — hidden while connected to a custom control server, since Funnel is a Tailscale-cloud-only feature not supported by self-hosted Headscale
 - **Frontend tooling** — bumped `vite` in `webui/frontend/package.json` from `8.1.4` to `8.1.5`
 - **Go** bumped from `1.26.4` to `1.26.5` in Dockerfile
-- **Docusaurus** bumped from `3.10.1` to `3.10.2` in `website/package.json`
+- **Docusaurus** bumped from `3.10.1` to `3.10.2` in `website/package.json`, with `brace-expansion` overridden to `5.0.8` to resolve `GHSA-mh99-v99m-4gvg` (transitive via `serve-handler` → `minimatch`)
 
 ### Fixed
 - **`make dev-docker-build`/`make release`** — auto-detect the container engine (`docker` or `podman`) instead of hardcoding `docker`, since a shell `alias docker=podman` isn't visible to Make's non-interactive recipe shell. `dev-build`/`dev-docker-build` also now default `GOARCH`/`--platform` to the host's native architecture (`go env GOARCH`) instead of relying on implicit defaults, so builds on Apple Silicon are native `linux/arm64` with no QEMU emulation.

@@ -53,7 +53,8 @@
     "serialize-javascript": "7.0.7",
     "uuid": "11.1.1",
     "lodash": "4.18.1",
-    "yaml": "1.10.3"
+    "yaml": "1.10.3",
+    "brace-expansion": "5.0.8"
   },
   "engines": {
     "node": ">=20.0"
