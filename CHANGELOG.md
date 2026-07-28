@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-27
+
 ### Added
 - **Control Server field on the Tailscale page** — connect to a self-hosted [Headscale](https://headscale.net) instance instead of Tailscale's default control plane
   - New "Control Server" input inside the "Authentication Required" section, shown after the Login URL / Auth Key tabs while logged out, persisted via `GET /api/tailscale/control-server` and `POST /api/tailscale/control-server/update`
@@ -29,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Silent logout after a machine is removed from the tailnet** — when tailscaled reports "authkey already used" (the stale identity from the invalidated auth key), the connection card now surfaces the daemon's error as a toast and no longer offers a "Connect" reconnect button for this state, since retrying `tailscale up` with the same stale identity fails the same way. The existing re-authentication form (Auth Key / browser login) is shown instead so the user can log back in.
 - **Hostname reverting to the container ID after Logout + re-authenticating** — `tailscale login`/`tailscale up --authkey=<key>` triggered from the Web UI now reapply the hostname last set via the "Change Hostname" field (`--hostname=<name>`), instead of leaving it to tailscaled's own default. Previously, a Logout followed by re-authenticating through the Web UI silently dropped back to tailscaled's OS-default hostname (e.g. the container ID), and the control server could take a while to propagate the resulting rename to `DNSName`, leaving Serve/Funnel relay links pointing at the wrong location in the meantime. The hostname preference is now persisted to `webui.yaml` and reused on every future login.
 - **Funnel/HTTP-scheme detection drifting from the actual control server** — Funnel visibility and the `--https`/`--http` choice for web relays previously relied solely on the persisted Control Server setting, which could be empty/stale if a node was authenticated against a custom control server outside the Web UI (CLI login, restored state). Both are now derived live from tailscaled's `ControlURL` preference (`tailscale debug prefs`), so they stay correct regardless of how the node was authenticated. The persisted setting is still used to build `--login-server=<url>` for the next login/connect.
+
+### Docker
+```
+docker pull sudocarlos/tailrelay:v0.10.0
+docker pull ghcr.io/sudocarlos/tailrelay:v0.10.0
+```
 
 ## [0.9.5] - 2026-07-14
 
