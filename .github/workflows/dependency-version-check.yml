@@ -105,64 +105,105 @@ jobs:
             const pinnedVersion = match[1];
             core.info(`Pinned version: ${pinnedVersion}`);
 
-            // 2. Obtain anonymous GHCR token
-            const tokenRes = await get(
-              'https://ghcr.io/token?scope=repository:tailscale/tailscale:pull&service=ghcr.io'
-            );
-            const { token } = JSON.parse(tokenRes.body);
-            const authHeader = `Bearer ${token}`;
-            const manifestAccept = [
-              'application/vnd.oci.image.index.v1+json',
-              'application/vnd.docker.distribution.manifest.list.v2+json',
-            ].join(',');
-
-            // 3. Get digest of the current "stable" tag
-            const stableHead = await head(
-              'https://ghcr.io/v2/tailscale/tailscale/manifests/stable',
-              { Authorization: authHeader, Accept: manifestAccept }
-            );
-            const stableDigest = stableHead.headers['docker-content-digest'];
-            if (!stableDigest) { core.setFailed('Could not retrieve digest for tailscale:stable'); return; }
-            core.info(`stable digest: ${stableDigest}`);
-
-            // 4. Fetch full tag list (paginated) and find versioned tag matching stable digest
-            let allTags = [];
-            let tagsUrl = 'https://ghcr.io/v2/tailscale/tailscale/tags/list';
-            while (tagsUrl) {
-              const tagsRes = await get(tagsUrl, { Authorization: authHeader });
-              const { tags } = JSON.parse(tagsRes.body);
-              allTags = allTags.concat(tags);
-              const link = tagsRes.headers['link'];
-              if (link) {
-                const m = link.match(/<([^>]+)>;\s*rel="next"/);
-                tagsUrl = m ? (m[1].startsWith('http') ? m[1] : `https://ghcr.io${m[1]}`) : null;
-              } else {
-                tagsUrl = null;
-              }
-            }
-            const versionTags = allTags
-              .filter(t => /^v\d+\.\d+\.\d+$/.test(t))
-              .sort((a, b) => {
+            function sortVersionsDesc(tags) {
+              return tags.slice().sort((a, b) => {
                 const pa = a.slice(1).split('.').map(Number);
                 const pb = b.slice(1).split('.').map(Number);
                 for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return pb[i] - pa[i];
                 return 0;
               });
-            core.info(`Checking ${versionTags.length} versioned tags from ${versionTags[0]}…`);
+            }
 
-            let stableVersion = null;
-            for (const tag of versionTags) {
-              const res = await head(
-                `https://ghcr.io/v2/tailscale/tailscale/manifests/${tag}`,
+            // 2. Resolve the "stable" version via GHCR (anonymous token + per-tag manifest digests)
+            async function resolveGhcrStableVersion() {
+              const tokenRes = await get(
+                'https://ghcr.io/token?scope=repository:tailscale/tailscale:pull&service=ghcr.io'
+              );
+              const { token } = JSON.parse(tokenRes.body);
+              const authHeader = `Bearer ${token}`;
+              const manifestAccept = [
+                'application/vnd.oci.image.index.v1+json',
+                'application/vnd.docker.distribution.manifest.list.v2+json',
+              ].join(',');
+
+              const stableHead = await head(
+                'https://ghcr.io/v2/tailscale/tailscale/manifests/stable',
                 { Authorization: authHeader, Accept: manifestAccept }
               );
-              if (res.headers['docker-content-digest'] === stableDigest) {
-                stableVersion = tag;
-                break;
+              const stableDigest = stableHead.headers['docker-content-digest'];
+              if (!stableDigest) throw new Error('Could not retrieve digest for tailscale:stable on GHCR');
+              core.info(`GHCR stable digest: ${stableDigest}`);
+
+              let allTags = [];
+              let tagsUrl = 'https://ghcr.io/v2/tailscale/tailscale/tags/list';
+              while (tagsUrl) {
+                const tagsRes = await get(tagsUrl, { Authorization: authHeader });
+                const { tags } = JSON.parse(tagsRes.body);
+                allTags = allTags.concat(tags);
+                const link = tagsRes.headers['link'];
+                if (link) {
+                  const m = link.match(/<([^>]+)>;\s*rel="next"/);
+                  tagsUrl = m ? (m[1].startsWith('http') ? m[1] : `https://ghcr.io${m[1]}`) : null;
+                } else {
+                  tagsUrl = null;
+                }
               }
+              const versionTags = sortVersionsDesc(allTags.filter(t => /^v\d+\.\d+\.\d+$/.test(t)));
+              core.info(`GHCR: checking ${versionTags.length} versioned tags from ${versionTags[0]}…`);
+
+              for (const tag of versionTags) {
+                const res = await head(
+                  `https://ghcr.io/v2/tailscale/tailscale/manifests/${tag}`,
+                  { Authorization: authHeader, Accept: manifestAccept }
+                );
+                if (res.headers['docker-content-digest'] === stableDigest) {
+                  return { version: tag, digest: stableDigest };
+                }
+              }
+              throw new Error('Could not match GHCR stable digest to any versioned tag');
             }
-            if (!stableVersion) { core.setFailed('Could not match stable digest to any versioned tag'); return; }
-            core.info(`stable version resolved to: ${stableVersion}`);
+
+            // 3. Resolve the "stable" version via Docker Hub (digest is included directly in tag list)
+            async function resolveDockerHubStableVersion() {
+              const stableRes = await get('https://hub.docker.com/v2/repositories/tailscale/tailscale/tags/stable');
+              const stableDigest = JSON.parse(stableRes.body).digest;
+              if (!stableDigest) throw new Error('Could not retrieve digest for tailscale:stable on Docker Hub');
+              core.info(`Docker Hub stable digest: ${stableDigest}`);
+
+              let tagsUrl = 'https://hub.docker.com/v2/repositories/tailscale/tailscale/tags?page_size=100';
+              while (tagsUrl) {
+                const tagsRes = await get(tagsUrl);
+                const { results, next } = JSON.parse(tagsRes.body);
+                const match = results.find(r => /^v\d+\.\d+\.\d+$/.test(r.name) && r.digest === stableDigest);
+                if (match) return { version: match.name, digest: stableDigest };
+                tagsUrl = next;
+              }
+              throw new Error('Could not match Docker Hub stable digest to any versioned tag');
+            }
+
+            // 4. Resolve both sources independently; Docker Hub is authoritative, GHCR is corroboration
+            const [ghcrResult, dockerHubResult] = await Promise.allSettled([
+              resolveGhcrStableVersion(),
+              resolveDockerHubStableVersion(),
+            ]);
+
+            if (ghcrResult.status === 'rejected') core.warning(`GHCR resolution failed: ${ghcrResult.reason.message}`);
+            if (dockerHubResult.status === 'rejected') core.warning(`Docker Hub resolution failed: ${dockerHubResult.reason.message}`);
+
+            const ghcr = ghcrResult.status === 'fulfilled' ? ghcrResult.value : null;
+            const dockerHub = dockerHubResult.status === 'fulfilled' ? dockerHubResult.value : null;
+
+            if (ghcr && dockerHub && ghcr.version !== dockerHub.version) {
+              core.warning(
+                `GHCR and Docker Hub disagree on the stable Tailscale version: ` +
+                `GHCR resolved \`${ghcr.version}\`, Docker Hub resolved \`${dockerHub.version}\`. ` +
+                `Using Docker Hub as authoritative.`
+              );
+            }
+
+            const stableVersion = dockerHub?.version ?? ghcr?.version;
+            if (!stableVersion) { core.setFailed('Could not resolve stable Tailscale version from either registry'); return; }
+            core.info(`stable version resolved to: ${stableVersion} (authoritative source: ${dockerHub ? 'Docker Hub' : 'GHCR fallback'})`);
 
             if (pinnedVersion === stableVersion) { core.info('Dockerfile is up to date.'); return; }
 
@@ -180,24 +221,34 @@ jobs:
             }
 
             // 6. Create the issue
+            const bodyLines = [
+              `The Dockerfile pins \`tailscale/tailscale:${pinnedVersion}\` but the current stable release is \`${stableVersion}\`.`,
+              ``,
+              `| Field | Value |`,
+              `|-------|-------|`,
+              `| Pinned | \`${pinnedVersion}\` |`,
+              `| Latest stable (Docker Hub, authoritative) | \`${dockerHub?.version ?? 'unresolved'}\` |`,
+              `| Latest stable (GHCR) | \`${ghcr?.version ?? 'unresolved'}\` |`,
+            ];
+            if (dockerHub) bodyLines.push(`| Docker Hub digest | \`${dockerHub.digest}\` |`);
+            if (ghcr) bodyLines.push(`| GHCR digest | \`${ghcr.digest}\` |`);
+            if (ghcr && dockerHub && ghcr.version !== dockerHub.version) {
+              bodyLines.push(``, `> ⚠️ GHCR and Docker Hub resolved different versions; Docker Hub was used as authoritative.`);
+            }
+            bodyLines.push(
+              ``,
+              `### Links`,
+              `- [Docker Hub tags](https://hub.docker.com/r/tailscale/tailscale/tags)`,
+              `- [GHCR package](https://github.com/tailscale/tailscale/pkgs/container/tailscale)`,
+              `- [GitHub Release](https://github.com/tailscale/tailscale/releases/tag/${stableVersion})`,
+              `- [Changelog](https://tailscale.com/changelog)`,
+            );
+
             const { data: issue } = await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: issueTitle,
-              body: [
-                `The Dockerfile pins \`ghcr.io/tailscale/tailscale:${pinnedVersion}\` but the current stable release is \`${stableVersion}\`.`,
-                ``,
-                `| Field | Value |`,
-                `|-------|-------|`,
-                `| Pinned | \`${pinnedVersion}\` |`,
-                `| Latest stable | \`${stableVersion}\` |`,
-                `| Digest | \`${stableDigest}\` |`,
-                ``,
-                `### Links`,
-                `- [GHCR package](https://github.com/tailscale/tailscale/pkgs/container/tailscale)`,
-                `- [GitHub Release](https://github.com/tailscale/tailscale/releases/tag/${stableVersion})`,
-                `- [Changelog](https://tailscale.com/changelog)`,
-              ].join('\n'),
+              body: bodyLines.join('\n'),
               assignees: ['sudocarlos'],
             });
             core.info(`Created issue #${issue.number}: ${issue.html_url}`);
