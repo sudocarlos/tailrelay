@@ -170,6 +170,9 @@ jobs:
               if (!stableDigest) throw new Error('Could not retrieve digest for tailscale:stable on Docker Hub');
               core.info(`Docker Hub stable digest: ${stableDigest}`);
 
+              // Paginate until we find a versioned tag whose digest matches "stable". Correctness
+              // doesn't depend on tag ordering (every page is checked), but Docker Hub's default
+              // ordering (most-recently-pushed first) means the match is typically found on page 1.
               let tagsUrl = 'https://hub.docker.com/v2/repositories/tailscale/tailscale/tags?page_size=100';
               while (tagsUrl) {
                 const tagsRes = await get(tagsUrl);
@@ -222,7 +225,7 @@ jobs:
 
             // 6. Create the issue
             const bodyLines = [
-              `The Dockerfile pins \`tailscale/tailscale:${pinnedVersion}\` but the current stable release is \`${stableVersion}\`.`,
+              `The Dockerfile pins \`ghcr.io/tailscale/tailscale:${pinnedVersion}\` but the current stable release is \`${stableVersion}\`.`,
               ``,
               `| Field | Value |`,
               `|-------|-------|`,
