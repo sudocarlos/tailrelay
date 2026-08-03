@@ -21,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24.18.0'
+          node-version: '24.18.1'
           
       - name: Install dependencies
         run: npm install
@@ -40,7 +40,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24.18.0'
+          node-version: '24.18.1'
 
       - name: Build Frontend
         working-directory: webui/frontend
@@ -69,7 +69,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24.18.0'
+          node-version: '24.18.1'
 
       - name: Install Frontend Dependencies
         working-directory: webui/frontend
@@ -137,7 +137,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24.18.0'
+          node-version: '24.18.1'
 
       - name: Install Frontend Dependencies
         working-directory: webui/frontend
