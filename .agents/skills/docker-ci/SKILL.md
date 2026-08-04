@@ -28,7 +28,7 @@ docker buildx build -t sudocarlos/tailrelay:latest --load .
 Key build args:
 - `TAILSCALE_VERSION` (default: `v1.98.10`) — image tag for `ghcr.io/tailscale/tailscale`
 - `GO_VERSION` (default: `1.26.5`)
-- `NODE_VERSION` (default: `24.18.1`)
+- `NODE_VERSION` (default: `24.19.0`)
 - `ALPINE_VERSION` (default: `3.22`)
 - `WEBUI_SOURCE` (default: `webui-builder`; set to `binary-dev` for dev builds)
 - `VERSION`, `COMMIT`, `DATE`, `BRANCH`, `BUILDER` — build metadata injected into Go binary and frontend via ldflags / `npm version`
@@ -192,4 +192,4 @@ When updating a pinned version in the Dockerfile, touch every location in the ta
 | Container | `v0.9.0` (see `start.sh`) |
 | Tailscale | `v1.98.10` (`ghcr.io/tailscale/tailscale` base image) |
 | Go | `1.26.5` (Dockerfile ARG) |
-| Node.js (CI) | `24.18.1` (GitHub Actions + Dockerfile ARG) |
+| Node.js (CI) | `24.19.0` (GitHub Actions + Dockerfile ARG) |
