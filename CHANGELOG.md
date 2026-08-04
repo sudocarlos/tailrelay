@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Tailscale** bumped from `v1.98.9` to `v1.98.10` in Dockerfile
-- **Node.js** bumped from `24.18.0` to `24.18.1` in Dockerfile and CI
+- **Node.js** bumped from `24.18.1` to `24.19.0` in Dockerfile and CI
 - **Frontend tooling** — bumped `vite` in `webui/frontend/package.json` from `8.1.5` to `8.2.0`
 
 ## [0.10.0] - 2026-07-27
