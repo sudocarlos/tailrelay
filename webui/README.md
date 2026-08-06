@@ -5,7 +5,8 @@ A lightweight web interface for managing Tailscale and `tailscale serve`/`tailsc
 ## Features
 
 - **Dashboard**: System status overview
-- **Tailscale Management**: Login, status, device list, custom control server (Headscale) support
+- **Tailscale Management**: Login, status, device list, custom control server (Headscale) support, networking preferences (advertise/accept routes, exit-node advertisement, SSH)
+  - *(Note: under tailrelay's userspace-networking mode, routing this node's own traffic through a peer exit node isn't supported; only "Run as exit node" is offered.)*
 - **HTTPS Relay Management**: Add/edit/delete HTTPS relays via `tailscale serve`
 - **TCP Relay Management**: Add/edit/delete TCP relays via `tailscale serve`
 - **Funnel Management**: Expose a service on the public internet on port `443`, `8443`, or `10000` via `tailscale funnel`

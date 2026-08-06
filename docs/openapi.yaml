@@ -510,6 +510,16 @@ paths:
         "400": { $ref: "#/components/responses/TailscaleError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "405": { $ref: "#/components/responses/ServeMethodError" }
+        "409":
+          description: >
+            The request selected a peer as an exit node while tailscaled is
+            running in userspace-networking mode, which cannot redirect this
+            node's own traffic through a peer. Only "Run as exit node" (and
+            clearing the exit node) are permitted in that mode.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/responses/TailscaleError"
         "500": { $ref: "#/components/responses/TailscaleError" }
 
   # ── Serve HTTPS ───────────────────────────────────────────────────────────
@@ -1359,6 +1369,15 @@ components:
           type: string
           description: IP of the currently-selected exit node, or empty if none is in use.
         SSH: { type: boolean }
+        UserspaceNetworking:
+          type: boolean
+          description: >
+            True when tailscaled is running with --tun=userspace-networking
+            (tailrelay's only mode). When true, routing this node's own traffic
+            through a peer exit node is impossible — the UI only offers "Run as
+            exit node" and "None", and the update endpoint rejects a non-empty
+            `exit_node` with 409. Advertised exit-node usage from other peers
+            still works.
 
     NetworkingUpdateRequest:
       type: object
@@ -1377,7 +1396,11 @@ components:
         accept_routes: { type: boolean }
         exit_node:
           type: string
-          description: IP or MagicDNS name of the peer to use as an exit node. Pass `""` to clear.
+          description: >
+            IP or MagicDNS name of the peer to use as an exit node, or `""` to
+            clear. Under userspace-networking mode a non-empty value is rejected
+            with 409 since the node cannot install host routes to redirect its
+            own traffic through a peer.
         ssh: { type: boolean }
 
     ServeRelay:
