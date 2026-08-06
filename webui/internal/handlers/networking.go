@@ -63,6 +63,19 @@ func (h *TailscaleHandler) UpdateNetworking(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
+	// Selecting a peer as an exit node is a silent no-op under
+	// userspace-networking mode (tailrelay's only mode): tailscaled has no
+	// kernel TUN device and cannot install host routes to redirect this
+	// node's own traffic through the chosen peer. Reject it explicitly so
+	// the failure isn't masked as a 200, while still allowing advertise_exit_node
+	// (the working direction) and clearing the exit node ("").
+	if body.ExitNode != nil && strings.TrimSpace(*body.ExitNode) != "" {
+		if h.tsClient.DetectUserspaceNetworking() {
+			writeJSONError(w, "Using a peer as an exit node isn't supported in userspace-networking mode (tailrelay's only mode); only 'Run as exit node' and 'None' are available.", http.StatusConflict)
+			return
+		}
+	}
+
 	opts := tailscale.NetworkingOptions{
 		AdvertiseExitNode:      body.AdvertiseExitNode,
 		ExitNodeAllowLANAccess: body.ExitNodeAllowLANAccess,

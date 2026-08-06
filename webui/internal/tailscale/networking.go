@@ -87,6 +87,11 @@ type NetworkingSummary struct {
 	AcceptRoutes           bool
 	ExitNode               string
 	SSH                    bool
+	// UserspaceNetworking reports whether tailscaled is running with
+	// --tun=userspace-networking. When true, routing this node's own traffic
+	// through a peer exit node is impossible (no kernel TUN / host routes),
+	// so the UI only offers "Run as exit node" and "None".
+	UserspaceNetworking bool
 }
 
 // GetNetworkingSummary returns the current networking preferences in a form
@@ -96,7 +101,9 @@ func (c *Client) GetNetworkingSummary() (*NetworkingSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	return summarizeNetworking(prefs), nil
+	summary := summarizeNetworking(prefs)
+	summary.UserspaceNetworking = c.DetectUserspaceNetworking()
+	return summary, nil
 }
 
 // summarizeNetworking derives a NetworkingSummary from raw Prefs.

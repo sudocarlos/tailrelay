@@ -114,6 +114,9 @@ type CurrentTailnet struct {
 // Client is a wrapper for the tailscale CLI
 type Client struct {
 	binaryPath string
+	// detectUserspace, when non-nil, overrides userspace-networking mode
+	// detection (see userspace.go). Intended for tests; nil in production.
+	detectUserspace func() bool
 }
 
 // NewClient creates a new Tailscale client
