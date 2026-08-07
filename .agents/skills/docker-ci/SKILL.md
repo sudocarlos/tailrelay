@@ -1,7 +1,6 @@
 ---
 name: docker-ci-pipeline
 description: Docker image building, Compose development environments, CI/CD pipeline, and testing infrastructure. Use when working with Dockerfiles, docker-compose, GitHub Actions CI, Make targets, integration tests, or deployment workflows.
-reviewed_at: 39911f4
 ---
 
 # Docker & CI Pipeline
@@ -90,7 +89,7 @@ Copy `.env.example` to `.env` and edit before running tests.
 
 ### Jobs
 
-1. **frontend** — `npm install` + `npm run build` in `webui/frontend/` (Node.js 24.18.0 in CI)
+1. **frontend** — `npm install` + `npm run build` in `webui/frontend/` (Node.js 24.19.0 in CI)
 2. **backend** — installs Node.js, runs `npm install` + `npm run build` (required for `//go:embed all:web/dist`), then `go vet`, `go test -v`, `go build` in `webui/` (Go 1.24 in CI)
 3. **integration** — Full Docker build + `pytest tests/integration/ -v`
 4. **release** — Runs only on `v*.*.*` tag pushes, after all three above pass; extracts changelog notes, logs in to Docker Hub + GHCR, builds multi-platform image (`linux/amd64`, `linux/arm64`) and pushes `vX.Y.Z` + `latest` tags to both registries, and creates a GitHub Release
@@ -173,7 +172,6 @@ When updating a pinned version in the Dockerfile, touch every location in the ta
 2. Update the **Version Information** table at the bottom of this file.
 3. Update the **Pinned Versions** block in `.agents/skills/security-review/SKILL.md`.
 4. Add a `### Changed` bullet to the `[Unreleased]` section in `CHANGELOG.md`.
-5. Advance `reviewed_at` in this file to the new HEAD SHA after committing.
 
 ### Example CHANGELOG entry
 
@@ -189,7 +187,7 @@ When updating a pinned version in the Dockerfile, touch every location in the ta
 
 | Component | Version |
 |-----------|---------|
-| Container | `v0.9.0` (see `start.sh`) |
+| Container | `v0.10.0` (see `start.sh`) |
 | Tailscale | `v1.102.2` (`ghcr.io/tailscale/tailscale` base image) |
 | Go | `1.26.5` (Dockerfile ARG) |
 | Node.js (CI) | `24.19.0` (GitHub Actions + Dockerfile ARG) |

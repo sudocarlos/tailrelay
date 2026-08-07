@@ -26,27 +26,22 @@ docker compose -f compose-test.yml up -d
 sleep 5
 ```
 
-5. Run the Bash integration test suite:
+5. Run the Python integration test suite (the canonical integration entrypoint):
+```bash
+pytest tests/integration/ -v
+```
+
+6. (Optional) Run the Bash integration smoke tests:
 ```bash
 ./docker-compose-test.sh
 ```
 
-6. (Optional) Run the Python integration test suite:
-```bash
-python docker-compose-test.py
-```
-
-7. (Optional) Run API endpoint tests:
-```bash
-./test_proxy_api.sh
-```
-
-8. View container logs for any errors:
+7. View container logs for any errors:
 ```bash
 docker compose -f compose-test.yml logs --tail=50 tailrelay-test
 ```
 
-9. Cleanup test environment:
+8. Cleanup test environment:
 ```bash
 docker compose -f compose-test.yml down
 ```

@@ -1,7 +1,6 @@
 ---
 name: security-review
 description: Security and privacy review for tailrelay — dependency CVE scanning, Go module auditing, auth review, and code-level vulnerability checks. Use when reviewing code for security issues, auditing Dockerfile dependencies, checking for secrets/injection risks, or assessing privacy of logged/persisted data.
-reviewed_at: 39911f4
 ---
 
 # Security & Privacy Review

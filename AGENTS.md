@@ -111,25 +111,6 @@ curl -sSL http://localhost:8021                   # Web UI
 └── .github/workflows/      # CI pipeline + docs.yml (GitHub Pages deploy)
 ```
 
-## Documentation Review Status
-
-> When updating a doc, check what changed since its `reviewed_at` commit:
-> `git log --oneline <reviewed_at>..HEAD -- <paths>`
-> Update `reviewed_at` to the current HEAD commit after completing a full review.
-
-| Document | `reviewed_at` | Paths Covered |
-|----------|---------------|---------------|
-| `AGENTS.md` | `HEAD` | `AGENTS.md`, `Makefile`, `start.sh` |
-| `.agents/skills/serve/SKILL.md` | `0fe9352` | `webui/internal/serve/`, `webui/internal/handlers/serve.go` |
-| `.agents/skills/webui/SKILL.md` | `f2c24a0` | `webui/`, `Makefile` |
-| `.agents/skills/docker-ci/SKILL.md` | `67b91e7` | `Dockerfile`, `.github/workflows/`, `compose-test.yml`, `Makefile` |
-| `.agents/skills/tailscale/SKILL.md` | `0a98087` | `webui/internal/tailscale/`, `start.sh` |
-| `webui/README.md` | `f2c24a0` | `webui/` |
-| `README.md` | `f2c24a0` | `README.md`, `webui/internal/web/server.go`, `docs/openapi.yaml` |
-| `.agents/skills/security-review/SKILL.md` | `f2c24a0` | `webui/internal/auth/`, `webui/internal/handlers/`, `webui/internal/backup/`, `Dockerfile`, `start.sh` |
-| `.agents/skills/testing-cicd/SKILL.md` | `f2c24a0` | `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml` |
-| `.agents/skills/documentation/SKILL.md` | `f2c24a0` | `README.md`, `CHANGELOG.md`, `webui/README.md`, `AGENTS.md`, `.agents/skills/`, `docs/openapi.yaml`, `website/`, `docs/screenshots/` |
-
 ## Making Changes
 
 1. Update version in `start.sh` (and release notes as needed)

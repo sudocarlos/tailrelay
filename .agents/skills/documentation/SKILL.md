@@ -1,7 +1,6 @@
 ---
 name: documentation
-description: Updating all tailrelay documentation — README, CHANGELOG, release notes, AGENTS.md, SKILL.md files, webui/README.md, UI screenshots, and the Docusaurus docs site. Use when adding user-facing features, releasing a new version, updating component versions, or when any doc's reviewed_at SHA is out of date with HEAD.
-reviewed_at: f2c24a0
+description: Updating all tailrelay documentation — README, CHANGELOG, release notes, AGENTS.md, SKILL.md files, webui/README.md, UI screenshots, and the Docusaurus docs site. Use when adding user-facing features, releasing a new version, updating component versions, or keeping the docs in sync with the codebase.
 ---
 
 # Documentation
@@ -260,23 +259,6 @@ Note: the correct path is `.agents/workflows/` (with an `s`).
 
 **Quick Reference Commands** — update when Make targets, test commands, or health check endpoints change.
 
-**Documentation Review Status table** — must be updated after any full document review:
-```markdown
-| Document | `reviewed_at` | Paths Covered |
-|----------|---------------|---------------|
-| `AGENTS.md` | `<new-sha>` | `AGENTS.md`, `Makefile`, `start.sh` |
-```
-
-How to find what changed since last review:
-```bash
-git log --oneline <reviewed_at>..HEAD -- <covered-paths>
-```
-
-Update `reviewed_at` to current HEAD SHA after completing a review:
-```bash
-git rev-parse --short HEAD
-```
-
 ---
 
 ## 5. SKILL.md Files
@@ -287,7 +269,6 @@ Each skill file has a YAML front matter block:
 ---
 name: skill-name
 description: One-sentence description used by the skill loader to decide when to activate this skill.
-reviewed_at: <git-sha>
 ---
 ```
 
@@ -296,17 +277,7 @@ reviewed_at: <git-sha>
 - A component's API, file structure, or behaviour changed
 - New commands or Make targets were added relevant to the skill
 - A Common Pitfall was discovered
-- The skill's `reviewed_at` SHA is behind HEAD for covered paths
-
-### Checking if a Skill Needs Updating
-
-```bash
-# Check which covered files changed since the skill was last reviewed
-git log --oneline <reviewed_at>..HEAD -- <covered-paths>
-
-# Example for webui skill (reviewed_at=17791f3, covers webui/)
-git log --oneline 17791f3..HEAD -- webui/ Makefile
-```
+- A covered path changed since the skill was last touched (check with `git log --oneline <prev-touch-commit>..HEAD -- <covered-paths>`, where `<prev-touch-commit>` is the commit that last edited the skill — not a tracked `reviewed_at` SHA)
 
 ### Skill File Locations
 
@@ -316,7 +287,6 @@ git log --oneline 17791f3..HEAD -- webui/ Makefile
 | `webui-development` | `.agents/skills/webui/SKILL.md` | `webui/`, `Makefile` |
 | `docker-ci-pipeline` | `.agents/skills/docker-ci/SKILL.md` | `Dockerfile`, `.github/workflows/`, `compose-test.yml` |
 | `tailscale-management` | `.agents/skills/tailscale/SKILL.md` | `webui/internal/tailscale/`, `start.sh` |
-| `git-workflow` | `.agents/skills/git-workflow/SKILL.md` | Commit conventions, branch naming |
 | `security-review` | `.agents/skills/security-review/SKILL.md` | All security-relevant code paths |
 | `testing-cicd` | `.agents/skills/testing-cicd/SKILL.md` | `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml` |
 | `documentation` | `.agents/skills/documentation/SKILL.md` | All docs listed in this file |
@@ -349,23 +319,21 @@ head -10 CHANGELOG.md
 
 A full documentation review covers **every** document and **every** skill file. Run through all steps below in order.
 
-### Step 1 — Get current HEAD SHA
+### Step 1 — Find what changed since the docs were last touched
+
+For each document and skill, find the commit that last edited it, then see
+what changed in its covered paths since then:
 
 ```bash
-git rev-parse --short HEAD   # this becomes the new reviewed_at for everything you review
+# What changed in a covered path since a given commit
+git log --oneline <commit>..HEAD -- <covered-paths>
 ```
 
-### Step 2 — Check staleness for every tracked document
+Don't track a `reviewed_at` SHA per document — squash-merging makes those
+short SHAs meaningless against `main`. When you need a baseline, use the
+commit that last touched the doc/skill itself (`git log -1 --format=%H -- <path>`).
 
-For each row in the AGENTS.md Documentation Review Status table, run:
-
-```bash
-git log --oneline <reviewed_at>..HEAD -- <covered-paths>
-```
-
-If the output is non-empty the document is stale and must be updated.
-
-### Step 3 — Review and update all user-facing docs
+### Step 2 — Review and update all user-facing docs
 
 | Document | What to check |
 |----------|--------------|
@@ -376,9 +344,10 @@ If the output is non-empty the document is stale and must be updated.
 | `webui/README.md` | API endpoint list, config settings, build commands |
 | `AGENTS.md` | Skills table, File Map, env vars, Quick Reference commands |
 
-For each stale document: read the diff (`git diff <reviewed_at>..HEAD -- <path>`), update the affected sections, then mark it reviewed.
+For each stale document: read the diff (`git diff <commit>..HEAD -- <path>`)
+and update the affected sections.
 
-### Step 4 — Review and update ALL skill files
+### Step 3 — Review and update ALL skill files
 
 A full review must inspect every skill file, not just the ones whose covered paths changed. For each skill, read the file and verify its content reflects the current codebase.
 
@@ -408,25 +377,18 @@ Work through every skill in this order:
    - Covers: `tests/`, `webui/internal/*/\*_test.go`, `.github/workflows/ci.yml`
    - Check: test package list, CI job names, integration test structure
 
-7. **`git-workflow`** — `.agents/skills/git-workflow/SKILL.md`
-   - Covers: commit conventions, branch naming
-   - Check: commit types, branch format, PR template
-
-8. **`documentation`** — `.agents/skills/documentation/SKILL.md` (this file)
+7. **`documentation`** — `.agents/skills/documentation/SKILL.md` (this file)
    - Covers: all docs
    - Check: skill file table completeness, review workflow accuracy
 
-For each skill:
-- If covered paths changed: read the diff and update affected sections
-- In all cases: update `reviewed_at` in the front matter to the current HEAD SHA
+For each skill: if its covered paths changed since it was last edited, read
+the diff and update the affected sections. Commit conventions and PR/branch
+guidance live in the global `conventional-commits` and `plan-workflow`
+skills, not in a project-local skill.
 
-### Step 5 — Update AGENTS.md Documentation Review Status table
-
-Advance every `reviewed_at` cell you touched to the current HEAD SHA.
-
-### Step 6 — Commit
+### Step 4 — Commit
 
 ```bash
 git add README.md CHANGELOG.md webui/README.md AGENTS.md .agents/skills/
-git commit -m "docs: update documentation for review at <new-sha>"
+git commit -m "docs: review and sync documentation with the codebase"
 ```

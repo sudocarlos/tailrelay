@@ -1,7 +1,6 @@
 ---
 name: tailscale-management
 description: Tailscale VPN daemon management, CLI integration, authentication, and networking for the tailrelay container. Use when working with Tailscale configuration, login flows, device authentication, MagicDNS, HTTPS certificates, or network connectivity issues.
-reviewed_at: 0a98087
 ---
 
 # Tailscale Management
@@ -95,20 +94,27 @@ Server field on the Tailscale page's connection status card.
 - `tailscale.ValidateControlServerURL()` requires an `http`/`https` scheme
   and non-empty host; an empty string is always valid and means "use
   Tailscale's default control plane".
-- `Client.Login(controlServer string)`: when `controlServer` is empty, this
-  behaves as before (LocalAPI `login-interactive`). When set, `--login-server`
-  isn't accepted by the LocalAPI endpoint or by `tailscale set` — only by the
-  `login`/`up` CLI subcommands — so it instead runs
-  `tailscale login --login-server=<url>` via the CLI in the background, then
-  polls `/localapi/v0/status` for `AuthURL` exactly like the LocalAPI path.
-- `Client.LoginWithAuthKey(key, controlServer string)`: appends
-  `--login-server=<url>` to the existing `tailscale up --authkey=<key>` call.
-- `Client.UpWithHostname(hostname, controlServer string)`: runs `tailscale up
-  --hostname=<name> --reset`. `--reset` resets any *unspecified* flag
-  (including `ControlURL`) to Tailscale's default control plane, so
-  `--login-server=<url>` is appended whenever `controlServer` is set —
-  otherwise every hostname change would silently detach the node from its
-  Headscale server.
+- `Client.Login(controlServer, hostname string)`: when both arguments are
+  empty, it triggers LocalAPI `POST /localapi/v0/login-interactive` (which
+  reuses the node's existing prefs). When either is set, `--login-server`
+  and/or `--hostname` aren't accepted by the LocalAPI endpoint or by
+  `tailscale set` — only by the `login`/`up` CLI subcommands — so it instead
+  runs `tailscale login [--login-server=<url>] [--hostname=<name>]` via the
+  CLI in the background (the CLI blocks until auth completes, so it's started
+  non-blockingly), then polls `/localapi/v0/status` for `AuthURL` (up to 10 s)
+  exactly like the LocalAPI path. `hostname` reapplies the last name set via
+  `ChangeHostname` so a `Logout` + re-auth doesn't silently fall back to
+  tailscaled's OS default hostname.
+- `Client.LoginWithAuthKey(key, controlServer, hostname string)`: runs
+  `tailscale up --authkey=<key> [--login-server=<url>] [--hostname=<name>]`,
+  appending `--login-server`/`--hostname` only when set. (The current canonical
+  flag in the CLI docs is `--auth-key`; tailscale still accepts the older
+  `--authkey` spelling that the code uses.)
+- `Client.UpWithHostname(hostname string)`: runs `tailscale set
+  --hostname=<name>` — **not** `tailscale up`. `set` only changes the flag
+  passed and leaves every other preference (including `ControlURL` and the
+  active control server) untouched, so it never detaches the node from its
+  Headscale server. See "Machine Name" below.
 - `handlers.TailscaleHandler.Login`/`LoginWithKey`/`ChangeHostname` read the
   persisted control server (guarded by a `sync.Mutex` on the handler, since
   `*config.Config` has no locking of its own) and pass it through
@@ -218,6 +224,23 @@ Tailscale provides automatic TLS certificates for `*.ts.net` domains via `tailsc
 - Must be enabled in [Tailscale Admin Console](https://login.tailscale.com/admin/dns) → HTTPS Certificates
 - MagicDNS must be enabled (default for tailnets created after Oct 2022)
 - Used by `tailscale serve` for HTTPS relay termination
+
+## CLI Reference
+
+The canonical Tailscale CLI docs (vendored at
+`/Users/geru/projects/tailscale-startos/tailscale-docs/pages/`) are the source
+of truth for command flags and behaviour. Consult them before changing any
+CLI invocation:
+
+| Command | Doc file | Notes |
+|---------|---------|-------|
+| `tailscale serve` | `docs-reference-tailscale-cli-serve.md` | `--https`/`--http`/`--tcp`/`--tls-terminated-tcp`, `--bg`, `reset`, `status --json` |
+| `tailscale funnel` | `docs-reference-tailscale-cli-funnel.md` | Ports limited to `443`/`8443`/`10000`; requires the `funnel` node attribute in the tailnet policy file |
+| `tailscale up` | `docs-reference-tailscale-cli-up.md` | Re-specify all flags each run; `--reset` clears unspecified flags; `--auth-key` (canonical) / `--authkey` (legacy alias) |
+| `tailscale login` | `docs-reference-tailscale-cli.md#login` | `--login-server=<url>` for Headscale; `--hostname=<name>` |
+| `tailscale set` | `docs-reference-tailscale-cli.md#set` | Only changes explicitly passed flags — no `--reset`, no defaults |
+| `tailscale cert` | `docs-reference-tailscale-cli.md#cert` | `--cert-file`/`--key-file`; 90-day Let's Encrypt expiry, manual renewal when written to disk |
+| `tailscale status` | `docs-reference-tailscale-cli.md#status` | `--json` for machine-readable peer/user list |
 
 ## Troubleshooting
 

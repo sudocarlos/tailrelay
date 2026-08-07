@@ -1,7 +1,6 @@
 ---
 name: serve-relay-management
 description: tailscale serve and funnel relay management — HTTPS, TCP, and Funnel relay types, serve_relays.json format, reconciliation flow, API endpoints, migration from legacy caddy/socat configs, ErrTailscaleNotReady and ErrFunnelNotAllowed handling. Use when working with internal/serve/, handlers/serve.go, or /api/serve/* endpoints.
-reviewed_at: 0fe9352
 ---
 
 # Serve Relay Management
