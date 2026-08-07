@@ -1,7 +1,7 @@
 ---
 name: security-review
 description: Security and privacy review for tailrelay — dependency CVE scanning, Go module auditing, auth review, and code-level vulnerability checks. Use when reviewing code for security issues, auditing Dockerfile dependencies, checking for secrets/injection risks, or assessing privacy of logged/persisted data.
-reviewed_at: f2c24a0
+reviewed_at: 39911f4
 ---
 
 # Security & Privacy Review
@@ -34,7 +34,7 @@ tailrelay combines two networked services (Tailscale and a Go Web UI) inside a s
 All versions are pinned as `ARG` values at the top of `Dockerfile`:
 
 ```
-ARG TAILSCALE_VERSION=v1.98.10
+ARG TAILSCALE_VERSION=v1.102.2
 ARG GO_VERSION=1.26.5
 ARG NODE_VERSION=24.19.0
 ARG ALPINE_VERSION=3.22
