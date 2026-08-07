@@ -1,5 +1,5 @@
 <script>
-  import { onDestroy } from 'svelte';
+  import { tick, onDestroy } from 'svelte';
   import { portal } from '../actions/portal.js';
   import CopyButton from './CopyButton.svelte';
 
@@ -46,12 +46,16 @@
     return `position:fixed; top:${top}px; left:${left}px; z-index:9999;`;
   }
 
-  function show() {
+  async function show() {
     const r = triggerEl.getBoundingClientRect();
     // Start invisible; positioning is computed after mount to measure the
     // portaled menu, which has escaped any table overflow clipping.
     style = `position:fixed; top:${r.bottom + GAP}px; left:${r.left}px; z-index:9999; opacity:0; pointer-events:none;`;
     open = true;
+
+    await tick();
+    if (!menuEl) return;
+    style = computePosition(r, menuEl.getBoundingClientRect());
   }
 
   function hide() {
