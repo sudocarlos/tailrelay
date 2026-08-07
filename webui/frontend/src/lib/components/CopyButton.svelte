@@ -11,7 +11,7 @@
   onDestroy(() => clearTimeout(timer));
 
   async function handleCopy(e) {
-    e.stopPropagation();
+    e.stopImmediatePropagation();
     if (copied) return;
 
     try {
