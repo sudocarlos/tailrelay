@@ -4,7 +4,7 @@
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
   import { Wifi, WifiOff, LogIn, LogOut, RefreshCw, Server, AlertTriangle, ExternalLink, Check, Users } from '@lucide/svelte';
-  import CopyButton from './CopyButton.svelte';
+  import AddressMenu from './AddressMenu.svelte';
   import NetworkingSection from './NetworkingSection.svelte';
 
   // ── Local state ───────────────────────────────────────────────────
@@ -291,18 +291,7 @@
   onDestroy(() => {
     stopLoginPoll();
   });
-
-  function handleWindowClick(e) {
-    const clickedDetails = e.target.closest('details.address-dropdown');
-    document.querySelectorAll('details.address-dropdown').forEach(d => {
-      if (d !== clickedDetails) {
-        d.removeAttribute('open');
-      }
-    });
-  }
 </script>
-
-<svelte:window onclick={handleWindowClick} />
 
 <div class="space-y-6">
   <!-- Page header -->
@@ -704,28 +693,7 @@
                 
                 <!-- ADDRESSES -->
                 <td class="py-3 pr-4 align-top font-mono text-gray-700 dark:text-gray-300">
-                  <details class="relative group cursor-pointer address-dropdown">
-                    <summary class="list-none outline-none flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
-                      {peer.IPv4 || peer.IPv6 || '—'}
-                      <svg class="w-3 h-3 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    </summary>
-                    <div class="absolute left-0 mt-1 w-max min-w-[200px] z-10 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1 hidden group-open:block">
-                      {#if peer.DNSName}
-                        <div class="flex items-center justify-between px-3 py-2 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors">
-                          <span class="truncate">{peer.DNSName}</span>
-                          <CopyButton text={peer.DNSName} size={14} label="Copy DNS name" class="ml-4" />
-                        </div>
-                      {/if}
-                      {#if peer.TailscaleIPs && peer.TailscaleIPs.length > 0}
-                        {#each peer.TailscaleIPs as ip}
-                          <div class="flex items-center justify-between px-3 py-2 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors border-t border-gray-100 dark:border-gray-700/50">
-                            <span>{ip}</span>
-                            <CopyButton text={ip} size={14} label="Copy IP address" class="ml-4" />
-                          </div>
-                        {/each}
-                      {/if}
-                    </div>
-                  </details>
+                  <AddressMenu {peer} />
                 </td>
                 
                 <!-- VERSION -->
