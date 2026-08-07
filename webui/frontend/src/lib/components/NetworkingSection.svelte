@@ -33,6 +33,11 @@
 
   const exitNodePeers = $derived(peers.filter((p) => p.ExitNode));
 
+  // Under Tailscale's userspace-networking mode (tailrelay's only mode) this
+  // node has no kernel TUN device and cannot route its own traffic through a
+  // peer exit node, so the dropdown only offers "None" and "Run as exit node".
+  const userspaceNetworking = $derived(!!networking?.UserspaceNetworking);
+
   // The dropdown's current value: the advertise-self sentinel, a peer IP, or
   // '' for None. AdvertiseExitNode and ExitNode are mutually exclusive in
   // this UI — selecting one clears the other (see handleExitNodeChange).
@@ -245,14 +250,20 @@
       >
         <option value="">None</option>
         <option value={ADVERTISE_SELF_VALUE}>Run as exit node</option>
-        <hr />
-        {#each exitNodePeers as peer}
-          <option value={peer.IPv4 || peer.IPv6}>{peerLabel(peer)}</option>
-        {/each}
+        {#if !userspaceNetworking}
+          <hr />
+          {#each exitNodePeers as peer}
+            <option value={peer.IPv4 || peer.IPv6}>{peerLabel(peer)}</option>
+          {/each}
+        {/if}
       </select>
       <p class="text-xs text-gray-500 dark:text-gray-400">
-        Running as an exit node must be approved in the admin console before other devices can use it.
-        Selecting a peer routes your internet traffic through it instead.
+        {#if userspaceNetworking}
+          This container runs Tailscale in userspace-networking mode, so routing its own internet traffic through a peer exit node isn't supported. "Run as exit node" (serving inbound tailnet traffic) still works.
+        {:else}
+          Running as an exit node must be approved in the admin console before other devices can use it.
+          Selecting a peer routes your internet traffic through it instead.
+        {/if}
       </p>
 
       {#if usingPeerExitNode}

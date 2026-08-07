@@ -120,3 +120,59 @@ func TestUpdateNetworking_ReportsCLIFailure(t *testing.T) {
 		t.Fatalf("expected 500 when the CLI invocation fails, got %d (body: %s)", rr.Code, rr.Body.String())
 	}
 }
+
+// TestUpdateNetworking_RejectsPeerExitNodeUnderUserspaceNetworking verifies that
+// selecting a peer as an exit node is rejected with 409 under
+// userspace-networking mode, rather than silently succeeding as a no-op.
+func TestUpdateNetworking_RejectsPeerExitNodeUnderUserspaceNetworking(t *testing.T) {
+	h, logFile := newNetworkingTestHandler(t, 0)
+	h.tsClient.SetUserspaceNetworkingDetectorForTest(func() bool { return true })
+
+	rr := postJSON(t, h.UpdateNetworking, "/api/tailscale/networking/update", map[string]interface{}{
+		"exit_node": "100.64.0.5",
+	})
+
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("expected 409 for peer exit node under userspace networking, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	if log := readLog(t, logFile); log != "" {
+		t.Fatalf("expected `tailscale set` to never run for an unsupported exit-node selection, but got: %q", log)
+	}
+}
+
+// TestUpdateNetworking_AllowsClearingExitNodeUnderUserspaceNetworking verifies
+// that clearing the exit node ("") and advertising as one remain allowed even
+// under userspace-networking mode, since neither requires host routes.
+func TestUpdateNetworking_AllowsExitNodeOperationsUnderUserspaceNetworking(t *testing.T) {
+	cases := []struct {
+		name string
+		body map[string]interface{}
+		want string // substring expected in the tailscale set argv
+	}{
+		{
+			name: "clear exit node",
+			body: map[string]interface{}{"exit_node": ""},
+			want: "--exit-node=",
+		},
+			{
+			name: "run as exit node",
+			body: map[string]interface{}{"advertise_exit_node": true, "exit_node": ""},
+			want: "--advertise-exit-node=true",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			h, logFile := newNetworkingTestHandler(t, 0)
+			h.tsClient.SetUserspaceNetworkingDetectorForTest(func() bool { return true })
+
+			rr := postJSON(t, h.UpdateNetworking, "/api/tailscale/networking/update", tt.body)
+			if rr.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d (body: %s)", rr.Code, rr.Body.String())
+			}
+			if log := readLog(t, logFile); !strings.Contains(log, tt.want) {
+				t.Fatalf("expected tailscale set argv to contain %q, got: %q", tt.want, log)
+			}
+		})
+	}
+}

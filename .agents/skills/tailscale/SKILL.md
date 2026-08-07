@@ -1,7 +1,7 @@
 ---
 name: tailscale-management
 description: Tailscale VPN daemon management, CLI integration, authentication, and networking for the tailrelay container. Use when working with Tailscale configuration, login flows, device authentication, MagicDNS, HTTPS certificates, or network connectivity issues.
-reviewed_at: 0fe9352
+reviewed_at: 0a98087
 ---
 
 # Tailscale Management
@@ -23,6 +23,7 @@ webui/internal/tailscale/
   ├── client.go      # CLI wrapper (tailscale status, tailscale up, etc.)
   ├── status.go      # Status parsing structs
   ├── networking.go  # Prefs/NetworkingSummary — networking preferences via `tailscale set`
+  └── userspace.go    # userspace-networking mode detection (gates exit-node UI)
   └── cache.go       # StatusCache — background poller (15s interval)
 ```
 
@@ -168,6 +169,38 @@ preferences (like the hostname set elsewhere via `UpWithHostname`).
   via `net/netip.ParsePrefix`, rejecting host-bit-set CIDRs and rejecting
   `0.0.0.0/0`/`::/0` directly (those must go through `advertise_exit_node`
   instead, keeping a single source of truth per UI control).
+
+### Exit-Node Selection vs. Userspace Networking (`userspace.go`)
+
+tailrelay always starts tailscaled with `--tun=userspace-networking` (see
+Daemon Startup), which means there is **no kernel TUN device and no ability
+to install host routes**. This makes the two halves of the exit-node feature
+asymmetric:
+
+- **Run as exit node** (advertise this device) *works*: other nodes route
+  traffic *into* this container over WireGuard, and tailscaled dials out on
+  their behalf via the userspace netstack — no host routes required.
+- **Use a peer as an exit node** does *not* work: redirecting this node's own
+  outbound traffic into the tunnel needs a default route on the host, which
+  userspace networking cannot install. `tailscale set --exit-node=<peer>` is
+  accepted silently (returns success, stores `ExitNodeIP`) but is a no-op
+  for host traffic, so the Web UI must not present it as a working choice.
+
+`Client.DetectUserspaceNetworking()` (in `userspace.go`) reports the
+daemon's mode by scanning `/proc/<pid>/cmdline` for `--tun=userspace-networking`
+(`cmdlineHasUserspaceNetworking` is the pure parser, unit-tested apart from
+`/proc`). It is test-injectable via `Client.SetUserspaceNetworkingDetectorForTest`.
+`GetNetworkingSummary()` populates `NetworkingSummary.UserspaceNetworking`
+from it, and `UpdateNetworking` rejects a non-empty `exit_node` with **HTTP
+409** ("not supported in userspace-networking mode") rather than the
+formerly-deceptive 200. The frontend (`NetworkingSection.svelte`) hides the
+per-peer dropdown options and the `<hr/>` above them whenever
+`UserspaceNetworking` is set, leaving only **None** and **Run as exit node**,
+and swaps the helper text to explain why.
+
+If tailrelay is ever run with a real TUN device (`--tun=ts0` or similar, which
+needs `NET_ADMIN` + `/dev/net/tun`), detection returns false and the full
+peer-exit-node dropdown reappears and functions normally.
 
 See the serve skill (`.agents/skills/serve/SKILL.md`) for `tailscale serve`/
 `funnel` relay management, which is a distinct concern from these node-level
