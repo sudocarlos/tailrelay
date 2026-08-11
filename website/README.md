@@ -32,3 +32,13 @@ Generates static content into the `build/` directory.
 Deployment to GitHub Pages is automated by
 `.github/workflows/docs.yml` on every push to `main` that touches
 `website/**` or `docs/openapi.yaml`. There is no manual deploy step.
+
+## Known deferred vulnerabilities
+
+`image-size` (a transitive dep of `@docusaurus/mdx-loader`) has open
+DoS advisories (GitHub alerts #64 and #65) with no upstream fix as of
+2.0.2, the latest release. It runs **build-time only** to parse
+maintainer-curated screenshots committed to the repo, so there is no
+production or untrusted-input exposure. The alerts are dismissed as
+"no fix available / tolerable risk"; bump `image-size` to a patched
+release (>2.0.2) once upstream ships one.
