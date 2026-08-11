@@ -154,6 +154,7 @@
     bind:this={menuEl}
     {style}
     role="menu"
+    tabindex="-1"
     use:portal
     onkeydown={() => {}}
     onmouseenter={cancelLeave}
