@@ -22,8 +22,12 @@
   let triggerEl = $state(null);
   let menuEl = $state(null);
   let style = $state('');
+  let leaveTimer = null;
 
   const GAP = 4;
+  // Grace period before closing on mouseleave so the pointer can cross the
+  // gap between the trigger and the portaled menu without dismissing it.
+  const LEAVE_DELAY = 120;
 
   function clamp(val, min, max) {
     return Math.max(min, Math.min(max, val));
@@ -58,7 +62,23 @@
     style = computePosition(r, menuEl.getBoundingClientRect());
   }
 
+  function cancelLeave() {
+    if (leaveTimer !== null) {
+      clearTimeout(leaveTimer);
+      leaveTimer = null;
+    }
+  }
+
+  function scheduleLeave() {
+    cancelLeave();
+    leaveTimer = setTimeout(() => {
+      leaveTimer = null;
+      hide();
+    }, LEAVE_DELAY);
+  }
+
   function hide() {
+    cancelLeave();
     open = false;
   }
 
@@ -108,6 +128,7 @@
   });
 
   onDestroy(() => {
+    cancelLeave();
     window.removeEventListener('scroll', reposition, true);
     window.removeEventListener('resize', reposition);
   });
@@ -120,6 +141,8 @@
   aria-expanded={open}
   class="inline-flex items-center gap-1 outline-none hover:text-gray-900 dark:hover:text-gray-100 cursor-pointer"
   onclick={toggle}
+  onmouseenter={cancelLeave}
+  onmouseleave={scheduleLeave}
 >
   {peer.IPv4 || peer.IPv6 || '—'}
   <svg class="w-3 h-3 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -133,6 +156,8 @@
     role="menu"
     use:portal
     onkeydown={() => {}}
+    onmouseenter={cancelLeave}
+    onmouseleave={scheduleLeave}
     class="w-max min-w-[200px] rounded-md shadow-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1"
   >
     {#if peer.DNSName}
