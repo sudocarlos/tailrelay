@@ -7,12 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-08-11
+
+### Fixed
+- **Peer exit-node selection under userspace networking** (#93) — tailrelay runs tailscaled with `--tun=userspace-networking`, which has no kernel TUN device and cannot install host routes. `tailscale set --exit-node=<peer>` previously stored `ExitNodeIP` but silently redirected nothing. The networking API now rejects a non-empty `exit_node` in `UpdateNetworking` with HTTP 409 (clearing it and `advertise_exit_node` stay allowed), and the dashboard dropdown hides peer exit-node options under userspace networking, rendering only "None" and "Run as exit node". A new `userspace_networking` flag is surfaced in `GetNetworkingSummary` and `docs/openapi.yaml`.
+- **Address dropdown dismissal in macOS Safari** (#99) — replaced the native `<details>` address popover with a state-driven `AddressMenu.svelte` using the shared portal pattern (document-level outside-click + `Escape` listeners that run only while open). The portaled menu is fixed-positioned beneath the trigger, measured after mount to escape table-overflow clipping, and repositioned on scroll/resize. `CopyButton` uses `stopImmediatePropagation` so copying keeps the menu open with the inline "Copied" feedback visible, and mouse-out dismissal bridges the trigger/menu gap with a shared 120ms leave timer.
+- **AddressMenu a11y warning** — the portaled `<div role="menu">` carries a no-op `onkeydown`; Svelte flagged `a11y_interactive_supports_focus`. Added `tabindex="-1"` so the menu is focusable programmatically while staying out of tab order.
+
 ### Changed
-- **Frontend tooling** — bumped `vite` in `webui/frontend/package.json` from `8.2.0` to `8.2.1`
-- **Tailscale** bumped from `v1.98.10` to `v1.102.2` in Dockerfile
-- **Tailscale** bumped from `v1.98.9` to `v1.98.10` in Dockerfile
-- **Node.js** bumped from `24.18.1` to `24.19.0` in Dockerfile and CI
-- **Frontend tooling** — bumped `vite` in `webui/frontend/package.json` from `8.1.5` to `8.2.0`
+- **Tailscale** bumped from `v1.98.9` to `v1.102.2` in Dockerfile (via `v1.98.10`)
+- **Node.js** bumped from `24.18.0` to `24.19.0` in Dockerfile and CI (via `24.18.1`)
+- **Frontend tooling** — bumped `vite` in `webui/frontend/package.json` from `8.1.5` to `8.2.1` (via `8.2.0`)
+- **Frontend deps** — bumped `undici` from `7.28.0` to `7.29.0` in `/webui/frontend` (#90)
+- **Website deps** — bumped `fast-uri` from `3.1.4` to `3.1.5` in `/website` (#91)
+
+### Security
+- **Website dependency overrides** (#101) — bumped `js-yaml` `4.3.0 -> 4.3.1` (alert #63) and `brace-expansion` `5.0.8 -> 5.0.9` (alert #56) overrides in `website/package.json`; dismissed image-size alerts #64/#65 (no upstream fix, build-time-only).
+
+### Docker
+```
+docker pull sudocarlos/tailrelay:v0.10.1
+docker pull ghcr.io/sudocarlos/tailrelay:v0.10.1
+```
 
 ## [0.10.0] - 2026-07-27
 
