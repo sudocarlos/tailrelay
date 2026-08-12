@@ -1,6 +1,7 @@
 package serve
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -66,6 +67,108 @@ func TestManagerUpsertAndReconcile(t *testing.T) {
 	}
 	if !strings.Contains(out, "serve --bg --https 10002 http://whoami-test:80") {
 		t.Fatalf("expected https serve command, got logs:\n%s", out)
+	}
+}
+
+// --- Icon URL ---
+
+func TestManagerUpsertRelay_RoundTripsIconURL(t *testing.T) {
+	dir := t.TempDir()
+	relayFile := filepath.Join(dir, "serve_relays.json")
+	script := "#!/bin/sh\nexit 0\n"
+	tailscaleScript := filepath.Join(dir, "tailscale")
+	if err := os.WriteFile(tailscaleScript, []byte(script), 0755); err != nil {
+		t.Fatalf("write tailscale script: %v", err)
+	}
+	m := NewManager(relayFile)
+	m.binaryPath = tailscaleScript
+
+	const icon = "https://cdn.example.com/app.png"
+	if err := m.UpsertRelay(config.ServeRelay{
+		ID:         "tcp-1",
+		Type:       "tcp",
+		ListenPort: 10001,
+		TargetHost: "whoami-test",
+		TargetPort: 80,
+		Enabled:    true,
+		IconURL:    icon,
+	}); err != nil {
+		t.Fatalf("upsert relay with icon failed: %v", err)
+	}
+
+	relays, err := m.ListRelays()
+	if err != nil {
+		t.Fatalf("list relays failed: %v", err)
+	}
+	if len(relays) != 1 || relays[0].IconURL != icon {
+		t.Fatalf("expected icon %q to round-trip, got %+v", icon, relays)
+	}
+}
+
+func TestManagerUpsertRelay_RejectsBadIconScheme(t *testing.T) {
+	dir := t.TempDir()
+	relayFile := filepath.Join(dir, "serve_relays.json")
+	m := NewManager(relayFile)
+	m.binaryPath = "/bin/true"
+	for _, bad := range []string{
+		"javascript:alert(1)",
+		"file:///etc/passwd",
+		"data:text/plain;base64,aGVsbG8=",
+	} {
+		err := m.UpsertRelay(config.ServeRelay{
+			ID:         "tcp-1",
+			Type:       "tcp",
+			ListenPort: 10001,
+			TargetHost: "whoami-test",
+			TargetPort: 80,
+			IconURL:    bad,
+		})
+		if !errors.Is(err, ErrInvalidIconURL) {
+			t.Fatalf("expected ErrInvalidIconURL for %q, got %v", bad, err)
+		}
+	}
+}
+
+func TestManagerUpsertRelay_AcceptsDataImageIcon(t *testing.T) {
+	dir := t.TempDir()
+	relayFile := filepath.Join(dir, "serve_relays.json")
+	script := "#!/bin/sh\nexit 0\n"
+	tailscaleScript := filepath.Join(dir, "tailscale")
+	if err := os.WriteFile(tailscaleScript, []byte(script), 0755); err != nil {
+		t.Fatalf("write tailscale script: %v", err)
+	}
+	m := NewManager(relayFile)
+	m.binaryPath = tailscaleScript
+	const icon = "data:image/png;base64,iVBORw0KGgoAAAANS=="
+	if err := m.UpsertRelay(config.ServeRelay{
+		ID:         "tcp-1",
+		Type:       "tcp",
+		ListenPort: 10001,
+		TargetHost: "whoami-test",
+		TargetPort: 80,
+		IconURL:    icon,
+	}); err != nil {
+		t.Fatalf("expected data:image/png to be accepted, got %v", err)
+	}
+}
+
+// TestManagerUpsertRelay_OldConfigWithoutIconField ensures a serve_relays.json
+// written before icon_url was introduced still loads (omitempty backward compat).
+func TestManagerUpsertRelay_OldConfigWithoutIconField(t *testing.T) {
+	dir := t.TempDir()
+	relayFile := filepath.Join(dir, "serve_relays.json")
+	old := `{"relays":[{"id":"tcp-1","type":"tcp","listen_port":10001,"target_host":"whoami-test","target_port":80,"enabled":true}]}`
+	if err := os.WriteFile(relayFile, []byte(old), 0644); err != nil {
+		t.Fatalf("write old config: %v", err)
+	}
+	m := NewManager(relayFile)
+	m.binaryPath = "/bin/true"
+	relays, err := m.ListRelays()
+	if err != nil {
+		t.Fatalf("list relays failed: %v", err)
+	}
+	if len(relays) != 1 || relays[0].IconURL != "" {
+		t.Fatalf("expected old config to load with empty icon, got %+v", relays)
 	}
 }
 

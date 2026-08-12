@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -276,6 +278,102 @@ func TestDeleteFunnel_RequiresID(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 when id is missing, got %d", rr.Code)
+	}
+}
+
+// --- Icon URL (handler-level) ---
+
+func TestCreateTCP_RejectsBadIconScheme(t *testing.T) {
+	h := newTestServeHandler(t, false)
+	req := httptest.NewRequest(http.MethodPost, "/api/serve/tcp/create", jsonBody(t, map[string]interface{}{
+		"listen_port": 9000,
+		"target_host": "127.0.0.1",
+		"target_port": 22,
+		"icon_url":    "javascript:alert(1)",
+	}))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.CreateTCP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for javascript: icon_url, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+}
+
+func TestCreateTCP_PersistsIconURL(t *testing.T) {
+	h := newTestServeHandler(t, false)
+	const icon = "https://cdn.example.com/app.png"
+	req := httptest.NewRequest(http.MethodPost, "/api/serve/tcp/create", jsonBody(t, map[string]interface{}{
+		"listen_port": 9001,
+		"target_host": "127.0.0.1",
+		"target_port": 22,
+		"icon_url":    icon,
+	}))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.CreateTCP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	relays, err := h.manager.ListRelays()
+	if err != nil {
+		t.Fatalf("list relays failed: %v", err)
+	}
+	if len(relays) != 1 || relays[0].IconURL != icon {
+		t.Fatalf("expected icon to persist, got %+v", relays)
+	}
+}
+
+func TestCreateHTTPS_PersistsIconURLFromForm(t *testing.T) {
+	h := newTestServeHandler(t, false)
+	const icon = "https://cdn.example.com/app.png"
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("port", "3333")
+	_ = mw.WriteField("target", "whoami-test:80")
+	_ = mw.WriteField("enabled", "true")
+	_ = mw.WriteField("icon_url", icon)
+	mw.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/serve/https/create", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	rr := httptest.NewRecorder()
+	h.CreateHTTPS(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	relays, err := h.manager.ListRelays()
+	if err != nil {
+		t.Fatalf("list relays failed: %v", err)
+	}
+	if len(relays) != 1 || relays[0].IconURL != icon || relays[0].Type != "https" {
+		t.Fatalf("expected https relay with icon, got %+v", relays)
+	}
+}
+
+func TestCreateFunnel_PersistsIconURL(t *testing.T) {
+	h := newTestServeHandler(t, false)
+	const icon = "https://cdn.example.com/app.png"
+	req := funnelCreateRequest(t, map[string]interface{}{
+		"id":               "funnel-443",
+		"listen_port":      443,
+		"target_host":      "127.0.0.1",
+		"target_port":      3000,
+		"funnel_transport": "https",
+		"enabled":          true,
+		"icon_url":         icon,
+	})
+	rr := httptest.NewRecorder()
+	h.CreateFunnel(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	relays, err := h.manager.ListRelays()
+	if err != nil {
+		t.Fatalf("list relays failed: %v", err)
+	}
+	if len(relays) != 1 || relays[0].IconURL != icon || relays[0].Type != "funnel" {
+		t.Fatalf("expected funnel relay with icon, got %+v", relays)
 	}
 }
 

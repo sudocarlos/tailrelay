@@ -79,6 +79,10 @@ func writeServeResult(w http.ResponseWriter, err error, msg string) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+	if errors.Is(err, serve.ErrInvalidIconURL) {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	if errors.Is(err, serve.ErrFunnelNotAllowed) {
 		log.Printf("serve: funnel not allowed, returning 409 Conflict")
 		w.Header().Set("Content-Type", "application/json")
@@ -540,6 +544,7 @@ func parseHTTPSRelay(r *http.Request) (config.ServeRelay, error) {
 			TargetHTTPS: parseBool(r.FormValue("tls")),
 			Enabled:     parseBool(r.FormValue("enabled")),
 			Autostart:   parseBool(r.FormValue("autostart")),
+			IconURL:     r.FormValue("icon_url"),
 		}, nil
 	}
 

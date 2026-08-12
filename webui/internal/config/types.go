@@ -77,6 +77,10 @@ type ServeRelay struct {
 	// FunnelTransport selects the underlying `tailscale funnel` transport
 	// ("https" or "tcp") when Type is "funnel". Ignored otherwise.
 	FunnelTransport string `json:"funnel_transport,omitempty"`
+	// IconURL is an optional icon rendered on the relay card in place of the
+	// default type glyph. May be an http(s) URL or a small data:image/* URI.
+	// Empty means "use the default glyph".
+	IconURL string `json:"icon_url,omitempty"`
 }
 
 // ServeRelayList represents the list of tailscale serve relay definitions.
