@@ -135,10 +135,10 @@
   }
 
   // Whether the current transport is a web origin that can serve a favicon.
-  // TCP relays and funnel-TCP have no favicon source.
+  // httpRelay flags the web transport in both modes: HTTPS relay (non-funnel)
+  // and funnel-HTTPS transport. TCP relays and funnel-TCP have no favicon source.
   function hasWebOrigin() {
-    if (isFunnel) return httpRelay; // https transport only
-    return httpRelay; // HTTPS relay; TCP (httpRelay=false) has none
+    return httpRelay;
   }
 
   // Build a /favicon.ico URL for the current target + scheme. Returns ''
