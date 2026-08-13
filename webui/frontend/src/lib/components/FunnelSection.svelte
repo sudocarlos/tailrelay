@@ -81,7 +81,7 @@
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2">
                 <RelayIcon iconUrl={funnel.icon_url} {toggling} {running} alt={funnelUrl}>
-                  <Globe size={14} strokeWidth={2.5} class={statusIconClass(toggling, running)} />
+                  <Globe size={26} strokeWidth={2.5} class={statusIconClass(toggling, running)} />
                 </RelayIcon>
                 <a
                   href={funnelUrl}
@@ -91,13 +91,13 @@
                 >{funnelUrl}</a>
                 <CopyButton text={funnelUrl} />
               </div>
-              <p class="font-medium text-sm mt-1 ml-8">
+              <p class="font-medium text-sm mt-1 ml-14">
                 &rarr; {formatFunnelTarget(funnel)}
               </p>
             </div>
 
             <!-- Actions -->
-            <div class="flex items-center gap-1 ml-8 sm:ml-0">
+            <div class="flex items-center gap-1 ml-14 sm:ml-0">
               <Toggle
                 checked={running}
                 disabled={toggling}
