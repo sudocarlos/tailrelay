@@ -45,6 +45,11 @@
       advancedOpen: tp || hh !== '',
       autostart: i ? (i.autostart ?? true) : true,
       isHttpsTarget,
+      iconUrl: i ? (i.icon_url ?? '') : '',
+      // Whether iconUrl was last set by the favicon auto-suggest (so a
+      // subsequent target edit can re-suggest without clobbering a manual
+      // entry). Resets to false whenever the user types the icon field.
+      iconAutoFilled: false,
     };
   });
 
@@ -71,6 +76,12 @@
   let advancedOpen = $state(initialState.advancedOpen);
   // isHttpsTarget: false for http, true for https
   let isHttpsTarget = $state(initialState.isHttpsTarget);
+  // Icon URL for the relay card (optional). Empty -> default glyph.
+  let iconUrl = $state(initialState.iconUrl);
+  // Tracks whether iconUrl was auto-filled from a favicon suggestion so the
+  // onblur suggester can refresh it when the target changes without
+  // overwriting a value the user typed themselves.
+  let iconAutoFilled = $state(initialState.iconAutoFilled);
 
   const editing = initialState.editing;
   const isFunnel = initialState.isFunnel;
@@ -96,6 +107,15 @@
       if (t.protocol === 'https') isHttpsTarget = true;
       else isHttpsTarget = false;
     }
+    // Seed the icon from the preset when one is defined; mark auto-filled
+    // so the target-blur suggester may refresh it later.
+    if (t.icon_url) {
+      iconUrl = t.icon_url;
+      iconAutoFilled = true;
+    } else {
+      iconUrl = '';
+      iconAutoFilled = false;
+    }
   }
 
   // Parse "host:port" → { host, port } or null on failure.
@@ -112,6 +132,51 @@
     const port = parseInt(s.slice(lastColon + 1));
     if (!host || isNaN(port) || port < 1 || port > 65535) return null;
     return { host, port };
+  }
+
+  // Whether the current transport is a web origin that can serve a favicon.
+  // httpRelay flags the web transport in both modes: HTTPS relay (non-funnel)
+  // and funnel-HTTPS transport. TCP relays and funnel-TCP have no favicon source.
+  function hasWebOrigin() {
+    return httpRelay;
+  }
+
+  // Build a /favicon.ico URL for the current target + scheme. Returns ''
+  // when the target doesn't parse or a favicon source doesn't apply.
+  function suggestFaviconUrl() {
+    if (!hasWebOrigin()) return '';
+    const parsed = parseTarget(target);
+    if (!parsed) return '';
+    const scheme = isHttpsTarget ? 'https' : 'http';
+    return `${scheme}://${parsed.host}:${parsed.port}/favicon.ico`;
+  }
+
+  // Auto-suggest the target's favicon on blur, but only when the icon
+  // field is empty or was itself auto-filled (never clobber a manual entry).
+  function handleTargetBlur() {
+    if (!iconAutoFilled && iconUrl.trim() !== '') return;
+    const suggested = suggestFaviconUrl();
+    if (suggested) {
+      iconUrl = suggested;
+      iconAutoFilled = true;
+    }
+  }
+
+  // Explicit "Use favicon" button forces a re-suggest regardless of the
+  // current manual value.
+  function useFavicon() {
+    const suggested = suggestFaviconUrl();
+    if (suggested) {
+      iconUrl = suggested;
+      iconAutoFilled = true;
+    } else {
+      showToast('danger', 'No web target to fetch a favicon from');
+    }
+  }
+
+  function clearIcon() {
+    iconUrl = '';
+    iconAutoFilled = false;
   }
 
   async function handleSave() {
@@ -140,6 +205,7 @@
       target_port: parsed.port,
       autostart,
       enabled: true,
+      icon_url: iconUrl.trim(),
     };
 
     if (relayId) relay.id = relayId;
@@ -187,6 +253,7 @@
     formData.append('autostart', autostart.toString());
     formData.append('enabled', 'true');
     formData.append('port', listenPort);
+    formData.append('icon_url', iconUrl.trim());
 
     if (proxyId) formData.append('id', proxyId);
 
@@ -220,6 +287,7 @@
       target_https: isHttpsTarget,
       autostart,
       enabled: true,
+      icon_url: iconUrl.trim(),
     };
 
     if (funnelId) relay.id = funnelId;
@@ -355,10 +423,51 @@
             id="relay-target"
             type="text"
             bind:value={target}
+            onblur={handleTargetBlur}
             placeholder="e.g. 192.168.1.10:3000 or server.local:8080"
             class="flex-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
+      </div>
+
+      <!-- Icon URL (optional) -->
+      <div>
+        <label for="relay-icon" class="block text-sm font-medium mb-1">Icon URL <span class="text-xs font-normal text-gray-400 dark:text-gray-500">optional</span></label>
+        <div class="flex items-center gap-2">
+          {#if iconUrl.trim()}
+            <img
+              src={iconUrl.trim()}
+              alt="icon preview"
+              referrerpolicy="no-referrer"
+              class="w-6 h-6 rounded-md object-contain border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/60 flex-shrink-0"
+            />
+          {/if}
+          <input
+            id="relay-icon"
+            type="text"
+            bind:value={iconUrl}
+            oninput={() => (iconAutoFilled = false)}
+            placeholder="e.g. https://app.example/logo.png"
+            class="flex-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+          {#if hasWebOrigin()}
+            <button
+              type="button"
+              onclick={useFavicon}
+              title="Use the target's favicon"
+              class="shrink-0 px-2 py-2 text-xs rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
+            >Favicon</button>
+          {/if}
+          {#if iconUrl.trim()}
+            <button
+              type="button"
+              onclick={clearIcon}
+              title="Clear icon"
+              class="shrink-0 px-2 py-2 text-xs rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
+            >Clear</button>
+          {/if}
+        </div>
+        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Shown on the relay card instead of the default icon. Left blank, the favicon is suggested automatically when you leave the target field for web targets.</p>
       </div>
 
       <!-- Autostart (shared) -->

@@ -1,11 +1,12 @@
 <script>
   import { untrack } from 'svelte';
   import { Globe, Ban, Plus, ChevronDown, ChevronUp } from '@lucide/svelte';
+  import RelayIcon from './RelayIcon.svelte';
   import { FUNNEL_PORTS } from '../stores/app.js';
   import Toggle from './Toggle.svelte';
   import ItemMenu from './ItemMenu.svelte';
   import CopyButton from './CopyButton.svelte';
-  import { statusBadgeClass, statusIconClass } from '../utils/statusBadge.js';
+  import { statusIconClass } from '../utils/statusBadge.js';
 
   let {
     funnels = [],
@@ -78,28 +79,29 @@
           <div class="flex flex-col sm:flex-row sm:items-center gap-3">
             <!-- Info -->
             <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2">
-                <span
-                  class="flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0 transition-colors {statusBadgeClass(toggling, running)}"
-                  title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
-                >
-                  <Globe size={14} strokeWidth={2.5} class={statusIconClass(toggling, running)} />
-                </span>
-                <a
-                  href={funnelUrl}
-                  target="_blank"
-                  rel="noopener"
-                  class="font-medium text-sm truncate hover:underline"
-                >{funnelUrl}</a>
-                <CopyButton text={funnelUrl} />
+              <div class="flex items-start gap-2">
+                <RelayIcon iconUrl={funnel.icon_url} {toggling} {running} alt={funnelUrl}>
+                  <Globe size={26} strokeWidth={2.5} class={statusIconClass(toggling, running)} />
+                </RelayIcon>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <a
+                      href={funnelUrl}
+                      target="_blank"
+                      rel="noopener"
+                      class="font-medium text-sm truncate hover:underline"
+                    >{funnelUrl}</a>
+                    <CopyButton text={funnelUrl} />
+                  </div>
+                  <p class="font-medium text-sm mt-1">
+                    &rarr; {formatFunnelTarget(funnel)}
+                  </p>
+                </div>
               </div>
-              <p class="font-medium text-sm mt-1 ml-8">
-                &rarr; {formatFunnelTarget(funnel)}
-              </p>
             </div>
 
             <!-- Actions -->
-            <div class="flex items-center gap-1 ml-8 sm:ml-0">
+            <div class="flex items-center gap-1 ml-[3.25rem] sm:ml-0">
               <Toggle
                 checked={running}
                 disabled={toggling}
@@ -110,7 +112,7 @@
                 {autostart}
                 onAutostartChange={(v) => onAutostart(funnel.id, v)}
                 onEdit={() => onEdit(funnel)}
-                onDelete={() => onDelete(funnel.id, funnelUrl, formatFunnelTarget(funnel))}
+                onDelete={() => onDelete(funnel.id, funnelUrl, formatFunnelTarget(funnel), funnel.icon_url, running)}
               />
             </div>
           </div>

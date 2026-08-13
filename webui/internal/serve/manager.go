@@ -3,6 +3,7 @@ package serve
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os/exec"
 	"sort"
 	"strings"
@@ -226,6 +227,10 @@ func (m *Manager) UpsertRelay(relay config.ServeRelay) error {
 	if strings.TrimSpace(relay.TargetHost) == "" {
 		return fmt.Errorf("target_host is required")
 	}
+	relay.IconURL = strings.TrimSpace(relay.IconURL)
+	if err := ValidateIconURL(relay.IconURL); err != nil {
+		return err
+	}
 
 	updated := false
 	for i := range list.Relays {
@@ -306,6 +311,48 @@ var ErrRelayNotFound = fmt.Errorf("relay not found")
 // relay because the tailnet policy file is missing the `funnel` node
 // attribute for this device, or Funnel is otherwise disabled for the tailnet.
 var ErrFunnelNotAllowed = fmt.Errorf("funnel not allowed")
+
+// ErrInvalidIconURL is returned by UpsertRelay when IconURL is set but is
+// neither an http/https URL nor a small data:image/* URI. Handlers map this to
+// 400 Bad Request via writeServeResult.
+var ErrInvalidIconURL = fmt.Errorf("invalid icon_url")
+
+// MaxIconDataLen caps the length of a data: URI icon so a large base64 blob
+// can't bloat serve_relays.json. http(s) URLs are not capped (they reference an
+// external resource fetched by the browser).
+const MaxIconDataLen = 256 << 10 // 256 KiB
+
+// ValidateIconURL returns ErrInvalidIconURL (wrapping a reason) if iconURL is
+// set but is neither an http/https URL nor a small data:image/* URI. An empty
+// value is valid (no icon configured).
+func ValidateIconURL(iconURL string) error {
+	iconURL = strings.TrimSpace(iconURL)
+	if iconURL == "" {
+		return nil
+	}
+	lower := strings.ToLower(iconURL)
+	if strings.HasPrefix(lower, "data:") {
+		if !strings.HasPrefix(lower, "data:image/") {
+			return fmt.Errorf("%w: data URI must be an image MIME type", ErrInvalidIconURL)
+		}
+		if len(iconURL) > MaxIconDataLen {
+			return fmt.Errorf("%w: data URI exceeds %d bytes", ErrInvalidIconURL, MaxIconDataLen)
+		}
+		return nil
+	}
+	u, err := url.Parse(iconURL)
+	if err != nil {
+		return fmt.Errorf("%w: not a valid URL: %v", ErrInvalidIconURL, err)
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("%w: scheme must be http or https", ErrInvalidIconURL)
+	}
+	if u.Host == "" {
+		return fmt.Errorf("%w: must have a host", ErrInvalidIconURL)
+	}
+	return nil
+}
 
 // isFunnelNotAllowed reports whether err indicates the tailnet policy file is
 // missing the `funnel` node attribute (or Funnel is otherwise unavailable),

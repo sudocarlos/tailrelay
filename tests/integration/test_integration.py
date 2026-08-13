@@ -311,6 +311,70 @@ class TestTCPRelay:
 
 
 # ---------------------------------------------------------------------------
+# Relay icon URL
+# ---------------------------------------------------------------------------
+
+
+class TestRelayIcon:
+    """
+    A configured ``icon_url`` must round-trip through the serve API and appear
+    in the relay list so the Web UI can render it on the relay card.
+    """
+
+    RELAY_ID = "test-icon-relay"
+    RELAY_PORT = 8097
+    ICON_URL = "https://cdn.example.com/app-icon.png"
+
+    def _create_relay_payload(self) -> str:
+        payload = {
+            "id": self.RELAY_ID,
+            "type": "tcp",
+            "listen_port": self.RELAY_PORT,
+            "target_host": "whoami-test",
+            "target_port": 80,
+            "enabled": True,
+            "autostart": True,
+            "icon_url": self.ICON_URL,
+        }
+        return json.dumps(payload)
+
+    def test_tcp_relay_icon_url_round_trips_through_create_and_list(
+        self, running_container: str
+    ) -> None:
+        token = get_webui_token(running_container)
+
+        # Create a TCP relay carrying an icon_url.
+        payload = self._create_relay_payload()
+        create_result = container_exec(
+            running_container,
+            f"wget -qO- --timeout=10 --tries=1 "
+            f'--header="Authorization: Bearer {token}" '
+            f'--header="Content-Type: application/json" '
+            f"--post-data='{payload}' "
+            f"{WEBUI_ADDR}/api/serve/tcp/create",
+        )
+        assert create_result.returncode == 0, (
+            f"POST /api/serve/tcp/create failed (exit {create_result.returncode}):\n"
+            f"stdout: {create_result.stdout}\nstderr: {create_result.stderr}"
+        )
+
+        time.sleep(2)
+
+        # The icon_url must be persisted and returned by the list endpoint.
+        body = wget_authed_ok(
+            running_container, f"{WEBUI_ADDR}/api/serve/tcp/list", token
+        )
+        data = parse_json_body(body, "/api/serve/tcp/list")
+        icons = {
+            item.get("relay", {}).get("id"): item.get("relay", {}).get("icon_url")
+            for item in data
+        }
+        assert icons.get(self.RELAY_ID) == self.ICON_URL, (
+            f"icon_url did not round-trip; got icons={icons}"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Funnel relays
 # ---------------------------------------------------------------------------
 

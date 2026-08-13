@@ -1,9 +1,10 @@
 <script>
   import { Network, ShieldCheck, AlertTriangle } from '@lucide/svelte';
+  import RelayIcon from './RelayIcon.svelte';
   import Toggle from './Toggle.svelte';
   import ItemMenu from './ItemMenu.svelte';
   import CopyButton from './CopyButton.svelte';
-  import { statusBadgeClass, statusIconClass } from '../utils/statusBadge.js';
+  import { statusIconClass } from '../utils/statusBadge.js';
 
   let { item, fqdn, toggling = false, onToggle, onAutostart, onEdit, onDelete } = $props();
 
@@ -33,23 +34,24 @@
     <div class="flex flex-col sm:flex-row sm:items-center gap-3">
       <!-- Info -->
       <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2">
-          <span
-            class="flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0 transition-colors {statusBadgeClass(toggling, running)}"
-            title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
-          >
-            <Network size={14} strokeWidth={2.5} class={statusIconClass(toggling, running)} />
-          </span>
-          <span class="font-medium text-sm truncate"><span class="text-sm font-normal text-gray-400 dark:text-gray-500">tcp://{fqdn || 'unknown'}</span><span>:{relay.listen_port}</span></span>
-          <CopyButton text={`tcp://${fqdn || 'unknown'}:${relay.listen_port}`} />
+        <div class="flex items-start gap-2">
+          <RelayIcon iconUrl={relay.icon_url} {toggling} {running} alt={`tcp://${fqdn || 'unknown'}:${relay.listen_port}`}>
+            <Network size={26} strokeWidth={2.5} class={statusIconClass(toggling, running)} />
+          </RelayIcon>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-medium text-sm truncate"><span class="text-sm font-normal text-gray-400 dark:text-gray-500">tcp://{fqdn || 'unknown'}</span><span>:{relay.listen_port}</span></span>
+              <CopyButton text={`tcp://${fqdn || 'unknown'}:${relay.listen_port}`} />
+            </div>
+            <p class="font-medium text-sm mt-1">
+              &rarr; {formatRelayTarget(relay)}
+            </p>
+          </div>
         </div>
-        <p class="font-medium text-sm mt-1 ml-8">
-          &rarr; {formatRelayTarget(relay)}
-        </p>
       </div>
 
       <!-- Actions -->
-      <div class="flex items-center gap-1 ml-8 sm:ml-0">
+      <div class="flex items-center gap-1 ml-[3.25rem] sm:ml-0">
         <Toggle
           checked={running}
           disabled={toggling}
@@ -60,7 +62,7 @@
           {autostart}
           onAutostartChange={(v) => onAutostart('relay', relay.id, v)}
           onEdit={() => onEdit('relay', relay)}
-          onDelete={() => onDelete('relay', relay.id, formatRelayTitle(relay), formatRelayTarget(relay))}
+          onDelete={() => onDelete('relay', relay.id, formatRelayTitle(relay), formatRelayTarget(relay), relay.icon_url, running)}
         />
       </div>
     </div>
@@ -78,39 +80,40 @@
     <div class="flex flex-col sm:flex-row sm:items-center gap-3">
       <!-- Info -->
       <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2">
-          <span
-            class="flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0 transition-colors {statusBadgeClass(toggling, running)}"
-            title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
-          >
-            <ShieldCheck size={14} strokeWidth={2.5} class={statusIconClass(toggling, running)} />
-          </span>
-          <a
-            href={proxyUrl}
-            target="_blank"
-            rel="noopener"
-            class="font-medium text-sm truncate hover:underline"
-          ><span class="text-sm font-normal text-gray-400 dark:text-gray-500">{listenerScheme}://{proxy.hostname || fqdn}</span><span>{proxy.listen_port && proxy.listen_port !== 443 ? `:${proxy.listen_port}` : ''}</span></a>
-          <CopyButton text={proxyUrl} />
-          {#if tlsError}
-            <span title={tlsError} class="flex-shrink-0 text-amber-500 dark:text-amber-400 cursor-help">
-              <AlertTriangle size={14} />
-            </span>
-          {/if}
+        <div class="flex items-start gap-2">
+          <RelayIcon iconUrl={proxy.icon_url} {toggling} {running} alt={proxyUrl}>
+            <ShieldCheck size={26} strokeWidth={2.5} class={statusIconClass(toggling, running)} />
+          </RelayIcon>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <a
+                href={proxyUrl}
+                target="_blank"
+                rel="noopener"
+                class="font-medium text-sm truncate hover:underline"
+              ><span class="text-sm font-normal text-gray-400 dark:text-gray-500">{listenerScheme}://{proxy.hostname || fqdn}</span><span>{proxy.listen_port && proxy.listen_port !== 443 ? `:${proxy.listen_port}` : ''}</span></a>
+              <CopyButton text={proxyUrl} />
+              {#if tlsError}
+                <span title={tlsError} class="flex-shrink-0 text-amber-500 dark:text-amber-400 cursor-help">
+                  <AlertTriangle size={14} />
+                </span>
+              {/if}
+            </div>
+            <p class="font-medium text-sm mt-1">
+              &rarr; {proxy.target_host}:{proxy.target_port}
+            </p>
+            {#if tlsError}
+              <p class="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-start gap-1">
+                <AlertTriangle size={11} class="mt-0.5 flex-shrink-0" />
+                <span>TLS cert issue: {tlsError}</span>
+              </p>
+            {/if}
+          </div>
         </div>
-        <p class="font-medium text-sm mt-1 ml-8">
-          &rarr; {proxy.target_host}:{proxy.target_port}
-        </p>
-        {#if tlsError}
-          <p class="text-xs text-amber-600 dark:text-amber-400 mt-1 ml-8 flex items-start gap-1">
-            <AlertTriangle size={11} class="mt-0.5 flex-shrink-0" />
-            <span>TLS cert issue: {tlsError}</span>
-          </p>
-        {/if}
       </div>
 
       <!-- Actions -->
-      <div class="flex items-center gap-1 ml-8 sm:ml-0">
+      <div class="flex items-center gap-1 ml-[3.25rem] sm:ml-0">
         <Toggle
           checked={running}
           disabled={toggling}
@@ -121,7 +124,7 @@
           {autostart}
           onAutostartChange={(v) => onAutostart('proxy', proxy.id, v)}
           onEdit={() => onEdit('proxy', proxy)}
-          onDelete={() => onDelete('proxy', proxy.id, proxyUrl, `${proxy.target_host}:${proxy.target_port}`)}
+          onDelete={() => onDelete('proxy', proxy.id, proxyUrl, `${proxy.target_host}:${proxy.target_port}`, proxy.icon_url, running)}
         />
       </div>
     </div>

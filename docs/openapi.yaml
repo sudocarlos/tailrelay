@@ -233,7 +233,16 @@ paths:
     get:
       tags: [Status]
       summary: List configured targets
-      description: Returns the raw contents of `targets.json`. Returns `[]` if the file is missing or unparseable.
+      description: |
+        Returns the raw contents of `targets.json`. Returns `[]` if the file
+        is missing or unparseable.
+
+        Entries are opaque to the backend, but the Web UI understands these
+        optional fields when offering a preset target in the Add Relay modal:
+        `target_name`, `app_id`, `host`, `port`, `type` (`relay`/`tcp`/
+        `proxy`/`https`), `protocol` (`http`/`https`/`tcp`), and `icon_url`
+        (an `http`/`https` URL or small `data:image/*` URI) which seeds the
+        icon field when the preset is selected.
       responses:
         "200":
           description: Targets array (opaque objects)
@@ -1421,6 +1430,14 @@ components:
           type: string
           enum: [https, tcp]
           description: Only meaningful when `type` is `funnel`.
+        icon_url:
+          type: string
+          description: |
+            Optional icon rendered on the relay card instead of the default
+            type glyph. Accepts an `http`/`https` URL or a small
+            `data:image/*` URI (capped at 256 KiB to avoid bloating
+            `serve_relays.json`). Empty/omitted means "use the default glyph".
+            Other schemes (e.g. `javascript:`) are rejected with 400.
       required: [id, type, listen_port, target_host, target_port, target_https, enabled, autostart]
 
     ServeRelayWithRunning:
@@ -1468,6 +1485,11 @@ components:
         autostart:
           type: string
           description: Bool-ish (true/1/on/yes).
+        icon_url:
+          type: string
+          description: |
+            Optional icon URL or small `data:image/*` URI (see `ServeRelay.icon_url`).
+            Persisted onto the relay and rendered on its card.
 
     ToggleRequest:
       type: object
