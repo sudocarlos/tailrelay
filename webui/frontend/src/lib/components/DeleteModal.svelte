@@ -66,7 +66,7 @@
   onclick={(e) => { if (e.target === e.currentTarget) onClose(); }}
   onkeydown={() => {}}
 >
-  <div class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-sm">
+  <div class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-md">
     <!-- Header -->
     <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-800">
       <h2 class="text-lg font-semibold">Confirm Delete</h2>
