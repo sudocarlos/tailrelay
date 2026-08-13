@@ -112,7 +112,7 @@
                 {autostart}
                 onAutostartChange={(v) => onAutostart(funnel.id, v)}
                 onEdit={() => onEdit(funnel)}
-                onDelete={() => onDelete(funnel.id, funnelUrl, formatFunnelTarget(funnel))}
+                onDelete={() => onDelete(funnel.id, funnelUrl, formatFunnelTarget(funnel), funnel.icon_url, running)}
               />
             </div>
           </div>

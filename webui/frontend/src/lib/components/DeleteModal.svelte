@@ -1,9 +1,20 @@
 <script>
   import { X, AlertTriangle, Network, ShieldCheck, Globe } from '@lucide/svelte';
+  import RelayIcon from './RelayIcon.svelte';
+  import { statusIconClass } from '../utils/statusBadge.js';
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
 
-  let { type = 'relay', id = '', name = '', target = '', onDelete, onClose } = $props();
+  let {
+    type = 'relay',
+    id = '',
+    name = '',
+    target = '',
+    iconUrl = '',
+    running = false,
+    onDelete,
+    onClose,
+  } = $props();
 
   const typeLabels = { relay: 'TCP relay', proxy: 'HTTPS relay', funnel: 'Funnel' };
   const typeLabel = $derived(typeLabels[type] ?? 'relay');
@@ -74,21 +85,25 @@
       </p>
       {#if name}
         <div class="mt-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3 text-left">
-          <div class="flex items-center gap-2">
-            {#if type === 'relay'}
-              <Network size={16} class="text-blue-500 flex-shrink-0" />
-            {:else if type === 'funnel'}
-              <Globe size={16} class="text-blue-500 flex-shrink-0" />
-            {:else}
-              <ShieldCheck size={16} class="text-blue-500 flex-shrink-0" />
-            {/if}
-            <span class="font-medium text-sm break-all">
-              <span class="font-normal text-gray-400 dark:text-gray-500">{namePrefix()}</span><span>{nameSuffix()}</span>
-            </span>
+          <div class="flex items-start gap-2">
+            <RelayIcon {iconUrl} {running} alt={name}>
+              {#if type === 'relay'}
+                <Network size={26} strokeWidth={2.5} class={statusIconClass(false, running)} />
+              {:else if type === 'funnel'}
+                <Globe size={26} strokeWidth={2.5} class={statusIconClass(false, running)} />
+              {:else}
+                <ShieldCheck size={26} strokeWidth={2.5} class={statusIconClass(false, running)} />
+              {/if}
+            </RelayIcon>
+            <div class="flex-1 min-w-0">
+              <span class="font-medium text-sm break-all">
+                <span class="font-normal text-gray-400 dark:text-gray-500">{namePrefix()}</span><span>{nameSuffix()}</span>
+              </span>
+              {#if target}
+                <p class="font-medium text-sm mt-1">&rarr; {target}</p>
+              {/if}
+            </div>
           </div>
-          {#if target}
-            <p class="font-medium text-sm mt-1 ml-6">&rarr; {target}</p>
-          {/if}
         </div>
       {/if}
       <p class="text-xs text-gray-500 dark:text-gray-500 mt-3">This action cannot be undone.</p>

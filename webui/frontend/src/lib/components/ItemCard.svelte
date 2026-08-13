@@ -62,7 +62,7 @@
           {autostart}
           onAutostartChange={(v) => onAutostart('relay', relay.id, v)}
           onEdit={() => onEdit('relay', relay)}
-          onDelete={() => onDelete('relay', relay.id, formatRelayTitle(relay), formatRelayTarget(relay))}
+          onDelete={() => onDelete('relay', relay.id, formatRelayTitle(relay), formatRelayTarget(relay), relay.icon_url, running)}
         />
       </div>
     </div>
@@ -124,7 +124,7 @@
           {autostart}
           onAutostartChange={(v) => onAutostart('proxy', proxy.id, v)}
           onEdit={() => onEdit('proxy', proxy)}
-          onDelete={() => onDelete('proxy', proxy.id, proxyUrl, `${proxy.target_host}:${proxy.target_port}`)}
+          onDelete={() => onDelete('proxy', proxy.id, proxyUrl, `${proxy.target_host}:${proxy.target_port}`, proxy.icon_url, running)}
         />
       </div>
     </div>

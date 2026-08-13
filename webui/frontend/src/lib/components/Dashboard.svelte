@@ -117,8 +117,8 @@
     showAddModal = true;
   }
 
-  function openDelete(type, id, name, target) {
-    deleteTarget = { type, id, name, target };
+  function openDelete(type, id, name, target, iconUrl = '', running = false) {
+    deleteTarget = { type, id, name, target, iconUrl, running };
     showDeleteModal = true;
   }
 
@@ -279,7 +279,7 @@
         onToggle={handleToggleAction}
         onAutostart={handleAutostartToggle}
         onEdit={(type, data) => openEdit(type, data)}
-        onDelete={(type, id, name, target) => openDelete(type, id, name, target)}
+        onDelete={(type, id, name, target, iconUrl, running) => openDelete(type, id, name, target, iconUrl, running)}
       />
     {/each}
   {/if}
@@ -298,7 +298,7 @@
     onToggle={(id, running) => handleToggleAction('funnel', id, running)}
     onAutostart={(id, autostart) => handleAutostartToggle('funnel', id, autostart)}
     onEdit={(item) => openEdit('funnel', item)}
-    onDelete={(id, name, target) => openDelete('funnel', id, name, target)}
+    onDelete={(id, name, target, iconUrl, running) => openDelete('funnel', id, name, target, iconUrl, running)}
   />
 {/if}
 
@@ -334,6 +334,8 @@
     id={deleteTarget.id}
     name={deleteTarget.name}
     target={deleteTarget.target}
+    iconUrl={deleteTarget.iconUrl}
+    running={deleteTarget.running}
     onDelete={handleDeleted}
     onClose={() => { showDeleteModal = false; deleteTarget = null; }}
   />
