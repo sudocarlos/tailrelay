@@ -1,6 +1,6 @@
 #!/bin/ash
 trap 'shutdown' TERM INT
-TAILRELAY_VERSION=v0.10.1
+TAILRELAY_VERSION=v0.11.0
 
 export TS_ENABLE_METRICS=true
 export TS_ENABLE_HEALTH_CHECK=true

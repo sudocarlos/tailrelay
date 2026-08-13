@@ -7,12 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-13
+
 ### Added
-- **Per-relay icon** (#102) — relays (TCP, HTTPS, funnel) now accept an optional `icon_url` rendered on the relay card in place of the default `Network` / `ShieldCheck` / `Globe` glyph. When an icon is set, status is conveyed by a small corner dot instead of the badge background color, so the icon stays readable.
-  - Accepts an `http`/`https` URL or a small `data:image/*` URI (capped at 256 KiB so a base64 blob can't bloat `serve_relays.json`); other schemes (e.g. `javascript:`) are rejected with `400 Bad Request`.
-  - The Add/Edit modal auto-suggests the target's `favicon.ico` on blur of the target field for web transports (HTTPS relay and funnel-HTTPS), plus an explicit "Favicon" button and a "Clear" button. Favicon requests are made by the browser with `referrerpolicy="no-referrer"` so the tailrelay MagicDNS URL isn't leaked to the target host; no third-party favicon services are used.
-  - `icon_url` is persisted on `ServeRelay` (`serve_relays.json`, covered by backups) and optional on `targets.json` preset entries (`icon_url` seeds the field when a preset is chosen). Documented in `docs/openapi.yaml`.
-  - Rounded-square frame with translucent background and 1px border keeps transparent and round app icons legible on light/dark; broken/unreachable icons fall back to the default glyph.
+- **Per-relay icon** (#103) — relays (TCP, HTTPS, funnel) now accept an optional `icon_url` rendered on the relay card in place of the default glyph, with status conveyed by a small corner dot so the icon stays readable. Accepts an `http`/`https` URL or a capped (256 KiB) `data:image/*` URI; other schemes (e.g. `javascript:`) are rejected with `400`. Persisted on `ServeRelay` (`serve_relays.json` / covered by backups) and optional on `targets.json` presets.
+- **Favicon auto-suggest** (#103) — the Add/Edit modal now suggests the target's `favicon.ico` on blur of the target field for web transports (HTTPS relay and funnel-HTTPS), plus explicit "Favicon" and "Clear" buttons. Favicon requests go straight from the browser with `referrerpolicy="no-referrer"` so the MagicDNS URL isn't leaked to the target host; no third-party favicon services are used.
+
+### Changed
+- **OpenAPI** — documented `icon_url` on serve relays and preset targets in `docs/openapi.yaml` (#103).
+
+### Docker
+```
+docker pull sudocarlos/tailrelay:v0.11.0
+docker pull ghcr.io/sudocarlos/tailrelay:v0.11.0
+```
 
 ## [0.10.1] - 2026-08-11
 
