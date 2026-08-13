@@ -34,20 +34,24 @@
     <div class="flex flex-col sm:flex-row sm:items-center gap-3">
       <!-- Info -->
       <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2">
+        <div class="flex items-start gap-2">
           <RelayIcon iconUrl={relay.icon_url} {toggling} {running} alt={`tcp://${fqdn || 'unknown'}:${relay.listen_port}`}>
             <Network size={26} strokeWidth={2.5} class={statusIconClass(toggling, running)} />
           </RelayIcon>
-          <span class="font-medium text-sm truncate"><span class="text-sm font-normal text-gray-400 dark:text-gray-500">tcp://{fqdn || 'unknown'}</span><span>:{relay.listen_port}</span></span>
-          <CopyButton text={`tcp://${fqdn || 'unknown'}:${relay.listen_port}`} />
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-medium text-sm truncate"><span class="text-sm font-normal text-gray-400 dark:text-gray-500">tcp://{fqdn || 'unknown'}</span><span>:{relay.listen_port}</span></span>
+              <CopyButton text={`tcp://${fqdn || 'unknown'}:${relay.listen_port}`} />
+            </div>
+            <p class="font-medium text-sm mt-1">
+              &rarr; {formatRelayTarget(relay)}
+            </p>
+          </div>
         </div>
-        <p class="font-medium text-sm mt-1 ml-14">
-          &rarr; {formatRelayTarget(relay)}
-        </p>
       </div>
 
       <!-- Actions -->
-      <div class="flex items-center gap-1 ml-14 sm:ml-0">
+      <div class="flex items-center gap-1 ml-[3.25rem] sm:ml-0">
         <Toggle
           checked={running}
           disabled={toggling}
@@ -76,36 +80,40 @@
     <div class="flex flex-col sm:flex-row sm:items-center gap-3">
       <!-- Info -->
       <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2">
+        <div class="flex items-start gap-2">
           <RelayIcon iconUrl={proxy.icon_url} {toggling} {running} alt={proxyUrl}>
             <ShieldCheck size={26} strokeWidth={2.5} class={statusIconClass(toggling, running)} />
           </RelayIcon>
-          <a
-            href={proxyUrl}
-            target="_blank"
-            rel="noopener"
-            class="font-medium text-sm truncate hover:underline"
-          ><span class="text-sm font-normal text-gray-400 dark:text-gray-500">{listenerScheme}://{proxy.hostname || fqdn}</span><span>{proxy.listen_port && proxy.listen_port !== 443 ? `:${proxy.listen_port}` : ''}</span></a>
-          <CopyButton text={proxyUrl} />
-          {#if tlsError}
-            <span title={tlsError} class="flex-shrink-0 text-amber-500 dark:text-amber-400 cursor-help">
-              <AlertTriangle size={14} />
-            </span>
-          {/if}
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <a
+                href={proxyUrl}
+                target="_blank"
+                rel="noopener"
+                class="font-medium text-sm truncate hover:underline"
+              ><span class="text-sm font-normal text-gray-400 dark:text-gray-500">{listenerScheme}://{proxy.hostname || fqdn}</span><span>{proxy.listen_port && proxy.listen_port !== 443 ? `:${proxy.listen_port}` : ''}</span></a>
+              <CopyButton text={proxyUrl} />
+              {#if tlsError}
+                <span title={tlsError} class="flex-shrink-0 text-amber-500 dark:text-amber-400 cursor-help">
+                  <AlertTriangle size={14} />
+                </span>
+              {/if}
+            </div>
+            <p class="font-medium text-sm mt-1">
+              &rarr; {proxy.target_host}:{proxy.target_port}
+            </p>
+            {#if tlsError}
+              <p class="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-start gap-1">
+                <AlertTriangle size={11} class="mt-0.5 flex-shrink-0" />
+                <span>TLS cert issue: {tlsError}</span>
+              </p>
+            {/if}
+          </div>
         </div>
-        <p class="font-medium text-sm mt-1 ml-14">
-          &rarr; {proxy.target_host}:{proxy.target_port}
-        </p>
-        {#if tlsError}
-          <p class="text-xs text-amber-600 dark:text-amber-400 mt-1 ml-14 flex items-start gap-1">
-            <AlertTriangle size={11} class="mt-0.5 flex-shrink-0" />
-            <span>TLS cert issue: {tlsError}</span>
-          </p>
-        {/if}
       </div>
 
       <!-- Actions -->
-      <div class="flex items-center gap-1 ml-14 sm:ml-0">
+      <div class="flex items-center gap-1 ml-[3.25rem] sm:ml-0">
         <Toggle
           checked={running}
           disabled={toggling}

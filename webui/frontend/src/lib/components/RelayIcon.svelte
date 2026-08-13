@@ -35,9 +35,9 @@
 </script>
 
 {#if hasIcon}
-  <span class="relative flex-shrink-0 w-12 h-12" title={dotTitle}>
+  <span class="relative flex-shrink-0 w-11 h-11" title={dotTitle}>
     <span
-      class="flex items-center justify-center w-12 h-12 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/60"
+      class="flex items-center justify-center w-11 h-11 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/60"
     >
       <img
         src={iconUrl}
@@ -57,7 +57,7 @@
   </span>
 {:else}
   <span
-    class="flex items-center justify-center w-12 h-12 rounded-full flex-shrink-0 transition-colors {statusBadgeClass(toggling, running)}"
+    class="flex items-center justify-center w-11 h-11 rounded-full flex-shrink-0 transition-colors {statusBadgeClass(toggling, running)}"
     title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
   >
     {@render children?.()}
