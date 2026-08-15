@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Go toolchain** (#66) — bump the Go runtime from `1.26.5` to `1.26.6` across `go.mod`, `Dockerfile`, and CI. `go1.26.6` fixes six standard-library vulnerabilities reachable by tailrelay (`crypto/tls`, `net/http`, `net/url`, `html/template`, `encoding/asn1`, `golang.org/x/net/idna`) that Dependabot flagged on the default branch.
+
 ## [0.11.0] - 2026-08-13
 
 ### Added
