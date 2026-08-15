@@ -274,6 +274,7 @@
             disabled={savingLanAccess}
             onChange={toggleLanAccess}
             label="Allow LAN access while using an exit node"
+            size="md"
           />
         </div>
       {/if}
@@ -357,6 +358,7 @@
         disabled={savingAcceptRoutes}
         onChange={toggleAcceptRoutes}
         label="Accept routes from other nodes"
+        size="md"
       />
     </div>
 
@@ -368,7 +370,7 @@
         <Terminal size={15} class="text-gray-400" />
         Run Tailscale SSH
       </span>
-      <Toggle checked={networking.SSH} disabled={savingSSH} onChange={toggleSSH} label="Run Tailscale SSH" />
+      <Toggle checked={networking.SSH} disabled={savingSSH} onChange={toggleSSH} label="Run Tailscale SSH" size="md" />
     </div>
   {/if}
 </div>

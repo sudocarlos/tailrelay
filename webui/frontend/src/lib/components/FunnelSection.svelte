@@ -7,6 +7,7 @@
   import ItemMenu from './ItemMenu.svelte';
   import CopyButton from './CopyButton.svelte';
   import { statusIconClass } from '../utils/statusBadge.js';
+  import { splitHost } from '../utils/hostname.js';
 
   let {
     funnels = [],
@@ -74,26 +75,33 @@
         {@const autostart = funnel.autostart ?? false}
         {@const toggling = togglingId === `funnel:${funnel.id}`}
         {@const funnelUrl = formatFunnelUrl(funnel)}
+        {@const scheme = funnel.funnel_transport === 'tcp' ? 'tcp' : 'https'}
+        {@const portLabel = scheme === 'https' && funnel.listen_port === 443 ? '' : `:${funnel.listen_port}`}
+        {@const host = splitHost(funnel.hostname || fqdn)}
 
         <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-3">
-          <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div class="flex items-center gap-3">
             <!-- Info -->
             <div class="flex-1 min-w-0">
               <div class="flex items-start gap-2">
-                <RelayIcon iconUrl={funnel.icon_url} {toggling} {running} alt={funnelUrl}>
+                <RelayIcon iconUrl={funnel.icon_url} {toggling} {running} alt={funnelUrl} href={funnelUrl}>
                   <Globe size={26} strokeWidth={2.5} class={statusIconClass(toggling, running)} />
                 </RelayIcon>
                 <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2">
+                  <div class="flex items-center gap-2 min-w-0">
                     <a
                       href={funnelUrl}
                       target="_blank"
                       rel="noopener"
-                      class="font-medium text-sm truncate hover:underline"
-                    >{funnelUrl}</a>
+                      class="flex min-w-0 items-baseline text-sm hover:underline"
+                    >
+                      <span class="flex-shrink-0 font-normal text-gray-400 dark:text-gray-500">{scheme}://</span>
+                      <span class="min-w-0 truncate font-normal text-gray-400 dark:text-gray-500">{host.short}{#if host.suffix}<span class="hidden sm:inline">{host.suffix}</span>{/if}</span>
+                      <span class="flex-shrink-0 font-medium">{portLabel}</span>
+                    </a>
                     <CopyButton text={funnelUrl} />
                   </div>
-                  <p class="font-medium text-sm mt-1">
+                  <p class="font-medium text-sm mt-1 truncate">
                     &rarr; {formatFunnelTarget(funnel)}
                   </p>
                 </div>
@@ -101,12 +109,13 @@
             </div>
 
             <!-- Actions -->
-            <div class="flex items-center gap-1 ml-[3.25rem] sm:ml-0">
+            <div class="flex flex-shrink-0 items-center gap-1">
               <Toggle
                 checked={running}
                 disabled={toggling}
                 onChange={() => onToggle(funnel.id, running)}
                 label={running ? 'Stop funnel' : 'Start funnel'}
+                size="md"
               />
               <ItemMenu
                 {autostart}

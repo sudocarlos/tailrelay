@@ -11,6 +11,7 @@
     toggling = false,
     running = false,
     alt = 'relay icon',
+    href = '',
     children,
   } = $props();
 
@@ -32,34 +33,50 @@
     toggling ? 'bg-amber-400' : running ? 'bg-green-700' : 'bg-gray-300 dark:bg-gray-600'
   );
   const dotTitle = $derived((toggling ? 'Updating' : running ? 'Running' : 'Stopped') + '…');
+  const cornerRound = $derived(hasIcon ? 'rounded-xl' : 'rounded-full');
 </script>
 
-{#if hasIcon}
-  <span class="relative flex-shrink-0 w-11 h-11" title={dotTitle}>
-    <span
-      class="flex items-center justify-center w-11 h-11 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/60"
-    >
-      <img
-        src={iconUrl}
-        {alt}
-        loading="lazy"
-        referrerpolicy="no-referrer"
-        class="w-full h-full object-contain"
-        onerror={() => (imgError = true)}
-      />
+{#snippet icon()}
+  {#if hasIcon}
+    <span class="relative flex-shrink-0 w-11 h-11" title={dotTitle}>
+      <span
+        class="flex items-center justify-center w-11 h-11 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/60"
+      >
+        <img
+          src={iconUrl}
+          {alt}
+          loading="lazy"
+          referrerpolicy="no-referrer"
+          class="w-full h-full object-contain"
+          onerror={() => (imgError = true)}
+        />
+      </span>
+      <!-- Corner status dot (bottom-right) keeps state visible without
+           recoloring the icon frame. -->
+      <span
+        class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full ring-1 ring-white dark:ring-gray-900 {dotColor}{running ? ' status-dot-running' : ''}"
+        aria-hidden="true"
+      ></span>
     </span>
-    <!-- Corner status dot (bottom-right) keeps state visible without
-         recoloring the icon frame. -->
+  {:else}
     <span
-      class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full ring-1 ring-white dark:ring-gray-900 {dotColor}{running ? ' status-dot-running' : ''}"
-      aria-hidden="true"
-    ></span>
-  </span>
-{:else}
-  <span
-    class="flex items-center justify-center w-11 h-11 rounded-full flex-shrink-0 transition-colors {statusBadgeClass(toggling, running)}"
-    title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
+      class="flex items-center justify-center w-11 h-11 rounded-full flex-shrink-0 transition-colors {statusBadgeClass(toggling, running)}"
+      title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
+    >
+      {@render children?.()}
+    </span>
+  {/if}
+{/snippet}
+
+{#if href}
+  <a
+    {href}
+    target="_blank"
+    rel="noopener"
+    class="flex-shrink-0 {cornerRound} hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-opacity"
   >
-    {@render children?.()}
-  </span>
+    {@render icon()}
+  </a>
+{:else}
+  {@render icon()}
 {/if}

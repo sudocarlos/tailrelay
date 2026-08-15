@@ -5,6 +5,7 @@
   import ItemMenu from './ItemMenu.svelte';
   import CopyButton from './CopyButton.svelte';
   import { statusIconClass } from '../utils/statusBadge.js';
+  import { splitHost } from '../utils/hostname.js';
 
   let { item, fqdn, toggling = false, onToggle, onAutostart, onEdit, onDelete } = $props();
 
@@ -30,8 +31,9 @@
   {@const running = item.running}
   {@const autostart = relay.autostart ?? false}
 
+  {@const host = splitHost(fqdn || 'unknown')}
   <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-3">
-    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+    <div class="flex items-center gap-3">
       <!-- Info -->
       <div class="flex-1 min-w-0">
         <div class="flex items-start gap-2">
@@ -39,11 +41,15 @@
             <Network size={26} strokeWidth={2.5} class={statusIconClass(toggling, running)} />
           </RelayIcon>
           <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2">
-              <span class="font-medium text-sm truncate"><span class="text-sm font-normal text-gray-400 dark:text-gray-500">tcp://{fqdn || 'unknown'}</span><span>:{relay.listen_port}</span></span>
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="flex min-w-0 items-baseline text-sm">
+                <span class="flex-shrink-0 font-normal text-gray-400 dark:text-gray-500">tcp://</span>
+                <span class="min-w-0 truncate font-normal text-gray-400 dark:text-gray-500">{host.short}{#if host.suffix}<span class="hidden sm:inline">{host.suffix}</span>{/if}</span>
+                <span class="flex-shrink-0 font-medium">:{relay.listen_port}</span>
+              </span>
               <CopyButton text={`tcp://${fqdn || 'unknown'}:${relay.listen_port}`} />
             </div>
-            <p class="font-medium text-sm mt-1">
+            <p class="font-medium text-sm mt-1 truncate">
               &rarr; {formatRelayTarget(relay)}
             </p>
           </div>
@@ -51,12 +57,13 @@
       </div>
 
       <!-- Actions -->
-      <div class="flex items-center gap-1 ml-[3.25rem] sm:ml-0">
+      <div class="flex flex-shrink-0 items-center gap-1">
         <Toggle
           checked={running}
           disabled={toggling}
           onChange={() => onToggle('relay', relay.id, running)}
           label={running ? 'Stop relay' : 'Start relay'}
+          size="md"
         />
         <ItemMenu
           {autostart}
@@ -76,22 +83,27 @@
   {@const listenerScheme = proxy.listener_scheme || 'https'}
   {@const tlsError = proxy.tls_error || proxy.TLSError || ''}
 
+  {@const host = splitHost(proxy.hostname || fqdn)}
   <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-3">
-    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+    <div class="flex items-center gap-3">
       <!-- Info -->
       <div class="flex-1 min-w-0">
         <div class="flex items-start gap-2">
-          <RelayIcon iconUrl={proxy.icon_url} {toggling} {running} alt={proxyUrl}>
+          <RelayIcon iconUrl={proxy.icon_url} {toggling} {running} alt={proxyUrl} href={proxyUrl}>
             <ShieldCheck size={26} strokeWidth={2.5} class={statusIconClass(toggling, running)} />
           </RelayIcon>
           <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 min-w-0">
               <a
                 href={proxyUrl}
                 target="_blank"
                 rel="noopener"
-                class="font-medium text-sm truncate hover:underline"
-              ><span class="text-sm font-normal text-gray-400 dark:text-gray-500">{listenerScheme}://{proxy.hostname || fqdn}</span><span>{proxy.listen_port && proxy.listen_port !== 443 ? `:${proxy.listen_port}` : ''}</span></a>
+                class="flex min-w-0 items-baseline text-sm hover:underline"
+              >
+                <span class="flex-shrink-0 font-normal text-gray-400 dark:text-gray-500">{listenerScheme}://</span>
+                <span class="min-w-0 truncate font-normal text-gray-400 dark:text-gray-500">{host.short}{#if host.suffix}<span class="hidden sm:inline">{host.suffix}</span>{/if}</span>
+                <span class="flex-shrink-0 font-medium">{proxy.listen_port && proxy.listen_port !== 443 ? `:${proxy.listen_port}` : ''}</span>
+              </a>
               <CopyButton text={proxyUrl} />
               {#if tlsError}
                 <span title={tlsError} class="flex-shrink-0 text-amber-500 dark:text-amber-400 cursor-help">
@@ -99,7 +111,7 @@
                 </span>
               {/if}
             </div>
-            <p class="font-medium text-sm mt-1">
+            <p class="font-medium text-sm mt-1 truncate">
               &rarr; {proxy.target_host}:{proxy.target_port}
             </p>
             {#if tlsError}
@@ -113,12 +125,13 @@
       </div>
 
       <!-- Actions -->
-      <div class="flex items-center gap-1 ml-[3.25rem] sm:ml-0">
+      <div class="flex flex-shrink-0 items-center gap-1">
         <Toggle
           checked={running}
           disabled={toggling}
           onChange={() => onToggle('proxy', proxy.id, running)}
           label={running ? 'Stop proxy' : 'Start proxy'}
+          size="md"
         />
         <ItemMenu
           {autostart}
