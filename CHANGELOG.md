@@ -7,9 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Security
+## [0.11.1] - 2026-08-15
 
-- **Go toolchain** (#66) — bump the Go runtime from `1.26.5` to `1.26.6` across `go.mod`, `Dockerfile`, and CI. `go1.26.6` fixes six standard-library vulnerabilities reachable by tailrelay (`crypto/tls`, `net/http`, `net/url`, `html/template`, `encoding/asn1`, `golang.org/x/net/idna`) that Dependabot flagged on the default branch.
+### Changed
+- **Dashboard card polish** (`048365b`) — relay, proxy, and funnel cards display more consistently on narrow screens. Host addresses keep their name and port visible on mobile and reveal the full domain on wider screens, while long targets truncate instead of wrapping and card actions stay aligned.
+
+### Security
+- **Go toolchain** (#104) — bumped the Go runtime to `1.26.6`, which patches several standard-library vulnerabilities reachable from tailrelay's code.
+
+### Docker
+```
+docker pull sudocarlos/tailrelay:v0.11.1
+docker pull ghcr.io/sudocarlos/tailrelay:v0.11.1
+```
 
 ## [0.11.0] - 2026-08-13
 
