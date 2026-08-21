@@ -90,7 +90,7 @@ Copy `.env.example` to `.env` and edit before running tests.
 ### Jobs
 
 1. **frontend** — `npm install` + `npm run build` in `webui/frontend/` (Node.js 24.19.0 in CI)
-2. **backend** — installs Node.js, runs `npm install` + `npm run build` (required for `//go:embed all:web/dist`), then `go vet`, `go test -v`, `go build` in `webui/` (Go 1.24 in CI)
+2. **backend** — installs Node.js, runs `npm install` + `npm run build` (required for `//go:embed all:web/dist`), then `go vet`, `go test -v`, `go build` in `webui/` (Go 1.27.0 in CI)
 3. **integration** — Full Docker build + `pytest tests/integration/ -v`
 4. **release** — Runs only on `v*.*.*` tag pushes, after all three above pass; extracts changelog notes, logs in to Docker Hub + GHCR, builds multi-platform image (`linux/amd64`, `linux/arm64`) and pushes `vX.Y.Z` + `latest` tags to both registries, and creates a GitHub Release
 
@@ -189,5 +189,5 @@ When updating a pinned version in the Dockerfile, touch every location in the ta
 |-----------|---------|
 | Container | `v0.10.0` (see `start.sh`) |
 | Tailscale | `v1.102.2` (`ghcr.io/tailscale/tailscale` base image) |
-| Go | `1.26.5` (Dockerfile ARG) |
+| Go | `1.27.0` (Dockerfile ARG) |
 | Node.js (CI) | `24.19.0` (GitHub Actions + Dockerfile ARG) |
