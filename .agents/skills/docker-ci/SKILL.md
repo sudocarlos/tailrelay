@@ -25,7 +25,7 @@ docker buildx build -t sudocarlos/tailrelay:latest --load .
 5. **main** (`ghcr.io/tailscale/tailscale:{TAILSCALE_VERSION}`) — based on the official Tailscale image; installs runtime deps (iptables, iproute2, mailcap), copies webui binary from builder stage; restores legacy iptables symlinks for broad host compatibility
 
 Key build args:
-- `TAILSCALE_VERSION` (default: `v1.102.2`) — image tag for `ghcr.io/tailscale/tailscale`
+- `TAILSCALE_VERSION` (default: `v1.102.3`) — image tag for `ghcr.io/tailscale/tailscale`
 - `GO_VERSION` (default: `1.26.5`)
 - `NODE_VERSION` (default: `24.19.0`)
 - `ALPINE_VERSION` (default: `3.22`)
@@ -188,6 +188,6 @@ When updating a pinned version in the Dockerfile, touch every location in the ta
 | Component | Version |
 |-----------|---------|
 | Container | `v0.10.0` (see `start.sh`) |
-| Tailscale | `v1.102.2` (`ghcr.io/tailscale/tailscale` base image) |
+| Tailscale | `v1.102.3` (`ghcr.io/tailscale/tailscale` base image) |
 | Go | `1.27.0` (Dockerfile ARG) |
 | Node.js (CI) | `24.19.0` (GitHub Actions + Dockerfile ARG) |
