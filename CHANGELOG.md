@@ -7,10 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-08-21
+
 ### Changed
-- **Frontend tooling** — bumped `vite` in `webui/frontend/package.json` from `8.2.1` to `8.2.2`
-- **Go** bumped from `1.26.6` to `1.27.0` in Dockerfile
-- **Tailscale** bumped from `v1.102.2` to `v1.102.3` in Dockerfile
+- **Frontend tooling** (#109) — bumped `vite` in `webui/frontend/package.json` from `8.2.1` to `8.2.2`
+- **Go** (#108) — bumped from `1.26.6` to `1.27.0` in Dockerfile
+- **Tailscale** (#110) — bumped from `v1.102.2` to `v1.102.3` in Dockerfile
+
+### Docker
+```
+docker pull sudocarlos/tailrelay:v0.11.2
+docker pull ghcr.io/sudocarlos/tailrelay:v0.11.2
+```
 
 ## [0.11.1] - 2026-08-15
 
