@@ -1,6 +1,6 @@
 module github.com/sudocarlos/tailrelay
 
-go 1.26.6
+go 1.27.0
 
 require gopkg.in/yaml.v3 v3.0.1
 
