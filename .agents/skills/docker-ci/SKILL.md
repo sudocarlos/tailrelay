@@ -26,7 +26,7 @@ docker buildx build -t sudocarlos/tailrelay:latest --load .
 
 Key build args:
 - `TAILSCALE_VERSION` (default: `v1.102.3`) — image tag for `ghcr.io/tailscale/tailscale`
-- `GO_VERSION` (default: `1.26.5`)
+- `GO_VERSION` (default: `1.27.1`)
 - `NODE_VERSION` (default: `24.20.0`)
 - `ALPINE_VERSION` (default: `3.22`)
 - `WEBUI_SOURCE` (default: `webui-builder`; set to `binary-dev` for dev builds)
