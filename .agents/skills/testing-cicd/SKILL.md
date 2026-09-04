@@ -277,9 +277,9 @@ Triggers: push to `main`, push of `v*.*.*` tags, PR to `main`, published release
 
 | Job | Runner | Working Dir | What It Does |
 |-----|--------|-------------|-------------|
-| `frontend` | ubuntu-latest | `webui/frontend` | Node 24.19.0 → `npm install` → `npm run build` |
-| `backend` | ubuntu-latest | `webui` | Node 24.19.0 + Go 1.24 → `npm install` + `npm run build` (for `//go:embed all:web/dist`) → `go vet ./...` → `go test -v ./...` → `go build -v ./...` |
-| `integration` | ubuntu-latest | repo root | Node 24.19.0 + Docker Buildx + Python 3.12 → `pytest tests/integration/ -v` |
+| `frontend` | ubuntu-latest | `webui/frontend` | Node 24.20.0 → `npm install` → `npm run build` |
+| `backend` | ubuntu-latest | `webui` | Node 24.20.0 + Go 1.27.1 → `npm install` + `npm run build` (for `//go:embed all:web/dist`) → `go vet ./...` → `go test -v ./...` → `go build -v ./...` |
+| `integration` | ubuntu-latest | repo root | Node 24.20.0 + Docker Buildx + Python 3.12 → `pytest tests/integration/ -v` |
 | `release` | ubuntu-latest | repo root | Runs only on `v*.*.*` tags after all three above pass; builds multi-platform image, pushes to Docker Hub + GHCR, creates GitHub Release |
 
 ### Adding a New CI Job

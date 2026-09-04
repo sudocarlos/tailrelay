@@ -21,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24.19.0'
+          node-version: '24.20.0'
           
       - name: Install dependencies
         run: npm install
@@ -40,7 +40,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24.19.0'
+          node-version: '24.20.0'
 
       - name: Build Frontend
         working-directory: webui/frontend
@@ -49,7 +49,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.27.0'
+          go-version: '1.27.1'
           cache-dependency-path: webui/go.sum
 
       - name: Vet
@@ -69,7 +69,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24.19.0'
+          node-version: '24.20.0'
 
       - name: Install Frontend Dependencies
         working-directory: webui/frontend
@@ -137,7 +137,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24.19.0'
+          node-version: '24.20.0'
 
       - name: Install Frontend Dependencies
         working-directory: webui/frontend
