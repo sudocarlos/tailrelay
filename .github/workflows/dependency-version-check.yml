@@ -205,14 +205,15 @@ jobs:
   node:
     runs-on: ubuntu-latest
     permissions:
-      issues: write
-      contents: read
+      contents: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check Node version and open issue if outdated
+      - name: Detect outdated Node version
         uses: actions/github-script@v7
+        id: detect
         with:
           script: |
             const https = require('https');
@@ -223,7 +224,7 @@ jobs:
                 https.get(url, (res) => {
                   let data = '';
                   res.on('data', chunk => data += chunk);
-                  res.on('end', () => resolve(data));
+                  res.on('end', () => resolve({ status: res.statusCode, body: data }));
                 }).on('error', reject);
               });
             }
@@ -236,12 +237,16 @@ jobs:
 
             const major = pinned.split('.')[0];
             const listing = await get(`https://nodejs.org/download/release/latest-v${major}.x/`);
-            const vMatch = listing.match(new RegExp(`node-v(${major}\\.\\d+\\.\\d+)-`));
+            const vMatch = listing.body.match(new RegExp(`node-v(${major}\\.\\d+\\.\\d+)-`));
             if (!vMatch) { core.setFailed('Could not parse Node version from release listing'); return; }
             const latest = vMatch[1];
             core.info(`Latest Node version: ${latest}`);
 
-            if (pinned === latest) { core.info('Node is up to date.'); return; }
+            if (pinned === latest) {
+              core.info('Node is up to date.');
+              core.setOutput('skip', 'true');
+              return;
+            }
 
             const title = `chore: update Node from ${pinned} to ${latest}`;
             const { data: existing } = await github.rest.issues.listForRepo({
@@ -250,16 +255,119 @@ jobs:
               state: 'all',
               per_page: 100,
             });
-            if (existing.some(i => i.title === title)) { core.info('Issue already exists.'); return; }
+            if (existing.some(i => i.title === title)) {
+              core.info('Bump PR/issue already exists.');
+              core.setOutput('skip', 'true');
+              return;
+            }
 
-            const { data: issue } = await github.rest.issues.create({
+            core.setOutput('skip', 'false');
+            core.setOutput('pinned', pinned);
+            core.setOutput('latest', latest);
+
+      - name: Fetch Node release notes
+        if: steps.detect.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          LATEST="${{ steps.detect.outputs.latest }}"
+          if BODY=$(gh api "repos/nodejs/node/releases/tags/v${LATEST}" --jq .body 2>/dev/null); then
+            # Prefer the Notable Changes section; fall back to a truncated full body
+            printf '%s' "$BODY" | awk '
+              /^### Notable Changes/ { on = 1; print; next }
+              on && /^### /           { exit }
+              on                      { print }
+            ' > release-notes.md
+            if [ ! -s release-notes.md ]; then
+              printf '%s' "$BODY" | head -c 8000 > release-notes.md
+            fi
+            echo "Fetched release notes for v${LATEST}"
+          else
+            echo "(No GitHub release notes found for v${LATEST})" > release-notes.md
+            echo "Warning: no release notes available for v${LATEST}" >&2
+          fi
+
+      - name: Apply version bump
+        if: steps.detect.outputs.skip != 'true'
+        env:
+          PINNED: ${{ steps.detect.outputs.pinned }}
+          LATEST: ${{ steps.detect.outputs.latest }}
+        run: |
+          set -euo pipefail
+          BRANCH="chore/node-bump-${LATEST}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          sed -i "s/ARG NODE_VERSION=${PINNED}/ARG NODE_VERSION=${LATEST}/" Dockerfile
+          sed -i "s/node-version: '${PINNED}'/node-version: '${LATEST}'/g" .github/workflows/ci.yml
+          for f in .agents/skills/docker-ci/SKILL.md .agents/skills/testing-cicd/SKILL.md .agents/skills/security-review/SKILL.md; do
+            sed -i "s/${PINNED}/${LATEST}/g" "$f"
+          done
+          awk -v line="- **Node.js** bumped from \`${PINNED}\` to \`${LATEST}\` in Dockerfile and CI" '
+            /^## \[Unreleased\]/ { unreleased = 1 }
+            unreleased && /^### Changed/ && !done { print; print line; done = 1; next }
+            { print }
+          ' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+          git add Dockerfile .github/workflows/ci.yml .agents/skills CHANGELOG.md
+          git commit -m "chore: update Node from ${PINNED} to ${LATEST}" -m "$(printf '%s\n' \
+            "- bump NODE_VERSION to ${LATEST} in Dockerfile and all four ci.yml jobs" \
+            "- update docker-ci, security-review, and testing-cicd skill docs to match" \
+            "- add CHANGELOG entry under [Unreleased]")"
+          git push --force origin "$BRANCH"
+          echo "branch=${BRANCH}" >> "$GITHUB_ENV"
+
+      - name: Create bump PR
+        if: steps.detect.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const pinned = '${{ steps.detect.outputs.pinned }}';
+            const latest = '${{ steps.detect.outputs.latest }}';
+            const branch = process.env.branch || 'chore/node-bump-' + latest;
+            const major = latest.split('.')[0];
+
+            let notes = '';
+            try { notes = fs.readFileSync('release-notes.md', 'utf8').trim(); } catch (e) {}
+
+            const body = [
+              `Automated Node.js bump from \`${pinned}\` to \`${latest}\` — the latest patch release in the v${major}.x track.`,
+              '',
+              '- bump `NODE_VERSION` to `' + latest + '` in Dockerfile and all four `ci.yml` jobs',
+              '- update docker-ci, security-review, and testing-cicd skill docs to match',
+              '- add CHANGELOG entry under `[Unreleased]`',
+              '',
+            ];
+            if (notes) {
+              body.push('### Node release notes', '', notes, '', '---');
+            }
+            body.push('_Auto-generated by the dependency version check workflow. Merge after CI passes._');
+
+            const { data: pr } = await github.rest.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title,
-              body: `The Dockerfile uses Node \`${pinned}\` but the latest release in the v${major}.x track is \`${latest}\`.`,
+              title: `chore: update Node from ${pinned} to ${latest}`,
+              head: branch,
+              base: context.repo.default_branch,
+              body: body.join('\n'),
               assignees: ['sudocarlos'],
             });
-            core.info(`Created issue #${issue.number}: ${issue.html_url}`);
+            core.info(`Created PR #${pr.number}: ${pr.html_url}`);
+
+            // GITHUB_TOKEN pushes do not trigger workflow runs; close + reopen
+            // the PR to fire the pull_request (reopened) event and start CI.
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              state: 'closed',
+            });
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              state: 'open',
+            });
+            core.info('Reopened PR to trigger CI.');
 
   vite:
     runs-on: ubuntu-latest
