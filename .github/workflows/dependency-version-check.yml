@@ -620,13 +620,15 @@ jobs:
   vite:
     runs-on: ubuntu-latest
     permissions:
+      contents: write
       issues: write
-      contents: read
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check Vite version and open issue if outdated
+      - name: Detect new Vite version
+        id: detect
         uses: actions/github-script@v7
         with:
           script: |
@@ -657,7 +659,25 @@ jobs:
             if (!latest) { core.setFailed('Could not determine latest Vite version from npm'); return; }
             core.info(`Latest Vite version: ${latest}`);
 
-            if (pinned === latest) { core.info('Vite is up to date.'); return; }
+            if (pinned === latest) {
+              core.info('Vite is up to date.');
+              core.setOutput('skip', 'true');
+              return;
+            }
+
+            // Skip if an open bump PR already exists for this version
+            const branch = `chore/bump-vite-${latest}`;
+            const { data: openPrs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:${branch}`,
+            });
+            if (openPrs.length > 0) {
+              core.info(`Bump PR already exists for ${latest}: #${openPrs[0].number}`);
+              core.setOutput('skip', 'true');
+              return;
+            }
 
             // 3. Fetch the Vite changelog from GitHub and extract the relevant section
             const changelogUrl = 'https://raw.githubusercontent.com/vitejs/vite/main/packages/vite/CHANGELOG.md';
@@ -682,16 +702,119 @@ jobs:
             } catch (e) {
               core.warning(`Could not fetch changelog: ${e.message}`);
             }
+            // Stash the changelog section for the PR body (bounded)
+            fs.writeFileSync('vite-changelog.md', changelogSection || '');
 
-            // 4. Build issue body
+            // 4. Ensure a labeled tracking issue exists for this version pair
+            const title = `chore: update Vite from ${pinned} to ${latest}`;
+            const { data: existing } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              labels: 'dependencies',
+              per_page: 100,
+            });
+            let issueNumber = existing.find(i => i.title === title)?.number;
+            if (!issueNumber) {
+              const bodyLines = [
+                `The \`webui/frontend/package.json\` pins Vite at \`${pinned}\` but the npm \`latest\` tag is \`${latest}\`.`,
+                '',
+                `| Field | Value |`,
+                `|-------|-------|`,
+                `| Pinned | \`${pinned}\` |`,
+                `| Latest | \`${latest}\` |`,
+                `| Source | \`webui/frontend/package.json\` |`,
+                '',
+              ];
+              if (changelogSection) {
+                bodyLines.push('### Changelog', '', changelogSection, '');
+              }
+              bodyLines.push(
+                '### Links',
+                `- [npm](https://www.npmjs.com/package/vite/v/${latest})`,
+                `- [GitHub Releases](https://github.com/vitejs/vite/releases)`,
+                `- [Changelog](https://github.com/vitejs/vite/blob/main/packages/vite/CHANGELOG.md)`,
+              );
+              const { data: issue } = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body: bodyLines.join('\n'),
+                labels: ['dependencies'],
+                assignees: ['sudocarlos'],
+              });
+              issueNumber = issue.number;
+              core.info(`Created tracking issue #${issueNumber}: ${issue.html_url}`);
+            } else {
+              core.info(`Reusing tracking issue #${issueNumber}`);
+            }
+
+            core.setOutput('skip', 'false');
+            core.setOutput('pinned', pinned);
+            core.setOutput('latest', latest);
+            core.setOutput('issue_number', issueNumber);
+
+      - name: Install Node
+        if: steps.detect.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Apply version bump
+        if: steps.detect.outputs.skip != 'true'
+        env:
+          PINNED: ${{ steps.detect.outputs.pinned }}
+          LATEST: ${{ steps.detect.outputs.latest }}
+        run: |
+          set -euo pipefail
+          BRANCH="chore/bump-vite-${LATEST}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          cd webui/frontend
+          npm install --no-fund --no-audit --save-dev "vite@^${LATEST}"
+          cd ../..
+          awk -v line="- **Vite** bumped from \`${PINNED}\` to \`${LATEST}\` in \`webui/frontend/package.json\`" '
+            /^## \[Unreleased\]/ { unreleased = 1 }
+            unreleased && /^### Changed/ && !done { print; print line; done = 1; next }
+            { print }
+          ' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+          git add webui/frontend/package.json webui/frontend/package-lock.json CHANGELOG.md
+          git commit -m "chore: update Vite from ${PINNED} to ${LATEST}" -m "$(printf '%s\n' \
+            "- bump vite to ^${LATEST} in webui/frontend/package.json and lockfile" \
+            "- add CHANGELOG entry under [Unreleased]")"
+          git push --force origin "$BRANCH"
+          echo "branch=${BRANCH}" >> "$GITHUB_ENV"
+
+      - name: Create bump PR
+        if: steps.detect.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const pinned = '${{ steps.detect.outputs.pinned }}';
+            const latest = '${{ steps.detect.outputs.latest }}';
+            const issueNumber = '${{ steps.detect.outputs.issue_number }}';
+            const branch = process.env.branch || `chore/bump-vite-${latest}`;
+
+            let changelogSection = '';
+            try { changelogSection = fs.readFileSync('vite-changelog.md', 'utf8').trim(); } catch (e) {}
+
             const bodyLines = [
-              `The \`webui/frontend/package.json\` pins Vite at \`${pinned}\` but the npm \`latest\` tag is \`${latest}\`.`,
+              `\`webui/frontend\` pins Vite at \`${pinned}\` but the npm \`latest\` tag is \`${latest}\`.`,
               '',
               `| Field | Value |`,
               `|-------|-------|`,
               `| Pinned | \`${pinned}\` |`,
               `| Latest | \`${latest}\` |`,
               `| Source | \`webui/frontend/package.json\` |`,
+              '',
+              `### Changes in this PR`,
+              '',
+              `- Bump vite to \`^${latest}\` in \`webui/frontend/package.json\` and lockfile`,
+              `- Add CHANGELOG entry under \`[Unreleased]\` → \`### Changed\``,
               '',
             ];
             if (changelogSection) {
@@ -702,24 +825,36 @@ jobs:
               `- [npm](https://www.npmjs.com/package/vite/v/${latest})`,
               `- [GitHub Releases](https://github.com/vitejs/vite/releases)`,
               `- [Changelog](https://github.com/vitejs/vite/blob/main/packages/vite/CHANGELOG.md)`,
+              '',
+              '> **Note:** This PR was created automatically by the dependency version check workflow.',
+              '> Verify the build before merging.',
+              '',
+              `Closes #${issueNumber}`,
             );
 
-            // 5. Check for existing issue (open or closed)
-            const title = `chore: update Vite from ${pinned} to ${latest}`;
-            const { data: existing } = await github.rest.issues.listForRepo({
+            const { data: pr } = await github.rest.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              state: 'all',
-              per_page: 100,
-            });
-            if (existing.some(i => i.title === title)) { core.info('Issue already exists.'); return; }
-
-            // 6. Create the issue
-            const { data: issue } = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title,
+              title: `chore: update Vite from ${pinned} to ${latest}`,
+              head: branch,
+              base: context.repo.default_branch,
               body: bodyLines.join('\n'),
               assignees: ['sudocarlos'],
             });
-            core.info(`Created issue #${issue.number}: ${issue.html_url}`);
+            core.info(`Created PR #${pr.number}: ${pr.html_url}`);
+
+            // GITHUB_TOKEN pushes do not trigger workflow runs; close + reopen
+            // the PR to fire the pull_request (reopened) event and start CI.
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              state: 'closed',
+            });
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              state: 'open',
+            });
+            core.info('Reopened PR to trigger CI.');
