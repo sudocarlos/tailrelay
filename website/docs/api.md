@@ -1,5 +1,3 @@
-# API Reference
-
 The tailrelay Web UI serves an HTTP/JSON API on port `8021` for managing
 Tailscale connectivity, `tailscale serve` / `tailscale funnel` relays,
 configuration backups, and container logs.
