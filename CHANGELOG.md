@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Vite** bumped from `8.2.2` to `8.3.0` in `webui/frontend/package.json`
 - **Docs site** (#123) — migrated from Docusaurus to Material for MkDocs; the API reference now renders directly from `docs/openapi.yaml` via the OpenAPI Docs plugin at build time
 - **Go** bumped from `1.27.0` to `1.27.1` in Dockerfile, `go.mod`, and CI
 - **Node.js** bumped from `24.19.0` to `24.20.0` in Dockerfile and CI
