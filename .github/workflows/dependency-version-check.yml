@@ -191,13 +191,15 @@ jobs:
   tailscale:
     runs-on: ubuntu-latest
     permissions:
+      contents: write
       issues: write
-      contents: read
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check Tailscale version and open issue if outdated
+      - name: Detect new Tailscale version
+        id: detect
         uses: actions/github-script@v7
         with:
           script: |
@@ -290,43 +292,163 @@ jobs:
             if (!stableVersion) { core.setFailed('Could not match stable digest to any versioned tag'); return; }
             core.info(`stable version resolved to: ${stableVersion}`);
 
-            if (pinnedVersion === stableVersion) { core.info('Dockerfile is up to date.'); return; }
+            if (pinnedVersion === stableVersion) {
+              core.info('Dockerfile is up to date.');
+              core.setOutput('skip', 'true');
+              return;
+            }
 
-            // 5. Check if an issue already exists (open or closed) for this version pair
+            // Skip if an open bump PR already exists for this version
+            const branch = `chore/bump-tailscale-${stableVersion}`;
+            const { data: openPrs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:${branch}`,
+            });
+            if (openPrs.length > 0) {
+              core.info(`Bump PR already exists for ${stableVersion}: #${openPrs[0].number}`);
+              core.setOutput('skip', 'true');
+              return;
+            }
+
+            // Ensure a labeled tracking issue exists for this version pair
             const issueTitle = `chore: update Tailscale from ${pinnedVersion} to ${stableVersion}`;
             const { data: existing } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'all',
+              labels: 'dependencies',
               per_page: 100,
             });
-            if (existing.some(i => i.title === issueTitle)) {
-              core.info(`Issue already exists for ${stableVersion}, nothing to do.`);
-              return;
+            let issueNumber = existing.find(i => i.title === issueTitle)?.number;
+            if (!issueNumber) {
+              const { data: issue } = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: issueTitle,
+                body: [
+                  `The Dockerfile pins \`ghcr.io/tailscale/tailscale:${pinnedVersion}\` but the current stable release is \`${stableVersion}\`.`,
+                  ``,
+                  `| Field | Value |`,
+                  `|-------|-------|`,
+                  `| Pinned | \`${pinnedVersion}\` |`,
+                  `| Latest stable | \`${stableVersion}\` |`,
+                  `| Digest | \`${stableDigest}\` |`,
+                  ``,
+                  `### Links`,
+                  `- [GHCR package](https://github.com/tailscale/tailscale/pkgs/container/tailscale)`,
+                  `- [GitHub Release](https://github.com/tailscale/tailscale/releases/tag/${stableVersion})`,
+                  `- [Changelog](https://tailscale.com/changelog)`,
+                ].join('\n'),
+                labels: ['dependencies'],
+                assignees: ['sudocarlos'],
+              });
+              issueNumber = issue.number;
+              core.info(`Created tracking issue #${issueNumber}: ${issue.html_url}`);
+            } else {
+              core.info(`Reusing tracking issue #${issueNumber}`);
             }
 
-            // 6. Create the issue
-            const { data: issue } = await github.rest.issues.create({
+            core.setOutput('skip', 'false');
+            core.setOutput('pinned', pinnedVersion);
+            core.setOutput('latest', stableVersion);
+            core.setOutput('digest', stableDigest);
+            core.setOutput('issue_number', issueNumber);
+
+      - name: Apply version bump
+        if: steps.detect.outputs.skip != 'true'
+        env:
+          PINNED: ${{ steps.detect.outputs.pinned }}
+          LATEST: ${{ steps.detect.outputs.latest }}
+        run: |
+          set -euo pipefail
+          BRANCH="chore/bump-tailscale-${LATEST}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          sed -i "s/ARG TAILSCALE_VERSION=${PINNED}/ARG TAILSCALE_VERSION=${LATEST}/" Dockerfile
+          for f in .agents/skills/docker-ci/SKILL.md .agents/skills/security-review/SKILL.md; do
+            sed -i "s/${PINNED}/${LATEST}/g" "$f"
+          done
+          awk -v line="- **Tailscale** bumped from \`${PINNED}\` to \`${LATEST}\` in Dockerfile" '
+            /^## \[Unreleased\]/ { unreleased = 1 }
+            unreleased && /^### Changed/ && !done { print; print line; done = 1; next }
+            { print }
+          ' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+          git add Dockerfile .agents/skills CHANGELOG.md
+          git commit -m "chore: update Tailscale from ${PINNED} to ${LATEST}" -m "$(printf '%s\n' \
+            "- bump TAILSCALE_VERSION to ${LATEST} in Dockerfile" \
+            "- update docker-ci and security-review skill docs to match" \
+            "- add CHANGELOG entry under [Unreleased]")"
+          git push --force origin "$BRANCH"
+          echo "branch=${BRANCH}" >> "$GITHUB_ENV"
+
+      - name: Create bump PR
+        if: steps.detect.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pinned = '${{ steps.detect.outputs.pinned }}';
+            const latest = '${{ steps.detect.outputs.latest }}';
+            const digest = '${{ steps.detect.outputs.digest }}';
+            const issueNumber = '${{ steps.detect.outputs.issue_number }}';
+            const branch = process.env.branch || `chore/bump-tailscale-${latest}`;
+
+            const body = [
+              `A new stable release of **tailscale/tailscale** has been published on GHCR.`,
+              ``,
+              `| Field | Value |`,
+              `|-------|-------|`,
+              `| Version | \`${latest}\` |`,
+              `| Previous | \`${pinned}\` |`,
+              `| GHCR tag | \`ghcr.io/tailscale/tailscale:stable\` |`,
+              `| Digest | \`${digest}\` |`,
+              ``,
+              `### Links`,
+              ``,
+              `- [GHCR package](https://github.com/tailscale/tailscale/pkgs/container/tailscale)`,
+              `- [GitHub Release](https://github.com/tailscale/tailscale/releases/tag/${latest})`,
+              `- [Changelog](https://tailscale.com/changelog)`,
+              ``,
+              `### Changes in this PR`,
+              ``,
+              `- Bump \`TAILSCALE_VERSION\` to \`${latest}\` in Dockerfile`,
+              `- Update docker-ci and security-review skill docs to match`,
+              `- Add CHANGELOG entry under \`[Unreleased]\` → \`### Changed\``,
+              ``,
+              `> **Note:** This PR was created automatically by the dependency version check workflow.`,
+              `> Verify the build before merging.`,
+              ``,
+              `Closes #${issueNumber}`,
+            ].join('\n');
+
+            const { data: pr } = await github.rest.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: issueTitle,
-              body: [
-                `The Dockerfile pins \`ghcr.io/tailscale/tailscale:${pinnedVersion}\` but the current stable release is \`${stableVersion}\`.`,
-                ``,
-                `| Field | Value |`,
-                `|-------|-------|`,
-                `| Pinned | \`${pinnedVersion}\` |`,
-                `| Latest stable | \`${stableVersion}\` |`,
-                `| Digest | \`${stableDigest}\` |`,
-                ``,
-                `### Links`,
-                `- [GHCR package](https://github.com/tailscale/tailscale/pkgs/container/tailscale)`,
-                `- [GitHub Release](https://github.com/tailscale/tailscale/releases/tag/${stableVersion})`,
-                `- [Changelog](https://tailscale.com/changelog)`,
-              ].join('\n'),
+              title: `chore: update Tailscale from ${pinned} to ${latest}`,
+              head: branch,
+              base: context.repo.default_branch,
+              body: body.join('\n'),
               assignees: ['sudocarlos'],
             });
-            core.info(`Created issue #${issue.number}: ${issue.html_url}`);
+            core.info(`Created PR #${pr.number}: ${pr.html_url}`);
+
+            // GITHUB_TOKEN pushes do not trigger workflow runs; close + reopen
+            // the PR to fire the pull_request (reopened) event and start CI.
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              state: 'closed',
+            });
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              state: 'open',
+            });
+            core.info('Reopened PR to trigger CI.');
 
   node:
     runs-on: ubuntu-latest
