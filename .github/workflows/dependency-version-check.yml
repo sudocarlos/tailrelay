@@ -166,7 +166,7 @@ jobs:
               repo: context.repo.repo,
               title: `chore: update Go from ${pinned} to ${latest}`,
               head: branch,
-              base: context.repo.default_branch,
+              base: (await github.rest.repos.get(context.repo)).data.default_branch,
               body: body.join('\n'),
               assignees: ['sudocarlos'],
             });
@@ -428,7 +428,7 @@ jobs:
               repo: context.repo.repo,
               title: `chore: update Tailscale from ${pinned} to ${latest}`,
               head: branch,
-              base: context.repo.default_branch,
+              base: (await github.rest.repos.get(context.repo)).data.default_branch,
               body: body.join('\n'),
               assignees: ['sudocarlos'],
             });
@@ -595,7 +595,7 @@ jobs:
               repo: context.repo.repo,
               title: `chore: update Node from ${pinned} to ${latest}`,
               head: branch,
-              base: context.repo.default_branch,
+              base: (await github.rest.repos.get(context.repo)).data.default_branch,
               body: body.join('\n'),
               assignees: ['sudocarlos'],
             });
@@ -837,7 +837,7 @@ jobs:
               repo: context.repo.repo,
               title: `chore: update Vite from ${pinned} to ${latest}`,
               head: branch,
-              base: context.repo.default_branch,
+              base: (await github.rest.repos.get(context.repo)).data.default_branch,
               body: bodyLines.join('\n'),
               assignees: ['sudocarlos'],
             });
