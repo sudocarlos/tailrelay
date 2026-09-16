@@ -9,13 +9,15 @@ jobs:
   go:
     runs-on: ubuntu-latest
     permissions:
+      contents: write
       issues: write
-      contents: read
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check Go version and open issue if outdated
+      - name: Detect new Go version
+        id: detect
         uses: actions/github-script@v7
         with:
           script: |
@@ -42,25 +44,149 @@ jobs:
             const latest = raw.split('\n')[0].replace(/^go/, '');
             core.info(`Latest Go version: ${latest}`);
 
-            if (pinned === latest) { core.info('Go is up to date.'); return; }
+            if (pinned === latest) {
+              core.info('Go is up to date.');
+              core.setOutput('skip', 'true');
+              return;
+            }
 
+            // Skip if an open bump PR already exists for this version
+            const branch = `chore/bump-go-${latest}`;
+            const { data: openPrs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:${branch}`,
+            });
+            if (openPrs.length > 0) {
+              core.info(`Bump PR already exists for ${latest}: #${openPrs[0].number}`);
+              core.setOutput('skip', 'true');
+              return;
+            }
+
+            // Ensure a labeled tracking issue exists for this version pair
             const title = `chore: update Go from ${pinned} to ${latest}`;
             const { data: existing } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'all',
+              labels: 'dependencies',
               per_page: 100,
             });
-            if (existing.some(i => i.title === title)) { core.info('Issue already exists.'); return; }
+            let issueNumber = existing.find(i => i.title === title)?.number;
+            if (!issueNumber) {
+              const { data: issue } = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body: `The Dockerfile uses Go \`${pinned}\` but the latest stable release is \`${latest}\`.`,
+                labels: ['dependencies'],
+                assignees: ['sudocarlos'],
+              });
+              issueNumber = issue.number;
+              core.info(`Created tracking issue #${issueNumber}: ${issue.html_url}`);
+            } else {
+              core.info(`Reusing tracking issue #${issueNumber}`);
+            }
 
-            const { data: issue } = await github.rest.issues.create({
+            core.setOutput('skip', 'false');
+            core.setOutput('pinned', pinned);
+            core.setOutput('latest', latest);
+            core.setOutput('issue_number', issueNumber);
+
+      - name: Apply version bump
+        if: steps.detect.outputs.skip != 'true'
+        env:
+          PINNED: ${{ steps.detect.outputs.pinned }}
+          LATEST: ${{ steps.detect.outputs.latest }}
+        run: |
+          set -euo pipefail
+          BRANCH="chore/bump-go-${LATEST}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          sed -i "s/ARG GO_VERSION=${PINNED}/ARG GO_VERSION=${LATEST}/" Dockerfile
+          sed -i "s/^go ${PINNED}$/go ${LATEST}/" webui/go.mod
+          sed -i "s/go-version: '${PINNED}'/go-version: '${LATEST}'/g" .github/workflows/ci.yml
+          for f in .agents/skills/docker-ci/SKILL.md .agents/skills/security-review/SKILL.md .agents/skills/testing-cicd/SKILL.md; do
+            sed -i "s/${PINNED}/${LATEST}/g" "$f"
+          done
+          awk -v line="- **Go** bumped from \`${PINNED}\` to \`${LATEST}\` in Dockerfile, \`go.mod\`, and CI" '
+            /^## \[Unreleased\]/ { unreleased = 1 }
+            unreleased && /^### Changed/ && !done { print; print line; done = 1; next }
+            { print }
+          ' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+          git add Dockerfile webui/go.mod .github/workflows/ci.yml .agents/skills CHANGELOG.md
+          git commit -m "chore: update Go from ${PINNED} to ${LATEST}" -m "$(printf '%s\n' \
+            "- bump GO_VERSION to ${LATEST} in Dockerfile, go.mod, and ci.yml" \
+            "- update docker-ci, security-review, and testing-cicd skill docs to match" \
+            "- add CHANGELOG entry under [Unreleased]")"
+          git push --force origin "$BRANCH"
+          echo "branch=${BRANCH}" >> "$GITHUB_ENV"
+
+      - name: Create bump PR
+        if: steps.detect.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const pinned = '${{ steps.detect.outputs.pinned }}';
+            const latest = '${{ steps.detect.outputs.latest }}';
+            const issueNumber = '${{ steps.detect.outputs.issue_number }}';
+            const branch = process.env.branch || `chore/bump-go-${latest}`;
+
+            const body = [
+              `A new stable release of **Go** has been published.`,
+              ``,
+              `| Field | Value |`,
+              `|-------|-------|`,
+              `| Pinned | \`${pinned}\` |`,
+              `| Latest stable | \`${latest}\` |`,
+              `| Source | \`Dockerfile:GO_VERSION\` |`,
+              ``,
+              `### Links`,
+              ``,
+              `- [Go ${latest} release notes](https://go.dev/doc/devel/release#go${latest})`,
+              `- [Go downloads](https://go.dev/dl/)`,
+              ``,
+              `### Changes in this PR`,
+              ``,
+              `- Bump \`GO_VERSION\` to \`${latest}\` in Dockerfile, \`webui/go.mod\`, and all \`ci.yml\` jobs`,
+              `- Update docker-ci, security-review, and testing-cicd skill docs to match`,
+              `- Add CHANGELOG entry under \`[Unreleased]\` → \`### Changed\``,
+              ``,
+              `> **Note:** This PR was created automatically by the dependency version check workflow.`,
+              `> Verify the build before merging.`,
+              ``,
+              `Closes #${issueNumber}`,
+            ].join('\n');
+
+            const { data: pr } = await github.rest.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title,
-              body: `The Dockerfile uses Go \`${pinned}\` but the latest stable release is \`${latest}\`.`,
+              title: `chore: update Go from ${pinned} to ${latest}`,
+              head: branch,
+              base: context.repo.default_branch,
+              body: body.join('\n'),
               assignees: ['sudocarlos'],
             });
-            core.info(`Created issue #${issue.number}: ${issue.html_url}`);
+            core.info(`Created PR #${pr.number}: ${pr.html_url}`);
+
+            // GITHUB_TOKEN pushes do not trigger workflow runs; close + reopen
+            // the PR to fire the pull_request (reopened) event and start CI.
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              state: 'closed',
+            });
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              state: 'open',
+            });
+            core.info('Reopened PR to trigger CI.');
 
   tailscale:
     runs-on: ubuntu-latest
