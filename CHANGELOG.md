@@ -7,12 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.3] - 2026-09-15
+
 ### Changed
-- **Vite** bumped from `8.2.2` to `8.3.0` in `webui/frontend/package.json`
+- **Vite** (#132) — bumped from `8.2.2` to `8.3.0` in `webui/frontend/package.json`, bringing faster preload dependency handling, CSS style-tag minification, and support for subpath imports in dynamic import statements
 - **Docs site** (#123) — migrated from Docusaurus to Material for MkDocs; the API reference now renders directly from `docs/openapi.yaml` via the OpenAPI Docs plugin at build time
-- **Go** bumped from `1.27.0` to `1.27.1` in Dockerfile, `go.mod`, and CI
-- **Node.js** bumped from `24.19.0` to `24.20.0` in Dockerfile and CI
-- **Node.js** bumped from `24.20.0` to `24.21.0` in Dockerfile and CI
+- **Go** (#116) — bumped from `1.27.0` to `1.27.1` in Dockerfile, `go.mod`, and CI, taking in fixes to cgo, the compiler, the runtime, and the `net/http` and `os` packages, among others
+- **Node.js** (#116, #125) — bumped from `24.20.0` to `24.21.0` in Dockerfile and CI, which updates root certificates to NSS 3.126 and bundled dependencies to OpenSSL 3.5.8 and Undici 7.29.1
+- **CI version check** (#126, #127, #128, #129, #131) — auto-opens bump PRs for Go, Node, Tailscale, and Vite, embedding release notes and changelog links in each PR body
+
+### Docker
+```
+docker pull sudocarlos/tailrelay:v0.11.3
+docker pull ghcr.io/sudocarlos/tailrelay:v0.11.3
+```
 
 ## [0.11.2] - 2026-08-21
 
