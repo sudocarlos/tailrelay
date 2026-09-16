@@ -52,7 +52,7 @@ switching an already-connected device requires logging out first.
 
 ## StartOS Deployment
 
-tailrelay is available as a StartOS package via
+Tailrelay is available as a StartOS package via
 [sudocarlos/tailrelay-startos](https://github.com/sudocarlos/tailrelay-startos).
 
 **Sideloading:**

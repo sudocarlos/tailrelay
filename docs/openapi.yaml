@@ -1,9 +1,9 @@
 openapi: 3.1.0
 info:
-  title: tailrelay Web UI API
+  title: Tailrelay Web UI API
   version: 0.9.3
   description: |
-    HTTP/JSON API served by the tailrelay Go Web UI on port `8021`. It manages
+    HTTP/JSON API served by the Tailrelay Go Web UI on port `8021`. It manages
     Tailscale connectivity and `tailscale serve` / `tailscale funnel` relays,
     plus configuration backups and container logs.
 
@@ -47,7 +47,7 @@ info:
     name: BSD-3-Clause
     url: https://github.com/sudocarlos/tailrelay/blob/main/LICENSE
   contact:
-    name: tailrelay
+    name: Tailrelay
     url: https://github.com/sudocarlos/tailrelay
 
 servers:
@@ -1382,7 +1382,7 @@ components:
           type: boolean
           description: >
             True when tailscaled is running with --tun=userspace-networking
-            (tailrelay's only mode). When true, routing this node's own traffic
+            (Tailrelay's only mode). When true, routing this node's own traffic
             through a peer exit node is impossible — the UI only offers "Run as
             exit node" and "None", and the update endpoint rejects a non-empty
             `exit_node` with 409. Advertised exit-node usage from other peers

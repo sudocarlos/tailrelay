@@ -5,7 +5,7 @@ Combines **Tailscale VPN**, **Tailscale Serve** (HTTPS + TCP relays),
 **Tailscale Funnel** (public relays), and a **Web UI** for browser-based
 management.
 
-This site documents how to deploy, configure, and develop tailrelay, and hosts
+This site documents how to deploy, configure, and develop Tailrelay, and hosts
 the generated [API Reference](api.md) sourced directly from the project's
 OpenAPI specification.
 
@@ -37,7 +37,7 @@ OpenAPI specification.
 
 </div>
 
-This makes tailrelay useful for exposing local or self-hosted services (like
+This makes Tailrelay useful for exposing local or self-hosted services (like
 BTCPayServer, LND, electrs, and Mempool) to your Tailnet securely without Tor.
 
 ## Web UI

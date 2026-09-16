@@ -82,8 +82,10 @@ reference rendered from it.
 - Verify locally: `cd website && mkdocs build --strict`
 
 **Branding:** plain `Tailrelay` in headings (Material for MkDocs renders the
-navbar logo from `website/docs/img/logo.png`). Plain `tailrelay` stays
-lowercase in prose and metadata, matching the repo and Docker Hub names.
+navbar logo from `website/docs/img/logo.png`). Display titles use Titlecase
+`Tailrelay` (`site_name`, `openapi.yaml` `info.title`, headings, prose).
+Lowercase `tailrelay` is kept only for identifiers: the GitHub repo, Docker
+image/tag names, binary paths (`tailrelay-webui`), and package filenames.
 
 **Ownership split for guide content (Quick Start, Tailscale Setup,
 Troubleshooting, etc.):** `website/docs/*.md` is the canonical, detailed

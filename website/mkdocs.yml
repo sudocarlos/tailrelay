@@ -1,7 +1,7 @@
-site_name: tailrelay
+site_name: Tailrelay
 site_description: Expose local services to your Tailscale network via tailscale serve and funnel.
 site_url: https://sudocarlos.github.io/tailrelay/
-copyright: Copyright © tailrelay. Licensed under BSD-3-Clause.
+copyright: Copyright © Tailrelay. Licensed under BSD-3-Clause.
 
 # GitHub Pages project site: https://sudocarlos.github.io/tailrelay/
 repo_url: https://github.com/sudocarlos/tailrelay
