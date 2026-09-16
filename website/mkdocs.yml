@@ -1,0 +1,62 @@
+site_name: tailrelay
+site_description: Expose local services to your Tailscale network via tailscale serve and funnel.
+site_url: https://sudocarlos.github.io/tailrelay/
+
+# GitHub Pages project site: https://sudocarlos.github.io/tailrelay/
+repo_url: https://github.com/sudocarlos/tailrelay
+repo_name: sudocarlos/tailrelay
+edit_uri: edit/main/website/docs/
+
+theme:
+  name: material
+  logo: img/logo.png
+  favicon: img/favicon.ico
+  features:
+    - content.code.copy
+    - navigation.top
+    - navigation.footer
+  palette:
+    # Light and dark schemes follow the browser setting, matching the Web UI.
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Authentication: authentication.md
+  - Development: development.md
+  - Troubleshooting: troubleshooting.md
+  - Screenshots: screenshots.md
+  - API Reference: api.md
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+  - search
+  - neoteroi.mkdocsoad:
+      use_pymdownx: true
+
+extra_css:
+  - css/mkdocsoad.css
+
+# tailrelay brand: Tailwind blue-500 (see webui/frontend/src/app.css).
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/sudocarlos/tailrelay
+    - icon: fontawesome/brands/docker
+      link: https://hub.docker.com/r/sudocarlos/tailrelay

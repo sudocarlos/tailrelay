@@ -4,8 +4,8 @@
  * Requires Vite dev server running: cd webui/frontend && npm run dev
  * Run: node take-screenshots.mjs
  *
- * Each capture is written here and mirrored into the Docusaurus static dir so
- * the published docs site never drifts from the sources committed under docs/.
+ * Each capture is written here and mirrored into the MkDocs site's docs dir
+ * so the published docs site never drifts from the sources committed under docs/.
  */
 import { chromium } from 'playwright';
 import { copyFile, mkdir } from 'fs/promises';
@@ -14,7 +14,7 @@ import { fileURLToPath } from 'url';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const OUT = __dir;
-const SITE_OUT = resolve(__dir, '../../website/static/img/screenshots');
+const SITE_OUT = resolve(__dir, '../../website/docs/img/screenshots');
 const BASE = 'http://localhost:5173';
 
 // ── Mock data ────────────────────────────────────────────────────────────────
