@@ -170,21 +170,22 @@ Access these in `webui/cmd/webui/main.go`.
 ## Documentation Site
 
 This documentation site lives in `website/` and is built with
-[Docusaurus](https://docusaurus.io/). The [API Reference](/docs/api/) is
-generated from `docs/openapi.yaml` via `docusaurus gen-api-docs all` and
-rendered with [docusaurus-openapi-docs](https://github.com/PaloAltoNetworks/docusaurus-openapi-docs).
-Run the generator before building:
+[Material for MkDocs](https://squidfunk.github.io/mkdocs-material/). The
+[API Reference](api.md) is rendered directly from `docs/openapi.yaml` by the
+[OpenAPI Docs plugin](https://github.com/Neoteroi/mkdocs-plugins) at build
+time — no generator step:
 
 ```bash
 cd website
-npm run docusaurus gen-api-docs all
-npm run build     # or npm start for local dev
+pip install -r requirements.txt
+mkdocs serve        # local dev at http://localhost:8000
+mkdocs build --strict   # or a production build into site/
 ```
 
 ### Screenshots
 
-Screenshots for the docs site live in `website/static/img/screenshots/` and are
-referenced by the [Screenshots](/docs/screenshots/) page. The sources are
+Screenshots for the docs site live in `website/docs/img/screenshots/` and are
+referenced by the [Screenshots](screenshots.md) page. The sources are
 captured under `docs/screenshots/` by a Playwright script that mocks every API
 response, so no running container is needed — only the Vite dev server:
 
@@ -194,4 +195,4 @@ node docs/screenshots/take-screenshots.mjs
 ```
 
 The script writes each capture to `docs/screenshots/` and mirrors it into
-`website/static/img/screenshots/`. Commit both copies together.
+`website/docs/img/screenshots/`. Commit both copies together.

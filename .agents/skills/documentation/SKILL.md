@@ -1,6 +1,6 @@
 ---
 name: documentation
-description: Updating all tailrelay documentation — README, CHANGELOG, release notes, AGENTS.md, SKILL.md files, webui/README.md, UI screenshots, and the Docusaurus docs site. Use when adding user-facing features, releasing a new version, updating component versions, or keeping the docs in sync with the codebase.
+description: Updating all tailrelay documentation — README, CHANGELOG, release notes, AGENTS.md, SKILL.md files, webui/README.md, UI screenshots, and the MkDocs docs site. Use when adding user-facing features, releasing a new version, updating component versions, or keeping the docs in sync with the codebase.
 ---
 
 # Documentation
@@ -13,8 +13,8 @@ tailrelay documentation spans these locations, which must stay consistent with e
 |----------|----------|---------------|
 | `README.md` | End users | Features, Quick Start, version, links to docs site |
 | `docs/openapi.yaml` | API consumers | Any handler/route change in `webui/internal/handlers/`, `webui/internal/web/server.go` |
-| `website/` | End users & developers | Guides (getting started, auth, dev, troubleshooting); rendered API reference is generated from `docs/openapi.yaml` automatically |
-| `docs/screenshots/` | End users | Any visible UI change (captures mirrored into `website/static/img/screenshots/`) |
+| `website/` | End users & developers | Guides (getting started, auth, dev, troubleshooting); API reference rendered from `docs/openapi.yaml` automatically |
+| `docs/screenshots/` | End users | Any visible UI change (captures mirrored into `website/docs/img/screenshots/`) |
 | `CHANGELOG.md` | Users upgrading | Every release; every significant change |
 | `webui/README.md` | Developers building from source | Web UI API, config, build changes |
 | `AGENTS.md` | Coding agents | Skills table, file map, env vars, review SHAs |
@@ -34,7 +34,7 @@ tailrelay documentation spans these locations, which must stay consistent with e
 6. Troubleshooting
 7. Screenshots
 8. Development (Local WebUI Dev → Building → Testing)
-9. Documentation (link to the published Docusaurus site + API reference)
+9. Documentation (link to the published MkDocs site + API reference)
 10. Contributing
 
 ### What to Update
@@ -71,23 +71,19 @@ reference rendered from it.
 **When a handler or route changes:**
 - Update the corresponding path/operation in `docs/openapi.yaml` (request
   body, responses, status codes, error shapes)
-- No other file needs touching — `website/` (via `docusaurus-openapi-docs`)
-  generates MDX from the spec via `docusaurus gen-api-docs all`, and CI
-  (`.github/workflows/docs.yml`) regenerates and redeploys the GitHub Pages
+- No other file needs touching — `website/` (via the `neoteroi.mkdocsoad`
+  OpenAPI plugin) renders the spec at build time, and CI
+  (`.github/workflows/docs.yml`) rebuilds and redeploys the GitHub Pages
   site whenever `docs/openapi.yaml` changes
 
 **When adding a new guide page:**
 - Add a Markdown file under `website/docs/`
-- Register it in `website/sidebars.ts`
-- Verify locally: `cd website && npm run docusaurus gen-api-docs all && npm run build`
+- Register it in the `nav:` section of `website/mkdocs.yml`
+- Verify locally: `cd website && mkdocs build --strict`
 
-**Branding:** render the product name with
-`<BrandName />` (`website/src/components/BrandName`) — solid "Tail" plus an
-outlined "relay", matching `.brand-relay` in `webui/frontend/src/app.css`. It's
-used by the navbar (via the swizzled `website/src/theme/Logo`), the homepage
-hero, and the Introduction heading. A page needs the `.mdx` extension to import
-it. Plain `tailrelay` stays lowercase in prose, `siteConfig.title`, and
-metadata, matching the repo and Docker Hub names.
+**Branding:** plain `Tailrelay` in headings (Material for MkDocs renders the
+navbar logo from `website/docs/img/logo.png`). Plain `tailrelay` stays
+lowercase in prose and metadata, matching the repo and Docker Hub names.
 
 **Ownership split for guide content (Quick Start, Tailscale Setup,
 Troubleshooting, etc.):** `website/docs/*.md` is the canonical, detailed
@@ -103,8 +99,8 @@ copy to match rather than letting them diverge.
 `docs/screenshots/take-screenshots.mjs` captures every UI screenshot with
 Playwright against the Vite dev server, mocking all API responses — no
 container, no Tailscale, no backend. Sources live in `docs/screenshots/`; the
-script mirrors each capture into `website/static/img/screenshots/` (referenced
-by `website/docs/screenshots.mdx`). Commit both copies.
+script mirrors each capture into `website/docs/img/screenshots/` (referenced
+by `website/docs/screenshots.md`). Commit both copies.
 
 ```bash
 cd webui/frontend && npm run dev          # terminal 1
@@ -339,7 +335,7 @@ commit that last touched the doc/skill itself (`git log -1 --format=%H -- <path>
 |----------|--------------|
 | `README.md` | Feature list, Quick Start, version references, docs site link |
 | `docs/openapi.yaml` | Every path/operation matches current handlers and routes |
-| `website/` | Guide pages still accurate; `npm run build` succeeds |
+| `website/` | Guide pages still accurate; `mkdocs build --strict` succeeds |
 | `CHANGELOG.md` | New entry for every release since last review |
 | `webui/README.md` | API endpoint list, config settings, build commands |
 | `AGENTS.md` | Skills table, File Map, env vars, Quick Reference commands |
