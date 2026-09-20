@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # check=skip=SecretsUsedInArgOrEnv
-ARG TAILSCALE_VERSION=v1.102.3
+ARG TAILSCALE_VERSION=v1.102.4
 ARG GO_VERSION=1.27.1
 ARG NODE_VERSION=24.21.0
 ARG WEBUI_SOURCE=webui-builder
