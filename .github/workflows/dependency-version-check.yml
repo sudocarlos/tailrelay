@@ -159,7 +159,7 @@ jobs:
               `> Verify the build before merging.`,
               ``,
               `Closes #${issueNumber}`,
-            ].join('\n');
+            ];
 
             const { data: pr } = await github.rest.pulls.create({
               owner: context.repo.owner,
@@ -421,7 +421,7 @@ jobs:
               `> Verify the build before merging.`,
               ``,
               `Closes #${issueNumber}`,
-            ].join('\n');
+            ];
 
             const { data: pr } = await github.rest.pulls.create({
               owner: context.repo.owner,
