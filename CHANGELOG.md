@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.11.3] - 2026-09-15
 
 ### Changed
+- **Tailscale** bumped from `v1.102.4` to `v1.102.5` in Dockerfile
 - **Tailscale** bumped from `v1.102.3` to `v1.102.4` in Dockerfile
 - **Vite** (#132) — bumped from `8.2.2` to `8.3.0` in `webui/frontend/package.json`, bringing faster preload dependency handling, CSS style-tag minification, and support for subpath imports in dynamic import statements
 - **Docs site** (#123) — migrated from Docusaurus to Material for MkDocs; the API reference now renders directly from `docs/openapi.yaml` via the OpenAPI Docs plugin at build time
