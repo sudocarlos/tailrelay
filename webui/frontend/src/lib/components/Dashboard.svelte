@@ -26,6 +26,8 @@
     Plus,
     HelpCircle,
   } from '@lucide/svelte';
+  import { Input } from '@/lib/components/ui/input';
+  import { Button } from '@/lib/components/ui/button';
 
   // Endpoints and item lookups keyed by relay type, shared by the toggle
   // and autostart handlers below so relay/proxy/funnel share one code path.
@@ -211,7 +213,7 @@
 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
   <div>
     <h1 class="text-xl font-semibold">Relays</h1>
-    <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+    <p class="text-sm text-muted-foreground mt-0.5">
       {displayedItems.length} item{displayedItems.length === 1 ? '' : 's'}
       {#if updated}
         <span class="mx-1">&middot;</span> updated {updated}
@@ -221,20 +223,17 @@
 
   <div class="flex items-center gap-2">
     <!-- Search -->
-    <input
+    <Input
       type="search"
       bind:value={searchQuery}
       placeholder="Search relays…"
-      class="w-48 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400 dark:placeholder-gray-500"
+      class="w-48 h-9"
     />
 
-    <button
-      class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
-      onclick={() => openAdd()}
-    >
+    <Button size="sm" class="gap-1.5" onclick={() => openAdd()}>
       <Plus size={15} />
       Add
-    </button>
+    </Button>
   </div>
 </div>
 
@@ -242,7 +241,7 @@
 <div class="flex flex-col gap-3 mb-6">
   {#if displayedItems.length === 0}
     <div class="text-center py-16 px-6">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-20 h-20 mx-auto mb-4 text-gray-300 dark:text-gray-600">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-20 h-20 mx-auto mb-4 text-muted-foreground/60">
         <rect x="10" y="20" width="60" height="40" rx="4" />
         <line x1="10" y1="32" x2="70" y2="32" />
         <circle cx="18" cy="26" r="2" fill="currentColor" />
@@ -251,7 +250,7 @@
         <line x1="30" y1="44" x2="50" y2="44" />
         <line x1="25" y1="50" x2="55" y2="50" />
       </svg>
-      <p class="text-gray-500 dark:text-gray-400 mb-4">
+      <p class="text-muted-foreground mb-4">
         {#if searchQuery.trim()}
           No relays match "{searchQuery.trim()}".
         {:else}
@@ -259,13 +258,10 @@
         {/if}
       </p>
       {#if !searchQuery.trim()}
-        <button
-          class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
-          onclick={() => openAdd()}
-        >
+        <Button size="sm" class="gap-1.5" onclick={() => openAdd()}>
           <Plus size={15} />
           Add a Relay
-        </button>
+        </Button>
       {/if}
     </div>
   {:else}
@@ -307,12 +303,9 @@
 
 <!-- FAB (mobile) -->
 <div class="sm:hidden fixed bottom-6 right-6 z-30">
-  <button
-    class="w-14 h-14 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all active:scale-95"
-    onclick={() => openAdd()}
-  >
+  <Button class="size-14 rounded-full shadow-lg" onclick={() => openAdd()}>
     <Plus size={24} />
-  </button>
+  </Button>
 </div>
 
 <!-- Modals -->
