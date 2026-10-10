@@ -4,7 +4,7 @@
  */
 export function statusBadgeClass(isToggling, isRunning) {
   if (isToggling) return 'bg-amber-400 animate-pulse';
-  return isRunning ? 'bg-green-700 status-dot-running' : 'bg-gray-100 dark:bg-gray-800';
+  return isRunning ? 'bg-green-700 status-dot-running' : 'bg-accent';
 }
 
 /**
@@ -12,5 +12,5 @@ export function statusBadgeClass(isToggling, isRunning) {
  * White when the badge has a colored background, accent blue when neutral.
  */
 export function statusIconClass(isToggling, isRunning) {
-  return isToggling || isRunning ? 'text-white' : 'text-blue-500';
+  return isToggling || isRunning ? 'text-white' : 'text-primary';
 }

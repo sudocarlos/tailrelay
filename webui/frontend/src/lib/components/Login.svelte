@@ -2,6 +2,12 @@
   import { brandIconSrc } from '../stores/theme.js';
   import { authenticated, needsSetup, refreshData } from '../stores/app.js';
   import { fetchJSON } from '../api.js';
+  import * as Card from '@/lib/components/ui/card';
+  import { Input } from '@/lib/components/ui/input';
+  import { Label } from '@/lib/components/ui/label';
+  import { Button } from '@/lib/components/ui/button';
+  import { Alert, AlertDescription } from '@/lib/components/ui/alert';
+  import { TriangleAlert, LoaderCircle } from '@lucide/svelte';
 
   let password = $state('');
   let loading = $state(false);
@@ -34,52 +40,50 @@
   }
 </script>
 
-<div class="flex-1 flex flex-col items-center justify-center p-4">
+<div class="flex flex-1 flex-col items-center justify-center p-4">
   <div class="w-full max-w-sm">
-    <div class="text-center mb-8">
-      <img src={$brandIconSrc} alt="Tailrelay" class="w-16 h-16 rounded-2xl mb-4 mx-auto" />
-      <h1 class="text-2xl font-bold mb-2">Tail<span class="brand-relay">relay</span></h1>
-      <p class="text-gray-500 dark:text-gray-400">
+    <div class="mb-8 text-center">
+      <img src={$brandIconSrc} alt="Tailrelay" class="mx-auto mb-4 h-16 w-16 rounded-2xl" />
+      <h1 class="mb-2 text-2xl font-bold">Tail<span class="brand-relay">relay</span></h1>
+      <p class="text-muted-foreground">
         Enter your admin password to continue.
       </p>
     </div>
 
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 overflow-hidden">
-      <form onsubmit={handleLogin} class="space-y-4">
-        {#if error}
-          <div class="p-3 text-sm rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
-            {error}
+    <Card.Root class="overflow-hidden rounded-xl">
+      <Card.Content class="p-6">
+        <form onsubmit={handleLogin} class="space-y-4">
+          {#if error}
+            <Alert variant="destructive">
+              <TriangleAlert />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          {/if}
+
+          <div class="grid gap-2">
+            <Label for="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              bind:value={password}
+              required
+              autocomplete="current-password"
+              disabled={loading}
+            />
           </div>
-        {/if}
 
-        <div>
-          <label for="password" class="block text-sm font-medium mb-1.5">Password</label>
-          <input
-            id="password"
-            type="password"
-            bind:value={password}
-            class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-shadow"
-            required
-            autocomplete="current-password"
-            disabled={loading}
-          />
-        </div>
-
-        <div class="pt-2">
-          <button
-            type="submit"
-            disabled={loading}
-            class="w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/50 disabled:cursor-not-allowed rounded-lg transition-colors"
-          >
-            {#if loading}
-              <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-              Logging in...
-            {:else}
-              Log In
-            {/if}
-          </button>
-        </div>
-      </form>
-    </div>
+          <div class="pt-2">
+            <Button type="submit" class="w-full" disabled={loading}>
+              {#if loading}
+                <LoaderCircle class="animate-spin" />
+                Logging in...
+              {:else}
+                Log In
+              {/if}
+            </Button>
+          </div>
+        </form>
+      </Card.Content>
+    </Card.Root>
   </div>
 </div>

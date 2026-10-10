@@ -30,7 +30,7 @@
 
   // Corner-dot colors mirror the badge background in statusBadgeClass.
   const dotColor = $derived(
-    toggling ? 'bg-amber-400' : running ? 'bg-green-700' : 'bg-gray-300 dark:bg-gray-600'
+    toggling ? 'bg-amber-400' : running ? 'bg-green-700' : 'bg-muted-foreground/50'
   );
   const dotTitle = $derived((toggling ? 'Updating' : running ? 'Running' : 'Stopped') + '…');
   const cornerRound = $derived(hasIcon ? 'rounded-xl' : 'rounded-full');
@@ -40,7 +40,7 @@
   {#if hasIcon}
     <span class="relative flex-shrink-0 w-11 h-11" title={dotTitle}>
       <span
-        class="flex items-center justify-center w-11 h-11 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/60"
+        class="flex items-center justify-center w-11 h-11 rounded-xl overflow-hidden border border-border bg-muted/60"
       >
         <img
           src={iconUrl}
@@ -54,7 +54,7 @@
       <!-- Corner status dot (bottom-right) keeps state visible without
            recoloring the icon frame. -->
       <span
-        class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full ring-1 ring-white dark:ring-gray-900 {dotColor}{running ? ' status-dot-running' : ''}"
+        class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full ring-1 ring-background {dotColor}{running ? ' status-dot-running' : ''}"
         aria-hidden="true"
       ></span>
     </span>
@@ -73,7 +73,7 @@
     {href}
     target="_blank"
     rel="noopener"
-    class="flex-shrink-0 {cornerRound} hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-opacity"
+    class="flex-shrink-0 {cornerRound} transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
   >
     {@render icon()}
   </a>

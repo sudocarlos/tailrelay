@@ -18,8 +18,8 @@
   });
 </script>
 
-<footer class="border-t border-gray-200 dark:border-gray-800 py-4 mt-auto">
-  <div class="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-center gap-3 text-xs text-gray-400 dark:text-gray-500">
+<footer class="mt-auto border-t border-border py-4">
+  <div class="mx-auto flex max-w-6xl items-center justify-center gap-3 px-4 text-xs text-muted-foreground sm:px-6">
     {#if version}
       <span>tailrelay {version}{#if commit && commit !== 'none'} ({commit}){/if}</span>
       <span aria-hidden="true">&middot;</span>
@@ -28,7 +28,7 @@
       href="https://github.com/sudocarlos/tailrelay"
       target="_blank"
       rel="noopener noreferrer"
-      class="hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+      class="transition-colors hover:text-foreground"
     >
       Contribute
     </a>
@@ -37,7 +37,7 @@
       href="https://github.com/sudocarlos/tailrelay/issues"
       target="_blank"
       rel="noopener noreferrer"
-      class="hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+      class="transition-colors hover:text-foreground"
     >
       Feedback
     </a>
