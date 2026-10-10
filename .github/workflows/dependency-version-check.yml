@@ -99,6 +99,7 @@ jobs:
         env:
           PINNED: ${{ steps.detect.outputs.pinned }}
           LATEST: ${{ steps.detect.outputs.latest }}
+          BUMP_PAT: ${{ secrets.BUMP_PAT }}
         run: |
           set -euo pipefail
           BRANCH="chore/bump-go-${LATEST}"
@@ -111,17 +112,46 @@ jobs:
           for f in .agents/skills/docker-ci/SKILL.md .agents/skills/security-review/SKILL.md .agents/skills/testing-cicd/SKILL.md; do
             sed -i "s/${PINNED}/${LATEST}/g" "$f"
           done
-          awk -v line="- **Go** bumped from \`${PINNED}\` to \`${LATEST}\` in Dockerfile, \`go.mod\`, and CI" '
-            /^## \[Unreleased\]/ { unreleased = 1 }
-            unreleased && /^### Changed/ && !done { print; print line; done = 1; next }
-            { print }
-          ' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+          export CHANGELOG_ENTRY="- **Go** bumped from \`${PINNED}\` to \`${LATEST}\` in Dockerfile, \`go.mod\`, and CI"
+          python3 - <<'PY'
+            import os
+            from pathlib import Path
+            p = Path('CHANGELOG.md')
+            lines = p.read_text().splitlines(keepends=True)
+            entry = os.environ['CHANGELOG_ENTRY'] + '\n'
+            unre = next(i for i, l in enumerate(lines) if l.rstrip() == '## [Unreleased]')
+            changed = None
+            for i in range(unre + 1, len(lines)):
+                if lines[i].startswith('## '):
+                    break
+                if lines[i].strip() == '### Changed':
+                    changed = i
+                    break
+            if changed is not None:
+                lines.insert(changed + 1, entry)
+            else:
+                pos = unre + 1
+                if pos < len(lines) and not lines[pos].strip():
+                    pos += 1
+                blocked = '### Changed\n' + entry
+                if pos == len(lines) or lines[pos].startswith('## '):
+                    blocked += '\n'
+                lines.insert(pos, blocked)
+            p.write_text(''.join(lines))
+          PY
+
           git add Dockerfile webui/go.mod .github/workflows/ci.yml .agents/skills CHANGELOG.md
           git commit -m "chore: update Go from ${PINNED} to ${LATEST}" -m "$(printf '%s\n' \
             "- bump GO_VERSION to ${LATEST} in Dockerfile, go.mod, and ci.yml" \
             "- update docker-ci, security-review, and testing-cicd skill docs to match" \
             "- add CHANGELOG entry under [Unreleased]")"
-          git push --force origin "$BRANCH"
+          if [ -n "${BUMP_PAT}" ]; then
+            # GITHUB_TOKEN is refused for commits touching .github/workflows/*;
+            # push with a PAT (repo + workflow scopes) instead.
+            git push --force "https://x-access-token:${BUMP_PAT}@github.com/${{ github.repository }}.git" "$BRANCH"
+          else
+            git push --force origin "$BRANCH"
+          fi
           echo "branch=${BRANCH}" >> "$GITHUB_ENV"
 
       - name: Create bump PR
@@ -361,6 +391,7 @@ jobs:
         env:
           PINNED: ${{ steps.detect.outputs.pinned }}
           LATEST: ${{ steps.detect.outputs.latest }}
+          BUMP_PAT: ${{ secrets.BUMP_PAT }}
         run: |
           set -euo pipefail
           BRANCH="chore/bump-tailscale-${LATEST}"
@@ -371,17 +402,46 @@ jobs:
           for f in .agents/skills/docker-ci/SKILL.md .agents/skills/security-review/SKILL.md; do
             sed -i "s/${PINNED}/${LATEST}/g" "$f"
           done
-          awk -v line="- **Tailscale** bumped from \`${PINNED}\` to \`${LATEST}\` in Dockerfile" '
-            /^## \[Unreleased\]/ { unreleased = 1 }
-            unreleased && /^### Changed/ && !done { print; print line; done = 1; next }
-            { print }
-          ' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+          export CHANGELOG_ENTRY="- **Tailscale** bumped from \`${PINNED}\` to \`${LATEST}\` in Dockerfile"
+          python3 - <<'PY'
+            import os
+            from pathlib import Path
+            p = Path('CHANGELOG.md')
+            lines = p.read_text().splitlines(keepends=True)
+            entry = os.environ['CHANGELOG_ENTRY'] + '\n'
+            unre = next(i for i, l in enumerate(lines) if l.rstrip() == '## [Unreleased]')
+            changed = None
+            for i in range(unre + 1, len(lines)):
+                if lines[i].startswith('## '):
+                    break
+                if lines[i].strip() == '### Changed':
+                    changed = i
+                    break
+            if changed is not None:
+                lines.insert(changed + 1, entry)
+            else:
+                pos = unre + 1
+                if pos < len(lines) and not lines[pos].strip():
+                    pos += 1
+                blocked = '### Changed\n' + entry
+                if pos == len(lines) or lines[pos].startswith('## '):
+                    blocked += '\n'
+                lines.insert(pos, blocked)
+            p.write_text(''.join(lines))
+          PY
+
           git add Dockerfile .agents/skills CHANGELOG.md
           git commit -m "chore: update Tailscale from ${PINNED} to ${LATEST}" -m "$(printf '%s\n' \
             "- bump TAILSCALE_VERSION to ${LATEST} in Dockerfile" \
             "- update docker-ci and security-review skill docs to match" \
             "- add CHANGELOG entry under [Unreleased]")"
-          git push --force origin "$BRANCH"
+          if [ -n "${BUMP_PAT}" ]; then
+            # GITHUB_TOKEN is refused for commits touching .github/workflows/*;
+            # push with a PAT (repo + workflow scopes) instead.
+            git push --force "https://x-access-token:${BUMP_PAT}@github.com/${{ github.repository }}.git" "$BRANCH"
+          else
+            git push --force origin "$BRANCH"
+          fi
           echo "branch=${BRANCH}" >> "$GITHUB_ENV"
 
       - name: Create bump PR
@@ -539,6 +599,7 @@ jobs:
         env:
           PINNED: ${{ steps.detect.outputs.pinned }}
           LATEST: ${{ steps.detect.outputs.latest }}
+          BUMP_PAT: ${{ secrets.BUMP_PAT }}
         run: |
           set -euo pipefail
           BRANCH="chore/node-bump-${LATEST}"
@@ -550,17 +611,46 @@ jobs:
           for f in .agents/skills/docker-ci/SKILL.md .agents/skills/testing-cicd/SKILL.md .agents/skills/security-review/SKILL.md; do
             sed -i "s/${PINNED}/${LATEST}/g" "$f"
           done
-          awk -v line="- **Node.js** bumped from \`${PINNED}\` to \`${LATEST}\` in Dockerfile and CI" '
-            /^## \[Unreleased\]/ { unreleased = 1 }
-            unreleased && /^### Changed/ && !done { print; print line; done = 1; next }
-            { print }
-          ' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+          export CHANGELOG_ENTRY="- **Node.js** bumped from \`${PINNED}\` to \`${LATEST}\` in Dockerfile and CI"
+          python3 - <<'PY'
+            import os
+            from pathlib import Path
+            p = Path('CHANGELOG.md')
+            lines = p.read_text().splitlines(keepends=True)
+            entry = os.environ['CHANGELOG_ENTRY'] + '\n'
+            unre = next(i for i, l in enumerate(lines) if l.rstrip() == '## [Unreleased]')
+            changed = None
+            for i in range(unre + 1, len(lines)):
+                if lines[i].startswith('## '):
+                    break
+                if lines[i].strip() == '### Changed':
+                    changed = i
+                    break
+            if changed is not None:
+                lines.insert(changed + 1, entry)
+            else:
+                pos = unre + 1
+                if pos < len(lines) and not lines[pos].strip():
+                    pos += 1
+                blocked = '### Changed\n' + entry
+                if pos == len(lines) or lines[pos].startswith('## '):
+                    blocked += '\n'
+                lines.insert(pos, blocked)
+            p.write_text(''.join(lines))
+          PY
+
           git add Dockerfile .github/workflows/ci.yml .agents/skills CHANGELOG.md
           git commit -m "chore: update Node from ${PINNED} to ${LATEST}" -m "$(printf '%s\n' \
             "- bump NODE_VERSION to ${LATEST} in Dockerfile and all four ci.yml jobs" \
             "- update docker-ci, security-review, and testing-cicd skill docs to match" \
             "- add CHANGELOG entry under [Unreleased]")"
-          git push --force origin "$BRANCH"
+          if [ -n "${BUMP_PAT}" ]; then
+            # GITHUB_TOKEN is refused for commits touching .github/workflows/*;
+            # push with a PAT (repo + workflow scopes) instead.
+            git push --force "https://x-access-token:${BUMP_PAT}@github.com/${{ github.repository }}.git" "$BRANCH"
+          else
+            git push --force origin "$BRANCH"
+          fi
           echo "branch=${BRANCH}" >> "$GITHUB_ENV"
 
       - name: Create bump PR
@@ -767,6 +857,7 @@ jobs:
         env:
           PINNED: ${{ steps.detect.outputs.pinned }}
           LATEST: ${{ steps.detect.outputs.latest }}
+          BUMP_PAT: ${{ secrets.BUMP_PAT }}
         run: |
           set -euo pipefail
           BRANCH="chore/bump-vite-${LATEST}"
@@ -776,16 +867,45 @@ jobs:
           cd webui/frontend
           npm install --no-fund --no-audit --save-dev "vite@^${LATEST}"
           cd ../..
-          awk -v line="- **Vite** bumped from \`${PINNED}\` to \`${LATEST}\` in \`webui/frontend/package.json\`" '
-            /^## \[Unreleased\]/ { unreleased = 1 }
-            unreleased && /^### Changed/ && !done { print; print line; done = 1; next }
-            { print }
-          ' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+          export CHANGELOG_ENTRY="- **Vite** bumped from \`${PINNED}\` to \`${LATEST}\` in \`webui/frontend/package.json\`"
+          python3 - <<'PY'
+            import os
+            from pathlib import Path
+            p = Path('CHANGELOG.md')
+            lines = p.read_text().splitlines(keepends=True)
+            entry = os.environ['CHANGELOG_ENTRY'] + '\n'
+            unre = next(i for i, l in enumerate(lines) if l.rstrip() == '## [Unreleased]')
+            changed = None
+            for i in range(unre + 1, len(lines)):
+                if lines[i].startswith('## '):
+                    break
+                if lines[i].strip() == '### Changed':
+                    changed = i
+                    break
+            if changed is not None:
+                lines.insert(changed + 1, entry)
+            else:
+                pos = unre + 1
+                if pos < len(lines) and not lines[pos].strip():
+                    pos += 1
+                blocked = '### Changed\n' + entry
+                if pos == len(lines) or lines[pos].startswith('## '):
+                    blocked += '\n'
+                lines.insert(pos, blocked)
+            p.write_text(''.join(lines))
+          PY
+
           git add webui/frontend/package.json webui/frontend/package-lock.json CHANGELOG.md
           git commit -m "chore: update Vite from ${PINNED} to ${LATEST}" -m "$(printf '%s\n' \
             "- bump vite to ^${LATEST} in webui/frontend/package.json and lockfile" \
             "- add CHANGELOG entry under [Unreleased]")"
-          git push --force origin "$BRANCH"
+          if [ -n "${BUMP_PAT}" ]; then
+            # GITHUB_TOKEN is refused for commits touching .github/workflows/*;
+            # push with a PAT (repo + workflow scopes) instead.
+            git push --force "https://x-access-token:${BUMP_PAT}@github.com/${{ github.repository }}.git" "$BRANCH"
+          else
+            git push --force origin "$BRANCH"
+          fi
           echo "branch=${BRANCH}" >> "$GITHUB_ENV"
 
       - name: Create bump PR
