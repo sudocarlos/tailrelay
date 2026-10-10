@@ -4,6 +4,8 @@
   import { showToast } from '../stores/toast.js';
   import { Network, Route, Terminal, Plus, Trash2, RefreshCw, AlertTriangle } from '@lucide/svelte';
   import { Switch } from '@/lib/components/ui/switch';
+  import { Input } from '@/lib/components/ui/input';
+  import * as Select from '@/lib/components/ui/select';
 
   // `peers` is passed down from Tailscale.svelte, which already fetches
   // /api/tailscale/peers — avoids a duplicate request just for this dropdown.
@@ -47,6 +49,18 @@
   // as an exit node — it has no effect while merely advertising this device
   // as one, so it's shown only for that selection.
   const usingPeerExitNode = $derived(!!networking?.ExitNode && !networking?.AdvertiseExitNode);
+
+  // Text shown inside the Select trigger for the current exit-node selection.
+  function exitNodeTriggerLabel() {
+    if (networking?.AdvertiseExitNode) return 'Run as exit node';
+    if (networking?.ExitNode) {
+      const peer = exitNodePeers.find(
+        (p) => (p.IPv4 || p.IPv6) === networking.ExitNode
+      );
+      return peer ? peerLabel(peer) : networking.ExitNode;
+    }
+    return 'None';
+  }
 
   const routesDirty = $derived.by(() => {
     const cleaned = routesInput.map((r) => r.trim()).filter(Boolean);
@@ -230,34 +244,39 @@
   });
 </script>
 
-<div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 space-y-5">
+<div class="rounded-lg border border-border bg-card p-5 space-y-5">
   <div class="flex items-center gap-2">
-    <Network size={18} class="text-gray-500" />
-    <h2 class="font-medium text-gray-900 dark:text-gray-100">Networking</h2>
+    <Network size={18} class="text-muted-foreground" />
+    <h2 class="font-medium text-foreground">Networking</h2>
   </div>
 
   {#if loading}
-    <p class="text-sm text-gray-400">Loading networking settings…</p>
+    <p class="text-sm text-muted-foreground">Loading networking settings…</p>
   {:else if networking}
     <!-- Exit node selection (includes advertising this device as one) + Allow LAN access sub-option -->
     <div class="space-y-2">
-      <span class="text-sm text-gray-900 dark:text-gray-100">Exit node</span>
-      <select
+      <span class="text-sm text-foreground">Exit node</span>
+      <Select.Root
+        type="single"
         value={exitNodeSelection}
         disabled={savingExitNode}
-        onchange={(e) => handleExitNodeChange(e.target.value)}
-        class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+        onValueChange={(v) => v !== undefined && handleExitNodeChange(v)}
       >
-        <option value="">None</option>
-        <option value={ADVERTISE_SELF_VALUE}>Run as exit node</option>
-        {#if !userspaceNetworking}
-          <hr />
-          {#each exitNodePeers as peer}
-            <option value={peer.IPv4 || peer.IPv6}>{peerLabel(peer)}</option>
-          {/each}
-        {/if}
-      </select>
-      <p class="text-xs text-gray-500 dark:text-gray-400">
+        <Select.Trigger class="w-full">
+          <span>{exitNodeTriggerLabel()}</span>
+        </Select.Trigger>
+        <Select.Content>
+          <Select.Item value="">None</Select.Item>
+          <Select.Item value={ADVERTISE_SELF_VALUE}>Run as exit node</Select.Item>
+          {#if !userspaceNetworking}
+            <Select.Separator />
+            {#each exitNodePeers as peer (peer.IPv4 || peer.IPv6)}
+              <Select.Item value={peer.IPv4 || peer.IPv6}>{peerLabel(peer)}</Select.Item>
+            {/each}
+          {/if}
+        </Select.Content>
+      </Select.Root>
+      <p class="text-xs text-muted-foreground">
         {#if userspaceNetworking}
           This container runs Tailscale in userspace-networking mode, so routing its own internet traffic through a peer exit node isn't supported. "Run as exit node" (serving inbound tailnet traffic) still works.
         {:else}
@@ -268,7 +287,7 @@
 
       {#if usingPeerExitNode}
         <div class="flex items-center justify-between gap-3 pl-5 pt-1">
-          <span class="text-sm text-gray-700 dark:text-gray-300">Allow LAN access</span>
+          <span class="text-sm text-muted-foreground">Allow LAN access</span>
           <Switch
             checked={networking.ExitNodeAllowLANAccess}
             disabled={savingLanAccess}
@@ -280,15 +299,15 @@
       {/if}
     </div>
 
-    <hr class="border-gray-100 dark:border-gray-800" />
+    <hr class="border-border" />
 
     <!-- Advertise routes -->
     <div class="space-y-2">
-      <div class="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100">
-        <Route size={15} class="text-gray-400" />
+      <div class="flex items-center gap-2 text-sm text-foreground">
+        <Route size={15} class="text-muted-foreground" />
         Advertise routes
       </div>
-      <p class="text-xs text-gray-500 dark:text-gray-400">
+      <p class="text-xs text-muted-foreground">
         Expose subnet routes on your local network to the rest of the tailnet.
       </p>
 
@@ -296,15 +315,16 @@
         {#each routesInput as route, idx}
           <div class="flex items-start gap-2">
             <div class="flex-1">
-              <input
+              <Input
                 type="text"
                 value={route}
                 oninput={(e) => handleRouteInput(idx, e.target.value)}
                 placeholder="e.g. 192.168.1.0/24"
-                class="w-full rounded-md border {routesErrors[idx] ? 'border-red-400 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-transparent px-2 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+                aria-invalid={!!routesErrors[idx]}
+                class="h-8 font-mono text-xs"
               />
               {#if routesErrors[idx]}
-                <p class="mt-1 text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+                <p class="mt-1 text-xs text-destructive flex items-center gap-1">
                   <AlertTriangle size={11} />
                   {routesErrors[idx]}
                 </p>
@@ -312,7 +332,7 @@
             </div>
             <button
               type="button"
-              class="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              class="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-destructive transition-colors"
               onclick={() => removeRouteRow(idx)}
               title="Remove route"
             >
@@ -325,7 +345,7 @@
       <div class="flex items-center justify-between pt-1">
         <button
           type="button"
-          class="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"
+          class="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80"
           onclick={addRouteRow}
         >
           <Plus size={13} />
@@ -335,7 +355,7 @@
         {#if routesDirty}
           <button
             type="button"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
             onclick={applyRoutes}
             disabled={savingRoutes}
           >
@@ -348,11 +368,11 @@
       </div>
     </div>
 
-    <hr class="border-gray-100 dark:border-gray-800" />
+    <hr class="border-border" />
 
     <!-- Accept routes -->
     <div class="flex items-center justify-between gap-3">
-      <span class="text-sm text-gray-900 dark:text-gray-100">Accept routes from other nodes</span>
+      <span class="text-sm text-foreground">Accept routes from other nodes</span>
       <Switch
         checked={networking.AcceptRoutes}
         disabled={savingAcceptRoutes}
@@ -362,12 +382,12 @@
       />
     </div>
 
-    <hr class="border-gray-100 dark:border-gray-800" />
+    <hr class="border-border" />
 
     <!-- SSH -->
     <div class="flex items-center justify-between gap-3">
-      <span class="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100">
-        <Terminal size={15} class="text-gray-400" />
+      <span class="flex items-center gap-2 text-sm text-foreground">
+        <Terminal size={15} class="text-muted-foreground" />
         Run Tailscale SSH
       </span>
       <Switch
