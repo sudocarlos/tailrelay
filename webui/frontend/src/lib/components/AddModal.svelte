@@ -320,10 +320,10 @@
     </Dialog.Header>
 
     <!-- Body -->
-    <div class="px-5 py-4 space-y-4">
+    <div class="space-y-4 py-4">
 
       {#if isFunnel}
-        <div class="flex items-start gap-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
+        <div class="flex items-start gap-2 rounded-lg -mx-1 rounded-md bg-primary/5 px-3 py-2 text-xs text-muted-foreground border border-primary/20">
           <Info size={14} class="mt-0.5 shrink-0" />
           <span>
             Funnel exposes this port to the public internet. Your tailnet's
@@ -336,18 +336,18 @@
       <!-- HTTP relay toggle (only when adding) — shown first.
            For funnel mode this selects the HTTPS/TCP transport. -->
       {#if !editing}
-        <div class="flex p-1 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm">
+        <div class="flex gap-0.5 rounded-md border border-input p-0.5 text-sm">
           <button
             type="button"
             onclick={() => (httpRelay = true)}
-            class="flex-1 px-3 py-1.5 text-center rounded-md transition-colors {httpRelay ? 'bg-white dark:bg-gray-700 shadow-sm font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+            class="flex-1 px-3 py-1.5 text-center rounded-md transition-colors {httpRelay ? 'bg-accent font-medium text-foreground' : 'text-muted-foreground hover:text-foreground'}"
           >
             HTTPS
           </button>
           <button
             type="button"
             onclick={() => (httpRelay = false)}
-            class="flex-1 px-3 py-1.5 text-center rounded-md transition-colors {!httpRelay ? 'bg-white dark:bg-gray-700 shadow-sm font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+            class="flex-1 px-3 py-1.5 text-center rounded-md transition-colors {!httpRelay ? 'bg-accent font-medium text-foreground' : 'text-muted-foreground hover:text-foreground'}"
           >
             TCP
           </button>
@@ -357,12 +357,12 @@
       <!-- Preset Target (shared, not applicable to funnel) -->
       {#if !isFunnel && targets.length > 0}
         <div>
-          <label for="preset-target" class="block text-sm font-medium mb-1">Preset Target</label>
+          <label for="preset-target" class="mb-1.5 block text-sm font-medium">Preset Target</label>
           <select
             id="preset-target"
             bind:value={preset}
             onchange={handlePreset}
-            class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            class="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
           >
             <option value="">Custom...</option>
             {#each targets as t, i}
@@ -374,34 +374,34 @@
 
       <!-- Listen Port (shared; fixed for funnel mode since only 443/8443/10000 are allowed) -->
       <div>
-        <label for="listen-port" class="block text-sm font-medium mb-1">Listen Port</label>
+        <label for="listen-port" class="mb-1.5 block text-sm font-medium">Listen Port</label>
         <input
           id="listen-port"
           type="number"
           bind:value={listenPort}
           disabled={isFunnel}
           placeholder="e.g. 8080"
-          class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60 disabled:cursor-not-allowed"
+          class="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
         />
       </div>
 
       <!-- Target (shared) -->
       <div>
-        <label for="relay-target" class="block text-sm font-medium mb-1">Target</label>
+        <label for="relay-target" class="mb-1.5 block text-sm font-medium">Target</label>
         <div class="flex gap-2">
           {#if httpRelay}
-            <div class="flex p-0.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-xs items-center shrink-0 border border-gray-200 dark:border-gray-700">
+            <div class="flex shrink-0 items-center gap-0.5 rounded-md border border-input p-0.5 text-xs">
               <button
                 type="button"
                 onclick={() => (isHttpsTarget = false)}
-                class="px-2.5 py-1.5 rounded-md transition-colors {!isHttpsTarget ? 'bg-white dark:bg-gray-700 shadow-sm font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+                class="px-2.5 py-1.5 rounded-md transition-colors {!isHttpsTarget ? 'bg-accent font-medium text-foreground' : 'text-muted-foreground hover:text-foreground'}"
               >
                 http://
               </button>
               <button
                 type="button"
                 onclick={() => (isHttpsTarget = true)}
-                class="px-2.5 py-1.5 rounded-md transition-colors {isHttpsTarget ? 'bg-white dark:bg-gray-700 shadow-sm font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+                class="px-2.5 py-1.5 rounded-md transition-colors {isHttpsTarget ? 'bg-accent font-medium text-foreground' : 'text-muted-foreground hover:text-foreground'}"
               >
                 https://
               </button>
@@ -413,21 +413,21 @@
             bind:value={target}
             onblur={handleTargetBlur}
             placeholder="e.g. 192.168.1.10:3000 or server.local:8080"
-            class="flex-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            class="flex-1 rounded-md border border-input bg-transparent px-3 py-1.5 text-sm"
           />
         </div>
       </div>
 
       <!-- Icon URL (optional) -->
       <div>
-        <label for="relay-icon" class="block text-sm font-medium mb-1">Icon URL <span class="text-xs font-normal text-gray-400 dark:text-gray-500">optional</span></label>
+        <label for="relay-icon" class="mb-1.5 block text-sm font-medium">Icon URL <span class="text-xs font-normal text-muted-foreground">optional</span></label>
         <div class="flex items-center gap-2">
           {#if iconUrl.trim()}
             <img
               src={iconUrl.trim()}
               alt="icon preview"
               referrerpolicy="no-referrer"
-              class="w-6 h-6 rounded-md object-contain border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/60 flex-shrink-0"
+              class="h-6 w-6 shrink-0 rounded-md border object-contain border-border bg-muted/60"
             />
           {/if}
           <input
@@ -436,14 +436,14 @@
             bind:value={iconUrl}
             oninput={() => (iconAutoFilled = false)}
             placeholder="e.g. https://app.example/logo.png"
-            class="flex-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            class="flex-1 rounded-md border border-input bg-transparent px-3 py-1.5 text-sm"
           />
           {#if hasWebOrigin()}
             <button
               type="button"
               onclick={useFavicon}
               title="Use the target's favicon"
-              class="shrink-0 px-2 py-2 text-xs rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
+              class="shrink-0 rounded-md border border-input px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >Favicon</button>
           {/if}
           {#if iconUrl.trim()}
@@ -451,11 +451,11 @@
               type="button"
               onclick={clearIcon}
               title="Clear icon"
-              class="shrink-0 px-2 py-2 text-xs rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
+              class="shrink-0 rounded-md border border-input px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >Clear</button>
           {/if}
         </div>
-        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Shown on the relay card instead of the default icon. Left blank, the favicon is suggested automatically when you leave the target field for web targets.</p>
+        <p class="mt-1.5 text-xs text-muted-foreground">Shown on the relay card instead of the default icon. Left blank, the favicon is suggested automatically when you leave the target field for web targets.</p>
       </div>
 
       <!-- Autostart (shared) -->
@@ -463,7 +463,7 @@
         <input
           type="checkbox"
           bind:checked={autostart}
-          class="rounded border-gray-300 dark:border-gray-600 text-blue-500 focus:ring-blue-500 dark:bg-gray-800"
+          class="accent-primary rounded border-input"
         />
         <span class="text-sm">Start automatically on boot</span>
       </label>
