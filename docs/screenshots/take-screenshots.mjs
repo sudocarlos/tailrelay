@@ -159,9 +159,12 @@ async function setTheme(page, mode) {
   const current = await page.evaluate(() => (document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
   if (current === mode) return;
 
-  const toggle = page.locator('button[title="Toggle theme"]').first();
-  if (await toggle.isVisible().catch(() => false)) {
-    await toggle.click();
+  // The theme control lives in the sidebar footer as a dropdown of
+  // System / Light / Dark radio items.
+  const themeButton = page.locator('[data-slot="sidebar-menu-button"]').filter({ hasText: /^\s*Theme/ }).first();
+  if (await themeButton.isVisible().catch(() => false)) {
+    await themeButton.click();
+    await page.locator('[role="menuitemradio"]').filter({ hasText: new RegExp(`^\\s*${mode[0].toUpperCase() + mode.slice(1)}\\s*`) }).first().click();
     // Drop the focus ring and hover highlight the click leaves behind.
     await page.evaluate(() => document.activeElement?.blur());
     await page.mouse.move(0, 0);
@@ -268,8 +271,8 @@ console.log('\n[2/4] Dashboard');
   // Mobile menu open (light)
   await setTheme(page2, 'light');
   await page2.evaluate(() => {
-    const hamburger = Array.from(document.querySelectorAll('nav button')).find(b => b.className.includes('sm:hidden'));
-    if (hamburger) hamburger.click();
+    const trigger = Array.from(document.querySelectorAll('[data-slot="sidebar-trigger"] button, [data-slot="sidebar-trigger"]')).find(Boolean);
+    if (trigger) trigger.click();
   });
   await page2.waitForTimeout(300);
   await snap(page2, 'dashboard-mobile-menu-light');
@@ -293,7 +296,7 @@ console.log('\n[3/4] Tailscale tab');
   await page.waitForTimeout(800);
 
   await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('nav button')).find(b => b.textContent.trim().startsWith('Tailscale'));
+    const btn = Array.from(document.querySelectorAll('[data-slot="sidebar-menu-button"]')).find(b => b.textContent.trim().startsWith('Tailscale'));
     if (btn) btn.click();
   });
   await page.waitForTimeout(600);
@@ -329,7 +332,7 @@ console.log('\n[4/4] Backups tab');
   await page.waitForTimeout(800);
 
   await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('nav button')).find(b => b.textContent.trim().startsWith('Backups'));
+    const btn = Array.from(document.querySelectorAll('[data-slot="sidebar-menu-button"]')).find(b => b.textContent.trim().startsWith('Backups'));
     if (btn) btn.click();
   });
   await page.waitForTimeout(600);
