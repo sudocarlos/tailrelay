@@ -3,7 +3,7 @@
   import { Globe, Ban, Plus, ChevronDown, ChevronUp } from '@lucide/svelte';
   import RelayIcon from './RelayIcon.svelte';
   import { FUNNEL_PORTS } from '../stores/app.js';
-  import Toggle from './Toggle.svelte';
+  import { Switch } from '@/lib/components/ui/switch';
   import ItemMenu from './ItemMenu.svelte';
   import CopyButton from './CopyButton.svelte';
   import { statusIconClass } from '../utils/statusBadge.js';
@@ -110,12 +110,12 @@
 
             <!-- Actions -->
             <div class="flex flex-shrink-0 items-center gap-1">
-              <Toggle
+              <Switch
                 checked={running}
                 disabled={toggling}
-                onChange={() => onToggle(funnel.id, running)}
-                label={running ? 'Stop funnel' : 'Start funnel'}
-                size="md"
+                onCheckedChange={() => onToggle(funnel.id, running)}
+                aria-label={running ? 'Stop funnel' : 'Start funnel'}
+                size="default"
               />
               <ItemMenu
                 {autostart}

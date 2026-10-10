@@ -3,7 +3,6 @@
   import { X, Info } from '@lucide/svelte';
   import { fetchJSON, postFormData } from '../api.js';
   import { showToast } from '../stores/toast.js';
-  import Tooltip from './Tooltip.svelte';
 
   let { type: initType = 'proxy', item: initItem = null, fqdn = '', targets = [], funnelPort = null, onSave, onClose } = $props();
 

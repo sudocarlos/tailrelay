@@ -1,7 +1,7 @@
 <script>
   import { Network, ShieldCheck, AlertTriangle } from '@lucide/svelte';
   import RelayIcon from './RelayIcon.svelte';
-  import Toggle from './Toggle.svelte';
+  import { Switch } from '@/lib/components/ui/switch';
   import ItemMenu from './ItemMenu.svelte';
   import CopyButton from './CopyButton.svelte';
   import { statusIconClass } from '../utils/statusBadge.js';
@@ -58,12 +58,12 @@
 
       <!-- Actions -->
       <div class="flex flex-shrink-0 items-center gap-1">
-        <Toggle
+        <Switch
           checked={running}
           disabled={toggling}
-          onChange={() => onToggle('relay', relay.id, running)}
-          label={running ? 'Stop relay' : 'Start relay'}
-          size="md"
+          onCheckedChange={() => onToggle('relay', relay.id, running)}
+          aria-label={running ? 'Stop relay' : 'Start relay'}
+          size="default"
         />
         <ItemMenu
           {autostart}
@@ -126,12 +126,12 @@
 
       <!-- Actions -->
       <div class="flex flex-shrink-0 items-center gap-1">
-        <Toggle
+        <Switch
           checked={running}
           disabled={toggling}
-          onChange={() => onToggle('proxy', proxy.id, running)}
-          label={running ? 'Stop proxy' : 'Start proxy'}
-          size="md"
+          onCheckedChange={() => onToggle('proxy', proxy.id, running)}
+          aria-label={running ? 'Stop proxy' : 'Start proxy'}
+          size="default"
         />
         <ItemMenu
           {autostart}

@@ -2,7 +2,7 @@
   import { tick, onDestroy } from 'svelte';
   import { MoreHorizontal, SquarePen, SquarePower, Trash2 } from '@lucide/svelte';
   import { portal } from '../actions/portal.js';
-  import Toggle from './Toggle.svelte';
+  import { Switch } from '@/lib/components/ui/switch';
 
   /**
    * "..." overflow menu for a relay/proxy/funnel card.
@@ -185,7 +185,7 @@
 
     <div class="flex items-center justify-between gap-3 px-3 py-2">
       <span class="flex items-center gap-2 text-gray-700 dark:text-gray-300"><SquarePower size={14} />Start on boot</span>
-      <Toggle checked={autostart} onChange={onAutostartChange} label="Start on boot" />
+      <Switch checked={autostart} onCheckedChange={onAutostartChange} aria-label="Start on boot" size="sm" />
     </div>
 
     <hr class="border-gray-100 dark:border-gray-700 my-1" />

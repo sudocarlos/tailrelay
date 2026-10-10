@@ -3,7 +3,7 @@
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
   import { Network, Route, Terminal, Plus, Trash2, RefreshCw, AlertTriangle } from '@lucide/svelte';
-  import Toggle from './Toggle.svelte';
+  import { Switch } from '@/lib/components/ui/switch';
 
   // `peers` is passed down from Tailscale.svelte, which already fetches
   // /api/tailscale/peers — avoids a duplicate request just for this dropdown.
@@ -269,12 +269,12 @@
       {#if usingPeerExitNode}
         <div class="flex items-center justify-between gap-3 pl-5 pt-1">
           <span class="text-sm text-gray-700 dark:text-gray-300">Allow LAN access</span>
-          <Toggle
+          <Switch
             checked={networking.ExitNodeAllowLANAccess}
             disabled={savingLanAccess}
-            onChange={toggleLanAccess}
-            label="Allow LAN access while using an exit node"
-            size="md"
+            onCheckedChange={toggleLanAccess}
+            aria-label="Allow LAN access while using an exit node"
+            size="default"
           />
         </div>
       {/if}
@@ -353,12 +353,12 @@
     <!-- Accept routes -->
     <div class="flex items-center justify-between gap-3">
       <span class="text-sm text-gray-900 dark:text-gray-100">Accept routes from other nodes</span>
-      <Toggle
+      <Switch
         checked={networking.AcceptRoutes}
         disabled={savingAcceptRoutes}
-        onChange={toggleAcceptRoutes}
-        label="Accept routes from other nodes"
-        size="md"
+        onCheckedChange={toggleAcceptRoutes}
+        aria-label="Accept routes from other nodes"
+        size="default"
       />
     </div>
 
@@ -370,7 +370,13 @@
         <Terminal size={15} class="text-gray-400" />
         Run Tailscale SSH
       </span>
-      <Toggle checked={networking.SSH} disabled={savingSSH} onChange={toggleSSH} label="Run Tailscale SSH" size="md" />
+      <Switch
+        checked={networking.SSH}
+        disabled={savingSSH}
+        onCheckedChange={toggleSSH}
+        aria-label="Run Tailscale SSH"
+        size="default"
+      />
     </div>
   {/if}
 </div>
