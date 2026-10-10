@@ -99,7 +99,6 @@ jobs:
         env:
           PINNED: ${{ steps.detect.outputs.pinned }}
           LATEST: ${{ steps.detect.outputs.latest }}
-          BUMP_PAT: ${{ secrets.BUMP_PAT }}
         run: |
           set -euo pipefail
           BRANCH="chore/bump-go-${LATEST}"
@@ -108,7 +107,6 @@ jobs:
           git checkout -B "$BRANCH"
           sed -i "s/ARG GO_VERSION=${PINNED}/ARG GO_VERSION=${LATEST}/" Dockerfile
           sed -i "s/^go ${PINNED}$/go ${LATEST}/" webui/go.mod
-          sed -i "s/go-version: '${PINNED}'/go-version: '${LATEST}'/g" .github/workflows/ci.yml
           for f in .agents/skills/docker-ci/SKILL.md .agents/skills/security-review/SKILL.md .agents/skills/testing-cicd/SKILL.md; do
             sed -i "s/${PINNED}/${LATEST}/g" "$f"
           done
@@ -140,18 +138,12 @@ jobs:
             p.write_text(''.join(lines))
           PY
 
-          git add Dockerfile webui/go.mod .github/workflows/ci.yml .agents/skills CHANGELOG.md
+          git add Dockerfile webui/go.mod .agents/skills CHANGELOG.md
           git commit -m "chore: update Go from ${PINNED} to ${LATEST}" -m "$(printf '%s\n' \
-            "- bump GO_VERSION to ${LATEST} in Dockerfile, go.mod, and ci.yml" \
+            "- bump GO_VERSION to ${LATEST} in Dockerfile and go.mod (CI picks both up from the Dockerfile)" \
             "- update docker-ci, security-review, and testing-cicd skill docs to match" \
             "- add CHANGELOG entry under [Unreleased]")"
-          if [ -n "${BUMP_PAT}" ]; then
-            # GITHUB_TOKEN is refused for commits touching .github/workflows/*;
-            # push with a PAT (repo + workflow scopes) instead.
-            git push --force "https://x-access-token:${BUMP_PAT}@github.com/${{ github.repository }}.git" "$BRANCH"
-          else
-            git push --force origin "$BRANCH"
-          fi
+          git push --force origin "$BRANCH"
           echo "branch=${BRANCH}" >> "$GITHUB_ENV"
 
       - name: Create bump PR
@@ -181,7 +173,7 @@ jobs:
               ``,
               `### Changes in this PR`,
               ``,
-              `- Bump \`GO_VERSION\` to \`${latest}\` in Dockerfile, \`webui/go.mod\`, and all \`ci.yml\` jobs`,
+              `- Bump \`GO_VERSION\` to \`${latest}\` in Dockerfile and \`webui/go.mod\`; \`ci.yml\` reads tool versions from the Dockerfile`,
               `- Update docker-ci, security-review, and testing-cicd skill docs to match`,
               `- Add CHANGELOG entry under \`[Unreleased]\` → \`### Changed\``,
               ``,
@@ -391,7 +383,6 @@ jobs:
         env:
           PINNED: ${{ steps.detect.outputs.pinned }}
           LATEST: ${{ steps.detect.outputs.latest }}
-          BUMP_PAT: ${{ secrets.BUMP_PAT }}
         run: |
           set -euo pipefail
           BRANCH="chore/bump-tailscale-${LATEST}"
@@ -435,13 +426,7 @@ jobs:
             "- bump TAILSCALE_VERSION to ${LATEST} in Dockerfile" \
             "- update docker-ci and security-review skill docs to match" \
             "- add CHANGELOG entry under [Unreleased]")"
-          if [ -n "${BUMP_PAT}" ]; then
-            # GITHUB_TOKEN is refused for commits touching .github/workflows/*;
-            # push with a PAT (repo + workflow scopes) instead.
-            git push --force "https://x-access-token:${BUMP_PAT}@github.com/${{ github.repository }}.git" "$BRANCH"
-          else
-            git push --force origin "$BRANCH"
-          fi
+          git push --force origin "$BRANCH"
           echo "branch=${BRANCH}" >> "$GITHUB_ENV"
 
       - name: Create bump PR
@@ -599,7 +584,6 @@ jobs:
         env:
           PINNED: ${{ steps.detect.outputs.pinned }}
           LATEST: ${{ steps.detect.outputs.latest }}
-          BUMP_PAT: ${{ secrets.BUMP_PAT }}
         run: |
           set -euo pipefail
           BRANCH="chore/node-bump-${LATEST}"
@@ -607,7 +591,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$BRANCH"
           sed -i "s/ARG NODE_VERSION=${PINNED}/ARG NODE_VERSION=${LATEST}/" Dockerfile
-          sed -i "s/node-version: '${PINNED}'/node-version: '${LATEST}'/g" .github/workflows/ci.yml
           for f in .agents/skills/docker-ci/SKILL.md .agents/skills/testing-cicd/SKILL.md .agents/skills/security-review/SKILL.md; do
             sed -i "s/${PINNED}/${LATEST}/g" "$f"
           done
@@ -639,18 +622,13 @@ jobs:
             p.write_text(''.join(lines))
           PY
 
-          git add Dockerfile .github/workflows/ci.yml .agents/skills CHANGELOG.md
+          git add Dockerfile .agents/skills CHANGELOG.md
           git commit -m "chore: update Node from ${PINNED} to ${LATEST}" -m "$(printf '%s\n' \
-            "- bump NODE_VERSION to ${LATEST} in Dockerfile and all four ci.yml jobs" \
+            "- bump NODE_VERSION to ${LATEST} in Dockerfile" \
+            "- CI reads GO_VERSION/NODE_VERSION versions from the Dockerfile" \
             "- update docker-ci, security-review, and testing-cicd skill docs to match" \
             "- add CHANGELOG entry under [Unreleased]")"
-          if [ -n "${BUMP_PAT}" ]; then
-            # GITHUB_TOKEN is refused for commits touching .github/workflows/*;
-            # push with a PAT (repo + workflow scopes) instead.
-            git push --force "https://x-access-token:${BUMP_PAT}@github.com/${{ github.repository }}.git" "$BRANCH"
-          else
-            git push --force origin "$BRANCH"
-          fi
+          git push --force origin "$BRANCH"
           echo "branch=${BRANCH}" >> "$GITHUB_ENV"
 
       - name: Create bump PR
@@ -670,7 +648,7 @@ jobs:
             const body = [
               `Automated Node.js bump from \`${pinned}\` to \`${latest}\` — the latest patch release in the v${major}.x track.`,
               '',
-              '- bump `NODE_VERSION` to `' + latest + '` in Dockerfile and all four `ci.yml` jobs',
+              '- bump `NODE_VERSION` to `' + latest + '` in Dockerfile; CI reads tool versions from the Dockerfile',
               '- update docker-ci, security-review, and testing-cicd skill docs to match',
               '- add CHANGELOG entry under `[Unreleased]`',
               '',
@@ -857,7 +835,6 @@ jobs:
         env:
           PINNED: ${{ steps.detect.outputs.pinned }}
           LATEST: ${{ steps.detect.outputs.latest }}
-          BUMP_PAT: ${{ secrets.BUMP_PAT }}
         run: |
           set -euo pipefail
           BRANCH="chore/bump-vite-${LATEST}"
@@ -899,13 +876,7 @@ jobs:
           git commit -m "chore: update Vite from ${PINNED} to ${LATEST}" -m "$(printf '%s\n' \
             "- bump vite to ^${LATEST} in webui/frontend/package.json and lockfile" \
             "- add CHANGELOG entry under [Unreleased]")"
-          if [ -n "${BUMP_PAT}" ]; then
-            # GITHUB_TOKEN is refused for commits touching .github/workflows/*;
-            # push with a PAT (repo + workflow scopes) instead.
-            git push --force "https://x-access-token:${BUMP_PAT}@github.com/${{ github.repository }}.git" "$BRANCH"
-          else
-            git push --force origin "$BRANCH"
-          fi
+          git push --force origin "$BRANCH"
           echo "branch=${BRANCH}" >> "$GITHUB_ENV"
 
       - name: Create bump PR

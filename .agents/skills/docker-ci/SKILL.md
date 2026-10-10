@@ -164,7 +164,9 @@ When updating a pinned version in the Dockerfile, touch every location in the ta
 |------------|---------------|----------------------|---------------------------|----------------|
 | Tailscale | `TAILSCALE_VERSION` | Version Information table | Pinned Versions block | `[Unreleased]` → `### Changed` |
 | Go | `GO_VERSION` | Version Information table | Pinned Versions block | `[Unreleased]` → `### Changed` |
-| Node.js | `NODE_VERSION` (Dockerfile) + `node-version` (ci.yml, 4 occurrences) | Version Information table | Pinned Versions block | `[Unreleased]` → `### Changed` |
+| Node.js | `NODE_VERSION` | Version Information table | Pinned Versions block | `[Unreleased]` → `### Changed` |
+
+The `frontend`, `backend`, `integration`, and `release` CI jobs read `GO_VERSION`/`NODE_VERSION` from the Dockerfile `ARG`s at run time (`Read pinned tool versions` step → `GITHUB_ENV`), so `ci.yml` has no hard-coded tool pins and bump branches never touch workflow files — keeping them pushable with plain `GITHUB_TOKEN`.
 
 ### Step-by-step
 
