@@ -7,11 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.4] - 2026-10-09
+
 ### Changed
 - **CI** — `frontend`, `backend`, `integration`, and `release` jobs now read `GO_VERSION`/`NODE_VERSION` from the Dockerfile `ARG`s at run time; the hard-coded pins are gone from `ci.yml`, so dependency-bump branches no longer need to touch workflow files (GitHub blocks `GITHUB_TOKEN` commits to `.github/workflows/*`)
 - **Tailscale** (#138) — bumped from `v1.102.4` to `v1.102.5` in Dockerfile, which stops the client from shutting down `tailscaled` when it falls behind on status updates and the connection is closed (common on large tailnets); it reconnects instead and only exits if it cannot reconnect within one minute
 - **Vite** (#147) — bumped from `8.3.0` to `8.3.4` in `webui/frontend/package.json`, collecting four patch releases: a faster preload helper that avoids a quadratic link scan and encoding intermediate source maps, more resilient dev-server HMR (file watcher errors no longer crash the server, restart requests issued during a restart are no longer dropped, new `import.meta.hot.acceptExports` support), correct CSS preloads when `renderBuiltUrl` returns URLs with queries or a non-root base is enabled, and assorted rolldown-option merge and dependency-optimizer fixes
 - **Go** (#148) — bumped from `1.27.1` to `1.27.2` in Dockerfile, `go.mod`, and CI, taking in security fixes to the `go` command and the `crypto/tls`, `html/template`, `net/http`, `net/textproto`, and `os` packages, and bug fixes to the compiler, the linker, the runtime, the `cover` tool, `go fix`, vet, and the `compress/flate`, `crypto/mlkem`, `encoding/json`, `encoding/json/v2`, `net/http`, and `os` packages
+
+### Docker
+```
+docker pull sudocarlos/tailrelay:v0.11.4
+docker pull ghcr.io/sudocarlos/tailrelay:v0.11.4
+```
 
 ## [0.11.3] - 2026-09-15
 
