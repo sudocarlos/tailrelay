@@ -7,12 +7,18 @@
  * Each capture is written here and mirrored into the MkDocs site's docs dir
  * so the published docs site never drifts from the sources committed under docs/.
  */
-import { chromium } from 'playwright';
+import { createRequire } from 'module';
 import { copyFile, mkdir } from 'fs/promises';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
+
+// Resolve playwright from webui/frontend — the script lives outside any
+// package with its own node_modules.
+const { chromium } = createRequire(import.meta.url)(
+  resolve(__dir, '../../webui/frontend/node_modules/playwright')
+);
 const OUT = __dir;
 const SITE_OUT = resolve(__dir, '../../website/docs/img/screenshots');
 const BASE = 'http://localhost:5173';
@@ -149,30 +155,29 @@ async function setupMocks(page, { authenticated = true } = {}) {
 /**
  * Switch the app between light and dark.
  *
- * Poking localStorage and the `dark` class directly is not enough: the brand
- * icon is a derived store off `theme` (see stores/theme.js), so bypassing the
- * store leaves the logo on the previous theme's PNG — invisible against the
- * new background. Drive the real toggle where one exists (the navbar), and
- * fall back to a reload for views that have no toggle (login, setup).
+ * Sets the stored theme preference and reloads. The store resolves the
+ * preference on load (system/light/dark — see stores/theme.js), which also
+ * drives the brand icon swap, so no separate class poking is needed.
  */
 async function setTheme(page, mode) {
-  const current = await page.evaluate(() => (document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
-  if (current === mode) return;
+  const current = await page.evaluate(() => localStorage.getItem('theme') || 'system');
+  const resolved = current === 'system'
+    ? await page.evaluate(() => (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
+    : current;
+  if (resolved === mode) return;
 
-  // The theme control lives in the sidebar footer as a dropdown of
-  // System / Light / Dark radio items.
-  const themeButton = page.locator('[data-slot="sidebar-menu-button"]').filter({ hasText: /^\s*Theme/ }).first();
-  if (await themeButton.isVisible().catch(() => false)) {
-    await themeButton.click();
-    await page.locator('[role="menuitemradio"]').filter({ hasText: new RegExp(`^\\s*${mode[0].toUpperCase() + mode.slice(1)}\\s*`) }).first().click();
-    // Drop the focus ring and hover highlight the click leaves behind.
-    await page.evaluate(() => document.activeElement?.blur());
-    await page.mouse.move(0, 0);
-  } else {
-    await page.evaluate((m) => localStorage.setItem('theme', m), mode);
-    await page.reload({ waitUntil: 'networkidle' });
-  }
-  await page.waitForTimeout(300);
+  await page.evaluate((m) => localStorage.setItem('theme', m), mode);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(600);
+}
+
+// Click a sidebar navigation item by its label text.
+async function gotoView(page, label) {
+  await page.evaluate((label) => {
+    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim().startsWith(label));
+    if (btn) btn.click();
+  }, label);
+  await page.waitForTimeout(600);
 }
 
 async function snap(page, name) {
@@ -295,26 +300,22 @@ console.log('\n[3/4] Tailscale tab');
   await page.goto(BASE, { waitUntil: 'networkidle' });
   await page.waitForTimeout(800);
 
-  await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('[data-slot="sidebar-menu-button"]')).find(b => b.textContent.trim().startsWith('Tailscale'));
-    if (btn) btn.click();
-  });
-  await page.waitForTimeout(600);
-
   await setTheme(page, 'light');
+  await gotoView(page, 'Tailscale');
   await snap(page, 'tailscale-light-desktop');
 
   await setTheme(page, 'dark');
+  await gotoView(page, 'Tailscale');
   await snap(page, 'tailscale-dark-desktop');
 
-  // Mobile
+  // Mobile (setTheme reloads, so re-enter the view first)
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.waitForTimeout(300);
-
   await setTheme(page, 'light');
+  await gotoView(page, 'Tailscale');
   await snap(page, 'tailscale-light-mobile');
 
   await setTheme(page, 'dark');
+  await gotoView(page, 'Tailscale');
   await snap(page, 'tailscale-dark-mobile');
 
   await page.close();
@@ -331,21 +332,18 @@ console.log('\n[4/4] Backups tab');
   await page.goto(BASE, { waitUntil: 'networkidle' });
   await page.waitForTimeout(800);
 
-  await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('[data-slot="sidebar-menu-button"]')).find(b => b.textContent.trim().startsWith('Backups'));
-    if (btn) btn.click();
-  });
-  await page.waitForTimeout(600);
-
   await setTheme(page, 'light');
+  await gotoView(page, 'Backups');
   await snap(page, 'backups-light-desktop');
 
   await setTheme(page, 'dark');
+  await gotoView(page, 'Backups');
   await snap(page, 'backups-dark-desktop');
 
   // Mobile
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.waitForTimeout(300);
+  await setTheme(page, 'dark');
+  await gotoView(page, 'Backups');
   await snap(page, 'backups-dark-mobile');
 
   await page.close();

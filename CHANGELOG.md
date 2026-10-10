@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Web UI** (#151) — the UI has been rebuilt on [shadcn-svelte](https://shadcn-svelte.com) using the `b6nWT9rPN4` create-preset (sera style, stone base, cyan accent, DM Sans + Montserrat, medium radius). All custom components were replaced with their standard shadcn implementations: toasts → Sonner, tooltip/portal → Tooltip, toggle → Switch, add/password modals → Dialog, delete confirmation → AlertDialog, overflow menu → DropdownMenu, exit-node picker → Select, and the top navbar → a collapsible Sidebar layout with a standard system/light/dark theme preference. The log panel adopts the terminal component look. Previously saved theme preferences (binary values) fall back to `light`/`dark`; `system` behavior now follows the OS theme
+
 ## [0.11.4] - 2026-10-09
 
 ### Changed
