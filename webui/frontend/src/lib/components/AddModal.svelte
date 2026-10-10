@@ -1,8 +1,10 @@
 <script>
   import { untrack } from 'svelte';
-  import { X, Info } from '@lucide/svelte';
+  import { Info } from '@lucide/svelte';
   import { fetchJSON, postFormData } from '../api.js';
   import { showToast } from '../stores/toast.js';
+  import * as Dialog from '@/lib/components/ui/dialog';
+  import { Button } from '@/lib/components/ui/button';
 
   let { type: initType = 'proxy', item: initItem = null, fqdn = '', targets = [], funnelPort = null, onSave, onClose } = $props();
 
@@ -304,31 +306,18 @@
     }
   }
 
-  function handleKeydown(e) {
-    if (e.key === 'Escape') {
-      onClose();
-    }
-  }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
-<!-- Backdrop -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
-  class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-  data-modal-open
-  onclick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-  onkeydown={() => {}}
+<Dialog.Root
+  open
+  onOpenChange={(v) => { if (!v) onClose(); }}
 >
-  <div class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+  <Dialog.Content class="rounded-xl sm:max-w-lg max-h-[90vh] overflow-y-auto">
     <!-- Header -->
-    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-800">
-      <h2 class="text-lg font-semibold">{title}</h2>
-      <button class="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400" onclick={onClose}>
-        <X size={18} />
-      </button>
-    </div>
+    <Dialog.Header>
+      <Dialog.Title class="text-lg font-semibold">{title}</Dialog.Title>
+      <Dialog.Description class="sr-only">Relay configuration dialog</Dialog.Description>
+    </Dialog.Header>
 
     <!-- Body -->
     <div class="px-5 py-4 space-y-4">
@@ -482,20 +471,11 @@
     </div>
 
     <!-- Footer -->
-    <div class="flex justify-end gap-2 px-5 py-4 border-t border-gray-200 dark:border-gray-800">
-      <button
-        class="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-        onclick={onClose}
-      >
-        Cancel
-      </button>
-      <button
-        class="px-4 py-2 text-sm font-medium rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors disabled:opacity-50"
-        disabled={saving}
-        onclick={handleSave}
-      >
+    <Dialog.Footer>
+      <Button variant="outline" onclick={onClose}>Cancel</Button>
+      <Button disabled={saving} onclick={handleSave}>
         {saving ? 'Saving...' : (editing ? 'Update' : 'Create')}
-      </button>
-    </div>
-  </div>
-</div>
+      </Button>
+    </Dialog.Footer>
+  </Dialog.Content>
+</Dialog.Root>
