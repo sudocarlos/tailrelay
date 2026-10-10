@@ -24,7 +24,6 @@
   import LogConsole from './LogConsole.svelte';
   import {
     Plus,
-    HelpCircle,
   } from '@lucide/svelte';
   import { Input } from '@/lib/components/ui/input';
   import { Button } from '@/lib/components/ui/button';

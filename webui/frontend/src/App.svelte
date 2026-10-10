@@ -15,8 +15,7 @@
   import { Toaster } from '@/lib/components/ui/sonner';
   import * as Sidebar from '@/lib/components/ui/sidebar';
   import { Separator } from '@/lib/components/ui/separator';
-  import { Alert, AlertTitle, AlertDescription } from '@/lib/components/ui/alert';
-  import { TriangleAlert, Archive, Network, Globe } from '@lucide/svelte';
+  import { TriangleAlert, Network, Globe, Archive } from '@lucide/svelte';
 
   let isAuthenticated = $state(false);
   let isNeedsSetup = $state(false);
@@ -112,7 +111,8 @@
     if (!isAuthenticated) return;
     const tag = e.target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-    if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+    // Dialog and AlertDialog both render aria-modal contents
+    if (document.querySelector('[aria-modal="true"]')) return;
 
     switch (e.key.toLowerCase()) {
       case 'r':
@@ -154,11 +154,11 @@
             <Sidebar.Trigger />
             <Separator orientation="vertical" class="h-4!" />
             {#if $currentView === 'dashboard'}
-              <div class="flex items-center gap-2 text-sm font-medium"><Archive size={15} /> Relays</div>
+              <div class="flex items-center gap-2 text-sm font-medium"><Network size={15} /> Relays</div>
             {:else if $currentView === 'tailscale'}
               <div class="flex items-center gap-2 text-sm font-medium"><Globe size={15} /> Tailscale</div>
             {:else if $currentView === 'backups'}
-              <div class="flex items-center gap-2 text-sm font-medium"><Network size={15} /> Backups</div>
+              <div class="flex items-center gap-2 text-sm font-medium"><Archive size={15} /> Backups</div>
             {/if}
             {#if $lastUpdated}
               <span class="ml-auto text-xs text-muted-foreground">Updated {$lastUpdated}</span>

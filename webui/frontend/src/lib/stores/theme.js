@@ -17,6 +17,10 @@ function systemMode() {
   return window.matchMedia(DARK_MEDIA).matches ? 'dark' : 'light';
 }
 
+function resolve(mode) {
+  return mode === 'system' ? systemMode() : mode;
+}
+
 // theme holds the user preference; resolvedTheme publishes the effective
 // light/dark value (system preference collapsed) and is the single source
 // that applies the `dark` class convention on <html>.

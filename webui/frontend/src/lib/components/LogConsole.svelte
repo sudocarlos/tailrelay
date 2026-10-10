@@ -11,7 +11,6 @@
     Terminal,
   } from '@lucide/svelte';
   import { Button } from '@/lib/components/ui/button';
-  import { Separator } from '@/lib/components/ui/separator';
   import { Select } from '@/lib/components/ui/select';
 
   let expanded = $state(false);
