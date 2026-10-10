@@ -32,7 +32,7 @@
   {@const autostart = relay.autostart ?? false}
 
   {@const host = splitHost(fqdn || 'unknown')}
-  <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-3">
+  <div class="rounded-lg border border-border bg-card px-4 py-3">
     <div class="flex items-center gap-3">
       <!-- Info -->
       <div class="flex-1 min-w-0">
@@ -43,8 +43,8 @@
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 min-w-0">
               <span class="flex min-w-0 items-baseline text-sm">
-                <span class="flex-shrink-0 font-normal text-gray-400 dark:text-gray-500">tcp://</span>
-                <span class="min-w-0 truncate font-normal text-gray-400 dark:text-gray-500">{host.short}{#if host.suffix}<span class="hidden sm:inline">{host.suffix}</span>{/if}</span>
+                <span class="flex-shrink-0 font-normal text-muted-foreground">tcp://</span>
+                <span class="min-w-0 truncate font-normal text-muted-foreground">{host.short}{#if host.suffix}<span class="hidden sm:inline">{host.suffix}</span>{/if}</span>
                 <span class="flex-shrink-0 font-medium">:{relay.listen_port}</span>
               </span>
               <CopyButton text={`tcp://${fqdn || 'unknown'}:${relay.listen_port}`} />
@@ -84,7 +84,7 @@
   {@const tlsError = proxy.tls_error || proxy.TLSError || ''}
 
   {@const host = splitHost(proxy.hostname || fqdn)}
-  <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-3">
+  <div class="rounded-lg border border-border bg-card px-4 py-3">
     <div class="flex items-center gap-3">
       <!-- Info -->
       <div class="flex-1 min-w-0">
@@ -100,8 +100,8 @@
                 rel="noopener"
                 class="flex min-w-0 items-baseline text-sm hover:underline"
               >
-                <span class="flex-shrink-0 font-normal text-gray-400 dark:text-gray-500">{listenerScheme}://</span>
-                <span class="min-w-0 truncate font-normal text-gray-400 dark:text-gray-500">{host.short}{#if host.suffix}<span class="hidden sm:inline">{host.suffix}</span>{/if}</span>
+                <span class="flex-shrink-0 font-normal text-muted-foreground">{listenerScheme}://</span>
+                <span class="min-w-0 truncate font-normal text-muted-foreground">{host.short}{#if host.suffix}<span class="hidden sm:inline">{host.suffix}</span>{/if}</span>
                 <span class="flex-shrink-0 font-medium">{proxy.listen_port && proxy.listen_port !== 443 ? `:${proxy.listen_port}` : ''}</span>
               </a>
               <CopyButton text={proxyUrl} />

@@ -53,14 +53,14 @@
 >
   <div>
     <h2 class="text-xl font-semibold">Funnel</h2>
-    <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+    <p class="text-sm text-muted-foreground mt-0.5">
       {funnels.length} of {FUNNEL_PORTS.length} configured &middot; expose services to the public internet
     </p>
   </div>
   {#if expanded}
-    <ChevronUp size={18} class="text-gray-400 flex-shrink-0" />
+    <ChevronUp size={18} class="text-muted-foreground shrink-0" />
   {:else}
-    <ChevronDown size={18} class="text-gray-400 flex-shrink-0" />
+    <ChevronDown size={18} class="text-muted-foreground shrink-0" />
   {/if}
 </button>
 
@@ -79,7 +79,7 @@
         {@const portLabel = scheme === 'https' && funnel.listen_port === 443 ? '' : `:${funnel.listen_port}`}
         {@const host = splitHost(funnel.hostname || fqdn)}
 
-        <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-3">
+        <div class="rounded-lg border border-border bg-card px-4 py-3">
           <div class="flex items-center gap-3">
             <!-- Info -->
             <div class="flex-1 min-w-0">
@@ -95,8 +95,8 @@
                       rel="noopener"
                       class="flex min-w-0 items-baseline text-sm hover:underline"
                     >
-                      <span class="flex-shrink-0 font-normal text-gray-400 dark:text-gray-500">{scheme}://</span>
-                      <span class="min-w-0 truncate font-normal text-gray-400 dark:text-gray-500">{host.short}{#if host.suffix}<span class="hidden sm:inline">{host.suffix}</span>{/if}</span>
+                      <span class="flex-shrink-0 font-normal text-muted-foreground">{scheme}://</span>
+                      <span class="min-w-0 truncate font-normal text-muted-foreground">{host.short}{#if host.suffix}<span class="hidden sm:inline">{host.suffix}</span>{/if}</span>
                       <span class="flex-shrink-0 font-medium">{portLabel}</span>
                     </a>
                     <CopyButton text={funnelUrl} />
@@ -127,19 +127,19 @@
           </div>
         </div>
       {:else if usedBy}
-        <div class="rounded-lg border border-dashed border-gray-200 dark:border-gray-800 px-4 py-3 opacity-40 cursor-not-allowed" title="Port {port} is in use by a serve relay">
+        <div class="rounded-lg border border-dashed border-border px-4 py-3 opacity-40 cursor-not-allowed" title="Port {port} is in use by a serve relay">
           <div class="flex items-center gap-2 text-sm">
-            <Ban size={16} class="text-gray-400 flex-shrink-0" />
+            <Ban size={16} class="text-muted-foreground shrink-0" />
             <span>Port {port} is in use by a serve relay</span>
           </div>
         </div>
       {:else}
         <button
           type="button"
-          class="rounded-lg border border-dashed border-gray-300 dark:border-gray-700 px-4 py-3 text-left hover:border-blue-400 dark:hover:border-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors"
+          class="rounded-lg border border-dashed border-border px-4 py-3 text-left hover:border-primary/50 hover:bg-primary/5 transition-colors"
           onclick={() => onConfigure(port)}
         >
-          <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+          <div class="flex items-center gap-2 text-sm text-muted-foreground">
             <Plus size={16} class="flex-shrink-0" />
             <span>Configure funnel on port {port}</span>
           </div>
