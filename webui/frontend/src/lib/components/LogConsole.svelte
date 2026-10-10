@@ -10,9 +10,11 @@
     Trash2,
     Terminal,
   } from '@lucide/svelte';
+  import { Button } from '@/lib/components/ui/button';
+  import { Separator } from '@/lib/components/ui/separator';
+  import { Select } from '@/lib/components/ui/select';
 
   let expanded = $state(false);
-  let logEntries = $state([]);
   let currentLevel = $state('INFO');
   let autoScroll = $state(true);
   let changingLevel = $state(false);
@@ -23,6 +25,8 @@
   const MAX_LOG_ENTRIES = 500;
 
   const LEVELS = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
+
+  let logEntries = $state([]);
 
   logs.subscribe((v) => (logEntries = v));
   logLevel.subscribe((v) => (currentLevel = v));
@@ -152,64 +156,63 @@
     switch (level?.toUpperCase()) {
       case 'ERROR': return 'text-red-400';
       case 'WARN': return 'text-amber-400';
-      case 'INFO': return 'text-blue-400';
-      case 'DEBUG': return 'text-gray-500';
-      default: return 'text-gray-400';
+      case 'INFO': return 'text-cyan-400';
+      case 'DEBUG': return 'text-zinc-500';
+      default: return 'text-zinc-400';
     }
   }
 </script>
 
-<div class="rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
+<!-- Terminal-style log panel (port of shadcn.io/ai/terminal): fixed dark
+     terminal surface in both themes, mono output, copy + clear actions. -->
+<div class="overflow-hidden rounded-lg border border-border">
   <!-- Header / Toggle -->
   <button
-    class="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800/80 transition-colors text-left"
+    type="button"
+    class="flex w-full items-center justify-between bg-muted px-4 py-2.5 text-left transition-colors hover:bg-accent"
     onclick={() => (expanded = !expanded)}
   >
     <div class="flex items-center gap-2">
-      <Terminal size={15} class="text-gray-500 dark:text-gray-400" />
+      <Terminal size={15} class="text-muted-foreground" />
       <span class="text-sm font-medium">Logs</span>
       {#if logEntries.length > 0}
-        <span class="text-xs text-gray-400 dark:text-gray-500">{logEntries.length}</span>
+        <span class="text-xs text-muted-foreground">{logEntries.length}</span>
       {/if}
     </div>
     {#if expanded}
-      <ChevronDown size={15} class="text-gray-400" />
+      <ChevronDown size={15} class="text-muted-foreground" />
     {:else}
-      <ChevronUp size={15} class="text-gray-400" />
+      <ChevronUp size={15} class="text-muted-foreground" />
     {/if}
   </button>
 
   {#if expanded}
     <!-- Controls -->
-    <div class="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
-      <!-- Level selector -->
-      <select
+    <div class="flex items-center gap-2 border-t border-border bg-muted px-4 py-2">
+      <Select.Root
+        type="single"
         value={currentLevel}
-        onchange={(e) => changeLevel(e.target.value)}
+        onValueChange={(level) => level && changeLevel(level)}
         disabled={changingLevel}
-        class="text-xs rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 focus:ring-1 focus:ring-blue-500"
       >
-        {#each LEVELS as level}
-          <option value={level}>{level}</option>
-        {/each}
-      </select>
+        <Select.Trigger class="h-7 w-28 text-xs" size="sm">
+          <span>{currentLevel}</span>
+        </Select.Trigger>
+        <Select.Content class="min-w-28">
+          {#each LEVELS as level (level)}
+            <Select.Item value={level} class="text-xs">{level}</Select.Item>
+          {/each}
+        </Select.Content>
+      </Select.Root>
 
       <div class="flex-1"></div>
 
-      <button
-        class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
-        onclick={copyLogs}
-        title="Copy logs"
-      >
+      <Button variant="ghost" size="icon-xs" class="text-muted-foreground" onclick={copyLogs} title="Copy logs">
         <Copy size={14} />
-      </button>
-      <button
-        class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
-        onclick={clearLogs}
-        title="Clear logs"
-      >
+      </Button>
+      <Button variant="ghost" size="icon-xs" class="text-muted-foreground" onclick={clearLogs} title="Clear logs">
         <Trash2 size={14} />
-      </button>
+      </Button>
     </div>
 
     <!-- Log output -->
@@ -219,17 +222,17 @@
       class="log-console h-64 overflow-y-auto px-4 py-3"
     >
       {#if logEntries.length === 0}
-        <p class="text-gray-500 text-xs italic">No log entries yet...</p>
+        <p class="text-xs text-zinc-500 italic">No log entries yet...</p>
       {:else}
         {#each logEntries as entry}
           <div class="whitespace-pre-wrap break-all leading-relaxed">
-            <span class="text-gray-500">{entry.time}</span>
+            <span class="text-zinc-500">{entry.time}</span>
             {' '}
             <span class={levelColor(entry.level)}>[{entry.level}]</span>
             {' '}
             <span class="text-cyan-400">[{entry.component}]</span>
             {' '}
-            <span>{entry.message}</span>
+            <span class="text-zinc-200">{entry.message}</span>
           </div>
         {/each}
       {/if}

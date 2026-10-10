@@ -11,18 +11,13 @@ html {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Log console */
+/* Terminal log panel (LogConsole) — fixed dark terminal surface in both themes */
 .log-console {
-  background: #0f172a;
-  color: #e2e8f0;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  background: var(--terminal-bg, oklch(0.147 0.004 49.25));
+  color: var(--terminal-text, oklch(0.985 0.001 106.423));
+  font-family: var(--font-mono, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace);
   font-size: 0.82rem;
   line-height: 1.5;
-}
-
-.dark .log-console {
-  background: #0a0e1a;
-  color: #cbd5e1;
 }
 
 /* Status dot animation */
