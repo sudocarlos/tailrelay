@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **CI** — `frontend`, `backend`, `integration`, and `release` jobs now read `GO_VERSION`/`NODE_VERSION` from the Dockerfile `ARG`s at run time; the hard-coded pins are gone from `ci.yml`, so dependency-bump branches no longer need to touch workflow files (GitHub blocks `GITHUB_TOKEN` commits to `.github/workflows/*`)
 - **Tailscale** bumped from `v1.102.4` to `v1.102.5` in Dockerfile
 - **Vite** bumped from `8.3.0` to `8.3.4` in `webui/frontend/package.json`
 - **Go** bumped from `1.27.1` to `1.27.2` in Dockerfile, `go.mod`, and CI
