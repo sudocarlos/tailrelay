@@ -70,11 +70,11 @@
 
     <!-- Body -->
     <div class="text-center">
-      <div class="mx-auto w-12 h-12 flex items-center justify-center rounded-full bg-red-50 dark:bg-red-900/20 mb-4">
-        <AlertTriangle size={24} class="text-red-500" />
+      <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+        <AlertTriangle size={24} class="text-destructive" />
       </div>
       {#if name}
-        <div class="mt-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3 text-left">
+        <div class="mt-3 rounded-lg border border-border bg-muted px-4 py-3 text-left">
           <div class="flex items-start gap-2">
             <RelayIcon {iconUrl} {running} alt={name}>
               {#if type === 'relay'}
@@ -87,7 +87,7 @@
             </RelayIcon>
             <div class="flex-1 min-w-0">
               <span class="font-medium text-sm break-all">
-                <span class="font-normal text-gray-400 dark:text-gray-500">{namePrefix()}</span><span>{nameSuffix()}</span>
+                <span class="font-normal text-muted-foreground">{namePrefix()}</span><span>{nameSuffix()}</span>
               </span>
               {#if target}
                 <p class="font-medium text-sm mt-1">&rarr; {target}</p>
@@ -96,7 +96,7 @@
           </div>
         </div>
       {/if}
-      <p class="text-xs text-gray-500 dark:text-gray-500 mt-3">This action cannot be undone.</p>
+      <p class="mt-3 text-xs text-muted-foreground">This action cannot be undone.</p>
     </div>
 
     <!-- Footer -->

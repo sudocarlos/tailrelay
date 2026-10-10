@@ -3,6 +3,8 @@
   import { fetchJSON } from '../api.js';
   import * as Dialog from '@/lib/components/ui/dialog';
   import { Button } from '@/lib/components/ui/button';
+  import { Input } from '@/lib/components/ui/input';
+  import { Label } from '@/lib/components/ui/label';
 
   let { onClose } = $props();
 
@@ -68,51 +70,48 @@
     <!-- Body -->
     <div class="px-5 py-4">
       {#if success}
-        <div class="p-3 text-sm rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800 mb-4">
+        <div class="p-3 text-sm rounded-lg rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700 mb-4 border border-emerald-200">
           Password changed successfully.
         </div>
         <Button class="w-full" onclick={onClose}>Close</Button>
       {:else}
         <form onsubmit={handleSubmit} class="space-y-3">
           {#if error}
-            <div class="p-3 text-sm rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
+            <div class="p-3 text-sm rounded-lg rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive border border-destructive/30">
               {error}
             </div>
           {/if}
 
-          <div>
-            <label for="cp-current" class="block text-sm font-medium mb-1.5">Current password</label>
-            <input
+          <div class="grid gap-2">
+            <Label for="cp-current">Current password</Label>
+            <Input
               id="cp-current"
               type="password"
               bind:value={currentPassword}
-              class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-shadow"
               autocomplete="current-password"
               required
               disabled={loading}
             />
           </div>
 
-          <div>
-            <label for="cp-new" class="block text-sm font-medium mb-1.5">New password</label>
-            <input
+          <div class="grid gap-2">
+            <Label for="cp-new">New password</Label>
+            <Input
               id="cp-new"
               type="password"
               bind:value={newPassword}
-              class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-shadow"
               autocomplete="new-password"
               required
               disabled={loading}
             />
           </div>
 
-          <div>
-            <label for="cp-confirm" class="block text-sm font-medium mb-1.5">Confirm new password</label>
-            <input
+          <div class="grid gap-2">
+            <Label for="cp-confirm">Confirm new password</Label>
+            <Input
               id="cp-confirm"
               type="password"
               bind:value={confirmPassword}
-              class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-shadow"
               autocomplete="new-password"
               required
               disabled={loading}

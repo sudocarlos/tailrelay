@@ -38,7 +38,7 @@
 </script>
 
 <button
-  class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex-shrink-0 transition-colors {className}"
+  class="text-muted-foreground hover:text-foreground flex-shrink-0 transition-colors {className}"
   onclick={handleCopy}
   title={copied ? 'Copied' : label}
 >
