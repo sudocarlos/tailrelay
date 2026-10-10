@@ -1,11 +1,6 @@
 <script>
   import { MoreHorizontal, SquarePen, SquarePower, Trash2 } from '@lucide/svelte';
-  import { DropdownMenu } from '@/lib/components/ui/dropdown-menu';
-  import { DropdownMenuTrigger } from '@/lib/components/ui/dropdown-menu';
-  import { DropdownMenuContent } from '@/lib/components/ui/dropdown-menu';
-  import { DropdownMenuItem } from '@/lib/components/ui/dropdown-menu';
-  import { DropdownMenuSeparator } from '@/lib/components/ui/dropdown-menu';
-  import { Switch } from '@/lib/components/ui/switch';
+  import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/lib/components/ui/dropdown-menu';
 
   let { autostart = false, onAutostartChange, onEdit, onDelete } = $props();
 </script>
@@ -24,19 +19,14 @@
       Edit
     </DropdownMenuItem>
 
-    <div
-      class="flex items-center justify-between gap-3 px-3 py-2 text-xs font-medium uppercase tracking-wider"
+    <DropdownMenuCheckboxItem
+      checked={autostart}
+      onCheckedChange={(v) => onAutostartChange?.(v)}
       onclick={(e) => e.stopPropagation()}
     >
-      <span class="flex items-center gap-2"><SquarePower size={14} />Start on boot</span>
-      <Switch
-        checked={autostart}
-        onCheckedChange={onAutostartChange}
-        aria-label="Start on boot"
-        size="sm"
-        onclick={(e) => e.stopPropagation()}
-      />
-    </div>
+      <SquarePower size={14} />
+      Start on boot
+    </DropdownMenuCheckboxItem>
 
     <DropdownMenuSeparator />
 
