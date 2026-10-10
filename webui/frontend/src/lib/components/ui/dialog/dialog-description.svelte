@@ -1,0 +1,17 @@
+<script>
+	import { Dialog as DialogPrimitive } from "bits-ui";
+	import { cn } from "@/lib/utils/cn.js";
+
+	let {
+		ref = $bindable(null),
+		class: className,
+		...restProps
+	} = $props();
+</script>
+
+<DialogPrimitive.Description
+	bind:ref
+	data-slot="dialog-description"
+	class={cn("text-muted-foreground *:[a]:hover:text-foreground text-sm *:[a]:underline *:[a]:underline-offset-3 leading-relaxed mt-0.5", className)}
+	{...restProps}
+/>

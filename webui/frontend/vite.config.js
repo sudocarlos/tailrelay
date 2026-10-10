@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import path from 'node:path';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 
@@ -7,6 +8,11 @@ export default defineConfig({
     tailwindcss(),
     svelte(),
   ],
+  resolve: {
+    alias: {
+      '@': path.resolve(process.cwd(), 'src'),
+    },
+  },
   build: {
     outDir: '../cmd/webui/web/dist',
     emptyOutDir: true,
