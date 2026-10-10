@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Go** bumped from `1.27.1` to `1.27.2` in Dockerfile, `go.mod`, and CI
+
 ## [0.11.3] - 2026-09-15
 
 ### Changed
