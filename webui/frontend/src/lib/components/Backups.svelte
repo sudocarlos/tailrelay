@@ -283,7 +283,7 @@
             <Button
               variant="ghost"
               size="icon-xs"
-              class="{renamingFile === backup.filename ? 'text-primary' : 'text-muted-foreground'}"
+              class={renamingFile === backup.filename ? 'text-primary' : 'text-muted-foreground'}
               onclick={() => renamingFile === backup.filename ? cancelRename() : startRename(backup.filename)}
               disabled={renaming === backup.filename}
               title={renamingFile === backup.filename ? 'Cancel rename' : 'Rename'}
