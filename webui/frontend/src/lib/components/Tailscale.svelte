@@ -3,7 +3,7 @@
   import { tailscaleStatus, refreshData } from '../stores/app.js';
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
-  import { Wifi, WifiOff, LogIn, LogOut, PowerOff, RefreshCw, Server, AlertTriangle, ExternalLink, Check, Users } from '@lucide/svelte';
+  import { Wifi, WifiOff, GlobeLock, GlobeOff, LogIn, LogOut, RefreshCw, Server, AlertTriangle, ExternalLink, Check, Users } from '@lucide/svelte';
   import AddressMenu from './AddressMenu.svelte';
   import NetworkingSection from './NetworkingSection.svelte';
   import { Input } from '@/lib/components/ui/input';
@@ -391,7 +391,7 @@
           {#if connectLoading}
             <RefreshCw size={14} class="animate-spin" />
           {:else}
-            <LogIn size={14} />
+            <GlobeLock size={14} />
           {/if}
           Connect
         </Button>
@@ -405,7 +405,7 @@
           {#if connectLoading}
             <RefreshCw size={14} class="animate-spin" />
           {:else}
-            <PowerOff size={14} />
+            <GlobeOff size={14} />
           {/if}
           Disconnect
         </Button>
