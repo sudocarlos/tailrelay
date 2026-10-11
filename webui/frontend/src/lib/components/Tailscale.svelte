@@ -3,7 +3,7 @@
   import { tailscaleStatus, refreshData } from '../stores/app.js';
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
-  import { Wifi, WifiOff, LogIn, LogOut, RefreshCw, Server, AlertTriangle, ExternalLink, Check, Users } from '@lucide/svelte';
+  import { Wifi, WifiOff, LogIn, LogOut, PowerOff, RefreshCw, Server, AlertTriangle, ExternalLink, Check, Users } from '@lucide/svelte';
   import AddressMenu from './AddressMenu.svelte';
   import NetworkingSection from './NetworkingSection.svelte';
   import { Input } from '@/lib/components/ui/input';
@@ -52,30 +52,6 @@
       case 'NeedsLogin': return 'Needs Login';
       case 'NoState': return 'Not Started';
       default: return s.BackendState || 'Unknown';
-    }
-  }
-
-  function stateBadgeClass(s) {
-    if (!s) return 'bg-muted text-muted-foreground';
-    switch (s.BackendState) {
-      case 'Running':
-        return 'bg-emerald-100 text-emerald-700';
-      case 'NeedsLogin':
-      case 'NoState':
-        return 'bg-amber-100 text-amber-700';
-      default:
-        return 'bg-destructive/10 text-destructive';
-    }
-  }
-
-  function dotClass(s) {
-    if (!s) return 'bg-muted-foreground/50';
-    switch (s.BackendState) {
-      case 'Running': return 'bg-emerald-500';
-      case 'Starting': return 'bg-amber-500 animate-pulse';
-      case 'NeedsLogin':
-      case 'NoState': return 'bg-amber-500';
-      default: return 'bg-destructive';
     }
   }
 
@@ -316,10 +292,6 @@
         {/if}
         <span class="font-medium text-foreground">Connection Status</span>
       </div>
-      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium {stateBadgeClass(status)}">
-        <span class="h-1.5 w-1.5 rounded-full {dotClass(status)}"></span>
-        {stateLabel(status)}
-      </span>
     </div>
 
     {#if status}
@@ -433,7 +405,7 @@
           {#if connectLoading}
             <RefreshCw size={14} class="animate-spin" />
           {:else}
-            <LogOut size={14} />
+            <PowerOff size={14} />
           {/if}
           Disconnect
         </Button>
