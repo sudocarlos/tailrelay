@@ -6,6 +6,7 @@
     proxies,
     funnels,
     usedFunnelPorts,
+    FUNNEL_PORTS,
     tailnetFQDN,
     targets,
     lastUpdated,
@@ -18,13 +19,13 @@
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
   import ItemRow from './ItemRow.svelte';
-  import FunnelSection from './FunnelSection.svelte';
   import AddModal from './AddModal.svelte';
   import DeleteModal from './DeleteModal.svelte';
   import LogConsole from './LogConsole.svelte';
   import {
     Plus,
     Search,
+    Ban,
   } from '@lucide/svelte';
   import { Input } from '@/lib/components/ui/input';
   import { Button } from '@/lib/components/ui/button';
@@ -48,10 +49,23 @@
     return get(funnels).find((f) => f.id === id);
   }
 
-  function isItemRunning(type, id) {
-    if (type === 'relay') return get(relays).find((r) => r.relay.id === id)?.running;
-    if (type === 'proxy') return get(proxies).find((p) => p.id === id)?.enabled ?? false;
-    return get(funnels).find((f) => f.id === id)?.enabled ?? false;
+  // ── Funnel address helpers (shared by rows and search) ───────────
+  function funnelScheme(funnel) {
+    return funnel.funnel_transport === 'tcp' ? 'tcp' : 'https';
+  }
+
+  function funnelPortLabel(funnel) {
+    return funnelScheme(funnel) === 'https' && funnel.listen_port === 443
+      ? ''
+      : `:${funnel.listen_port}`;
+  }
+
+  function funnelUrl(funnel) {
+    return `${funnelScheme(funnel)}://${funnel.hostname || fqdn}${funnelPortLabel(funnel)}`;
+  }
+
+  function funnelTarget(funnel) {
+    return `${funnel.target_host}:${funnel.target_port}`;
   }
 
   let items = $state([]);
@@ -97,6 +111,21 @@
       });
     })()
   );
+
+  // Configured funnels for the same table, filtered by the same query so
+  // funnels search like any other row (placeholder rows hide on search).
+  const displayedFunnels = $derived(
+    (() => {
+      const q = searchQuery.trim().toLowerCase();
+      if (!q) return funnelList;
+      return funnelList.filter((f) => {
+        return funnelUrl(f).toLowerCase().includes(q) || funnelTarget(f).toLowerCase().includes(q);
+      });
+    })()
+  );
+
+  // Subtitle row count: serve relays + proxies + configured funnels.
+  const rowCount = $derived(displayedItems.length + displayedFunnels.length);
 
   function openAdd(type = 'proxy') {
     editItem = null;
@@ -213,7 +242,7 @@
 <div class="mb-5">
   <h1 class="text-2xl font-semibold tracking-tight">Relays</h1>
   <p class="text-sm text-muted-foreground mt-0.5">
-    {displayedItems.length} item{displayedItems.length === 1 ? '' : 's'}
+    {rowCount} item{rowCount === 1 ? '' : 's'}
     {#if updated}
       <span class="mx-1">·</span> updated {updated}
     {/if}
@@ -241,7 +270,7 @@
 
 <!-- Items as flat rows (no cards), like the console machines list -->
 <div class="mb-6">
-  {#if displayedItems.length === 0}
+  {#if rowCount === 0}
     <div class="text-center py-16 px-6">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-20 h-20 mx-auto mb-4 text-muted-foreground/60">
         <rect x="10" y="20" width="60" height="40" rx="4" />
@@ -260,10 +289,22 @@
         {/if}
       </p>
       {#if !searchQuery.trim()}
-        <Button size="sm" class="gap-1.5" onclick={() => openAdd()}>
-          <Plus size={15} />
-          Add a Relay
-        </Button>
+        <div class="flex items-center justify-center gap-6">
+          <Button size="sm" class="gap-1.5" onclick={() => openAdd()}>
+            <Plus size={15} />
+            Add a Relay
+          </Button>
+          {#if !funnelHidden}
+            <button
+              type="button"
+              class="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              onclick={() => openConfigureFunnel(FUNNEL_PORTS[0])}
+            >
+              <Plus size={14} />
+              Configure funnel on port {FUNNEL_PORTS[0]}
+            </button>
+          {/if}
+        </div>
       {/if}
     </div>
   {:else}
@@ -290,27 +331,63 @@
             onDelete={(type, id, name, target, iconUrl, running) => openDelete(type, id, name, target, iconUrl, running)}
           />
         {/each}
+
+        <!-- Funnel rows live in the same table, after the serve relays.
+             Hidden while connected to a custom control server, since
+             Funnel is a Tailscale-cloud-only feature not supported by
+             self-hosted Headscale. -->
+        {#if !funnelHidden}
+          {#each displayedFunnels as funnel (funnel.id)}
+            <ItemRow
+              item={{ type: 'funnel', funnel, running: funnel.running }}
+              {fqdn}
+              toggling={togglingId === `funnel:${funnel.id}`}
+              onToggle={handleToggleAction}
+              onAutostart={handleAutostartToggle}
+              onEdit={(type, data) => openEdit(type, data)}
+              onDelete={(type, id, name, target, iconUrl, running) => openDelete(type, id, name, target, iconUrl, running)}
+            />
+          {/each}
+
+          <!-- Funnel port availability and configure prompts — hidden while
+               searching so only matching rows remain. -->
+          {#if !searchQuery.trim()}
+            {#each FUNNEL_PORTS as port (port)}
+              {@const occupied = funnelList.some((f) => f.listen_port === port)}
+              {@const usedBy = usedPorts.get(port)}
+              {#if !occupied && usedBy}
+                <tr>
+                  <td class="py-3 pr-4" colspan="4">
+                    <div
+                      class="flex items-center gap-2 text-sm text-muted-foreground/70"
+                      title="Port {port} is in use by a serve relay"
+                    >
+                      <Ban size={15} class="shrink-0" />
+                      <span>Port {port} is in use by a serve relay</span>
+                    </div>
+                  </td>
+                </tr>
+              {:else if !occupied}
+                <tr class="transition-colors hover:bg-muted/40">
+                  <td class="py-3" colspan="4">
+                    <button
+                      type="button"
+                      class="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      onclick={() => openConfigureFunnel(port)}
+                    >
+                      <Plus size={16} class="flex-shrink-0" />
+                      <span>Configure funnel on port {port}</span>
+                    </button>
+                  </td>
+                </tr>
+              {/if}
+            {/each}
+          {/if}
+        {/if}
       </tbody>
     </table>
   {/if}
 </div>
-
-<!-- Funnel — hidden while connected to a custom control server, since
-     Funnel is a Tailscale-cloud-only feature not supported by self-hosted
-     Headscale. -->
-{#if !funnelHidden}
-  <FunnelSection
-    funnels={funnelList}
-    usedFunnelPorts={usedPorts}
-    {fqdn}
-    {togglingId}
-    onConfigure={openConfigureFunnel}
-    onToggle={(id, running) => handleToggleAction('funnel', id, running)}
-    onAutostart={(id, autostart) => handleAutostartToggle('funnel', id, autostart)}
-    onEdit={(item) => openEdit('funnel', item)}
-    onDelete={(id, name, target, iconUrl, running) => openDelete('funnel', id, name, target, iconUrl, running)}
-  />
-{/if}
 
 <!-- Log Console -->
 <LogConsole />
