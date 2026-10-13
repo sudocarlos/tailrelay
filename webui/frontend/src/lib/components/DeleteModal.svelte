@@ -28,7 +28,7 @@
   };
 
   // Split the URL into a muted prefix and a bold suffix (port or nothing),
-  // mirroring the two-span pattern used in ItemCard.svelte.
+  // mirroring the two-span pattern used in ItemRow.svelte.
   const namePrefix = $derived(() => {
     const lastColon = name.lastIndexOf(':');
     return lastColon !== -1 ? name.slice(0, lastColon) : name;

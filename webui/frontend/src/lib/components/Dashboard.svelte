@@ -17,13 +17,14 @@
   import { get } from 'svelte/store';
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
-  import ItemCard from './ItemCard.svelte';
+  import ItemRow from './ItemRow.svelte';
   import FunnelSection from './FunnelSection.svelte';
   import AddModal from './AddModal.svelte';
   import DeleteModal from './DeleteModal.svelte';
   import LogConsole from './LogConsole.svelte';
   import {
     Plus,
+    Search,
   } from '@lucide/svelte';
   import { Input } from '@/lib/components/ui/input';
   import { Button } from '@/lib/components/ui/button';
@@ -208,36 +209,38 @@
   });
 </script>
 
-<!-- Header -->
-<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-  <div>
-    <h1 class="text-xl font-semibold">Relays</h1>
-    <p class="text-sm text-muted-foreground mt-0.5">
-      {displayedItems.length} item{displayedItems.length === 1 ? '' : 's'}
-      {#if updated}
-        <span class="mx-1">&middot;</span> updated {updated}
-      {/if}
-    </p>
-  </div>
+<!-- Page title (toolbar below, search left / add right like the console) -->
+<div class="mb-5">
+  <h1 class="text-2xl font-semibold tracking-tight">Relays</h1>
+  <p class="text-sm text-muted-foreground mt-0.5">
+    {displayedItems.length} item{displayedItems.length === 1 ? '' : 's'}
+    {#if updated}
+      <span class="mx-1">·</span> updated {updated}
+    {/if}
+  </p>
+</div>
 
-  <div class="flex items-center gap-2">
-    <!-- Search -->
+<!-- Toolbar: search left, Add right -->
+<div class="mb-4 flex items-center justify-between gap-3">
+  <!-- Search -->
+  <div class="relative w-full max-w-sm">
+    <Search size={15} class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
     <Input
       type="search"
       bind:value={searchQuery}
       placeholder="Search relays…"
-      class="w-48 h-9"
+      class="h-9 pl-8"
     />
-
-    <Button size="sm" class="gap-1.5" onclick={() => openAdd()}>
-      <Plus size={15} />
-      Add
-    </Button>
   </div>
+
+  <Button class="gap-1.5" onclick={() => openAdd()}>
+    <Plus size={15} />
+    Add
+  </Button>
 </div>
 
-<!-- Items -->
-<div class="flex flex-col gap-3 mb-6">
+<!-- Items as flat rows (no cards), like the console machines list -->
+<div class="mb-6">
   {#if displayedItems.length === 0}
     <div class="text-center py-16 px-6">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-20 h-20 mx-auto mb-4 text-muted-foreground/60">
@@ -264,19 +267,31 @@
       {/if}
     </div>
   {:else}
-    {#each displayedItems as item (item.type === 'relay' ? `relay-${item.relay.id}` : `proxy-${item.proxy.id}`)}
-      <ItemCard
-        {item}
-        {fqdn}
-        toggling={item.type === 'relay'
-          ? togglingId === `relay:${item.relay.id}`
-          : togglingId === `proxy:${item.proxy.id}`}
-        onToggle={handleToggleAction}
-        onAutostart={handleAutostartToggle}
-        onEdit={(type, data) => openEdit(type, data)}
-        onDelete={(type, id, name, target, iconUrl, running) => openDelete(type, id, name, target, iconUrl, running)}
-      />
-    {/each}
+    <table class="w-full table-fixed">
+      <thead>
+        <tr class="border-b border-border text-left">
+          <th class="w-auto pb-2 text-xs font-normal text-muted-foreground sm:w-[55%]">Address</th>
+          <th class="hidden pb-2 pr-4 text-xs font-normal text-muted-foreground sm:table-cell">Target</th>
+          <th class="w-12 pb-2" aria-hidden="true"></th>
+          <th class="w-8 pb-2" aria-hidden="true"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-border">
+        {#each displayedItems as item (item.type === 'relay' ? `relay-${item.relay.id}` : `proxy-${item.proxy.id}`)}
+          <ItemRow
+            {item}
+            {fqdn}
+            toggling={item.type === 'relay'
+              ? togglingId === `relay:${item.relay.id}`
+              : togglingId === `proxy:${item.proxy.id}`}
+            onToggle={handleToggleAction}
+            onAutostart={handleAutostartToggle}
+            onEdit={(type, data) => openEdit(type, data)}
+            onDelete={(type, id, name, target, iconUrl, running) => openDelete(type, id, name, target, iconUrl, running)}
+          />
+        {/each}
+      </tbody>
+    </table>
   {/if}
 </div>
 

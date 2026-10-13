@@ -44,7 +44,7 @@
   <div class="w-full max-w-sm">
     <div class="mb-8 text-center">
       <img src={$brandIconSrc} alt="Tailrelay" class="mx-auto mb-4 h-16 w-16 rounded-2xl" />
-      <h1 class="mb-2 text-2xl font-bold">Tail<span class="brand-relay">relay</span></h1>
+      <h1 class="mb-2 text-2xl font-bold">Tailrelay</h1>
       <p class="text-muted-foreground">
         Enter your admin password to continue.
       </p>

@@ -1,6 +1,6 @@
 <script>
-  import { onMount, onDestroy } from 'svelte';
-  import { tailscaleStatus, refreshData } from '../stores/app.js';
+  import { onMount, onDestroy, tick } from 'svelte';
+  import { tailscaleStatus, refreshData, tailscaleSection, tailscaleActiveSection } from '../stores/app.js';
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
   import { Wifi, WifiOff, GlobeLock, GlobeOff, LogIn, LogOut, RefreshCw, Server, AlertTriangle, ExternalLink, Check, Users } from '@lucide/svelte';
@@ -9,6 +9,7 @@
   import { Input } from '@/lib/components/ui/input';
   import { Button } from '@/lib/components/ui/button';
   import * as Tabs from '@/lib/components/ui/tabs';
+  import { Separator } from '@/lib/components/ui/separator';
 
   // ── Local state ───────────────────────────────────────────────────
   let status = $state(null);
@@ -42,6 +43,46 @@
     }
   });
 
+  // ── Sidebar sub-item scroll targets ───────────────────────────────
+  // The sidebar's Connection/Networking/Machines sub-items write
+  // { id, n } into the shared store; scroll there once the view has
+  // rendered, then clear the store so re-clicking scrolls again. The
+  // active highlight comes from the scroll spy below, so clicking simply
+  // scrolls and lets the spy light up the right sub-item.
+  $effect(() => {
+    const target = $tailscaleSection;
+    if (!target?.id) return;
+    tick().then(() => {
+      document.getElementById(`tailscale-${target.id}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+      tailscaleSection.set(null);
+    });
+  });
+
+  // Scroll spy: track which section is currently in view so the sidebar
+  // sub-items highlight accordingly. On short pages, a bottom-of-page
+  // check pins the last section once scrolling has maxed out.
+  function updateActiveSection() {
+    const ids = ['connection', 'networking', 'machines'];
+    let current = 'connection';
+    let last = null;
+    for (const id of ids) {
+      const el = document.getElementById(`tailscale-${id}`);
+      if (!el) continue;
+      last = id;
+      if (el.getBoundingClientRect().top <= 140) current = id;
+    }
+    if (
+      last &&
+      window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2
+    ) {
+      current = last;
+    }
+    tailscaleActiveSection.set(current);
+  }
+
   // ── Derived helpers ───────────────────────────────────────────────
   function stateLabel(s) {
     if (!s) return 'Unknown';
@@ -62,9 +103,17 @@
     if (diff < 60000) return 'just now';
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-    if (diff < 7 * 86400000) return `${Math.floor(diff / 86400000)}d ago`;
+    if (diff < 7 * 86400000) return `${Math.floor(diff / 3600000)}d ago`;
     
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  // Admin-console deep link for a peer machine, keyed by its Tailscale
+  // IP (e.g. https://console.tailscale.com/admin/machines/100.98.52.14).
+  function machineConsoleUrl(peer) {
+    const ip = peer.IPv4 || peer.IPv6;
+    if (!ip) return null;
+    return `https://console.tailscale.com/admin/machines/${ip}`;
   }
 
   // ── Actions ───────────────────────────────────────────────────────
@@ -265,114 +314,34 @@
   onMount(() => {
     fetchPeers();
     fetchControlServer();
+    updateActiveSection();
+    window.addEventListener('scroll', updateActiveSection, { passive: true });
   });
 
   onDestroy(() => {
     stopLoginPoll();
+    window.removeEventListener('scroll', updateActiveSection);
   });
 </script>
 
-<div class="space-y-6">
-  <!-- Page header -->
-  <div class="flex items-center justify-between">
-    <h1 class="text-xl font-semibold">Tailscale</h1>
-    {#if !status}
-      <span class="text-xs text-muted-foreground">Loading…</span>
-    {/if}
-  </div>
+<!-- Page header -->
+<div>
+  <h1 class="text-2xl font-semibold tracking-tight">Tailscale</h1>
+  <p class="text-sm text-muted-foreground mt-0.5">Connect this node to your tailnet, manage networking and machines</p>
+</div>
 
-  <!-- Status card -->
-  <div class="rounded-lg border border-border bg-card p-5 space-y-4">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        {#if status?.BackendState === 'Running'}
-          <Wifi size={20} class="text-emerald-500" />
-        {:else}
-          <WifiOff size={20} class="text-muted-foreground" />
-        {/if}
-        <span class="font-medium text-foreground">Connection Status</span>
-      </div>
-    </div>
-
-    {#if status}
-      <dl class="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 text-sm">
-        {#if status.Hostname}
-          <div>
-            <dt class="text-xs text-muted-foreground mb-1">Machine name</dt>
-            <dd class="flex gap-2">
-              <Input
-                type="text"
-                class="h-7 flex-1 font-mono text-xs"
-                bind:value={hostnameInput}
-                onkeydown={(e) => e.key === 'Enter' && hostnameInput !== status.Hostname && handleChangeHostname()}
-              />
-              {#if hostnameInput !== status.Hostname}
-                <Button
-                  size="xs"
-                  class="tracking-wider"
-                  onclick={handleChangeHostname}
-                  disabled={hostnameLoading || !hostnameInput.trim()}
-                >
-                  {#if hostnameLoading}
-                    <RefreshCw size={12} class="animate-spin" />
-                  {:else}
-                    <Check size={12} />
-                  {/if}
-                  Apply
-                </Button>
-              {/if}
-            </dd>
-          </div>
-        {/if}
-        {#if status.IPv4}
-          <div>
-            <dt class="text-xs text-muted-foreground">Tailscale IPv4</dt>
-            <dd class="font-mono text-foreground">{status.IPv4}</dd>
-          </div>
-        {/if}
-        {#if status.MagicDNSName}
-          <div>
-            <dt class="text-xs text-muted-foreground">MagicDNS Name</dt>
-            <dd class="font-mono text-foreground truncate">{status.MagicDNSName}</dd>
-          </div>
-        {/if}
-        {#if status.IsCustomControlServer && status.ControlServer}
-          <div>
-            <dt class="text-xs text-muted-foreground">Control Server</dt>
-            <dd class="font-mono text-foreground truncate" title={status.ControlServer}>{status.ControlServer}</dd>
-          </div>
-        {/if}
-        {#if status.TailnetName}
-          <div>
-            <dt class="text-xs text-muted-foreground">Tailnet</dt>
-            <dd class="text-foreground truncate">{status.TailnetName}</dd>
-          </div>
-        {/if}
-        {#if status.Version}
-          <div>
-            <dt class="text-xs text-muted-foreground">Version</dt>
-            <dd class="font-mono text-foreground">{status.Version}</dd>
-          </div>
-        {/if}
-        <div>
-          <dt class="text-xs text-muted-foreground">Machines</dt>
-          <dd class="text-foreground">{status.PeerCount ?? 0} ({status.ActivePeers ?? 0} active)</dd>
-        </div>
-      </dl>
-
-      {#if status.Health && status.Health.length > 0}
-        <div class="rounded-md border border-amber-400/40 bg-amber-500/5 px-3 py-2 space-y-1">
-          {#each status.Health as msg}
-            <p class="text-xs text-amber-800 dark:text-amber-400 flex items-start gap-1.5">
-              <AlertTriangle size={12} class="mt-0.5 flex-shrink-0" />
-              {msg}
-            </p>
-          {/each}
-        </div>
+<!-- Connection -->
+<section id="tailscale-connection" class="mt-8 scroll-mt-4">
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-2">
+      {#if status?.BackendState === 'Running'}
+        <Wifi size={18} class="text-emerald-500" />
+      {:else}
+        <WifiOff size={18} class="text-muted-foreground" />
       {/if}
-    {:else}
-      <p class="text-sm text-muted-foreground">Waiting for status…</p>
-    {/if}
+      <h2 class="text-lg font-semibold">Connection</h2>
+      <span class="text-sm text-muted-foreground">{stateLabel(status)}</span>
+    </div>
 
     <!-- Connect / Disconnect / Logout -->
     <!-- Connect only makes sense from "Stopped" (previously authenticated,
@@ -381,7 +350,7 @@
          (e.g. authkey already used after tailnet removal), so those states
          only offer the Authentication Required form below. "Starting" is
          transient and intentionally shows no action button here. -->
-    <div class="flex gap-2 pt-1">
+    <div class="flex gap-2">
       {#if status?.BackendState === 'Stopped'}
         <Button
           class="gap-1.5"
@@ -428,23 +397,98 @@
     </div>
   </div>
 
-  <!-- Networking — placed directly next to connection status since these
-       settings are applied via `tailscale set` which requires an active
-       daemon; only rendered once connected. -->
-  {#if status?.BackendState === 'Running'}
-    <NetworkingSection {peers} />
+  {#if status}
+    <dl class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+      {#if status.Hostname}
+        <div>
+          <dt class="mb-1 text-xs text-muted-foreground">Machine name</dt>
+          <dd class="flex gap-2">
+            <Input
+              type="text"
+              class="h-7 flex-1 font-mono text-xs"
+              bind:value={hostnameInput}
+              onkeydown={(e) => e.key === 'Enter' && hostnameInput !== status.Hostname && handleChangeHostname()}
+            />
+            {#if hostnameInput !== status.Hostname}
+              <Button
+                size="xs"
+                class="tracking-wider"
+                onclick={handleChangeHostname}
+                disabled={hostnameLoading || !hostnameInput.trim()}
+              >
+                {#if hostnameLoading}
+                  <RefreshCw size={12} class="animate-spin" />
+                {:else}
+                  <Check size={12} />
+                {/if}
+                Apply
+              </Button>
+            {/if}
+          </dd>
+        </div>
+      {/if}
+      {#if status.IPv4}
+        <div>
+          <dt class="text-xs text-muted-foreground">Tailscale IPv4</dt>
+          <dd class="font-mono text-foreground">{status.IPv4}</dd>
+        </div>
+      {/if}
+      {#if status.MagicDNSName}
+        <div>
+          <dt class="text-xs text-muted-foreground">MagicDNS Name</dt>
+          <dd class="truncate font-mono text-foreground">{status.MagicDNSName}</dd>
+        </div>
+      {/if}
+      {#if status.IsCustomControlServer && status.ControlServer}
+        <div>
+          <dt class="text-xs text-muted-foreground">Control Server</dt>
+          <dd class="truncate font-mono text-foreground" title={status.ControlServer}>{status.ControlServer}</dd>
+        </div>
+      {/if}
+      {#if status.TailnetName}
+        <div>
+          <dt class="text-xs text-muted-foreground">Tailnet</dt>
+          <dd class="truncate text-foreground">{status.TailnetName}</dd>
+        </div>
+      {/if}
+      {#if status.Version}
+        <div>
+          <dt class="text-xs text-muted-foreground">Version</dt>
+          <dd class="font-mono text-foreground">{status.Version}</dd>
+        </div>
+      {/if}
+      <div>
+        <dt class="text-xs text-muted-foreground">Machines</dt>
+        <dd class="text-foreground">{status.PeerCount ?? 0} ({status.ActivePeers ?? 0} active)</dd>
+      </div>
+    </dl>
+
+    {#if status.Health && status.Health.length > 0}
+      <div class="mt-4 space-y-1 border-l-2 border-amber-400 pl-3">
+        {#each status.Health as msg}
+          <p class="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+            <AlertTriangle size={12} class="mt-0.5 flex-shrink-0" />
+            {msg}
+          </p>
+        {/each}
+      </div>
+    {/if}
+  {:else}
+    <p class="text-sm text-muted-foreground">Waiting for status…</p>
   {/if}
 
-  <!-- Login section — shown when Tailscale needs authentication -->
+  <!-- Login section — shown when Tailscale needs authentication. Flat
+       (amber text accents, no card box) to match the console's banner
+       styling. -->
   {#if status?.BackendState === 'NeedsLogin' || status?.BackendState === 'NoState' || loginURL}
-    <div class="rounded-lg border border-amber-400/40 bg-amber-500/5 p-5 space-y-3">
+    <div class="mt-6 border-l-2 border-amber-400 pl-3 sm:pl-4">
       <div class="flex items-center gap-2">
-        <LogIn size={18} class="text-amber-800 dark:text-amber-400" />
-        <h2 class="font-medium text-amber-900 dark:text-amber-200">Authentication Required</h2>
+        <LogIn size={16} class="text-amber-800 dark:text-amber-400" />
+        <h3 class="font-medium text-amber-900 dark:text-amber-200">Authentication Required</h3>
       </div>
 
       <!-- Tab switcher -->
-      <Tabs.Root value={authTab} class="w-fit">
+      <Tabs.Root value={authTab} class="mt-3 w-fit">
         <Tabs.List>
           <Tabs.Trigger
             value="url"
@@ -463,29 +507,29 @@
 
       {#if authTab === 'url'}
         <!-- Interactive login URL flow -->
-        <p class="text-sm text-amber-800 dark:text-amber-300">
+        <p class="mt-2 text-sm text-amber-800 dark:text-amber-300">
           Click below to get a login URL, then open it in your browser to authorize this device.
         </p>
 
         {#if loginURL}
-          <div class="rounded-md border border-amber-400/40 bg-background px-3 py-2 flex items-center gap-2 overflow-hidden">
-            <span class="font-mono text-xs text-muted-foreground truncate flex-1">{loginURL}</span>
+          <div class="mt-2 flex items-center gap-2 overflow-hidden rounded-md border bg-background px-3 py-2">
+            <span class="flex-1 truncate font-mono text-xs text-muted-foreground">{loginURL}</span>
             <a
               href={loginURL}
               target="_blank"
               rel="noopener noreferrer"
-              class="flex-shrink-0 inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80"
+              class="inline-flex flex-shrink-0 items-center gap-1 text-xs text-primary hover:text-primary/80"
             >
               Open <ExternalLink size={12} />
             </a>
           </div>
-          <p class="text-xs text-amber-800 dark:text-amber-400 flex items-center gap-1">
+          <p class="mt-2 flex items-center gap-1 text-xs text-amber-800 dark:text-amber-400">
             <RefreshCw size={12} class="animate-spin" />
             Waiting for authentication to complete…
           </p>
         {:else}
           <Button
-            class="bg-amber-600 text-amber-50 hover:bg-amber-700"
+            class="mt-2 bg-amber-600 text-amber-50 hover:bg-amber-700"
             onclick={handleGetLoginURL}
             disabled={loginLoading}
           >
@@ -500,17 +544,17 @@
         {/if}
       {:else}
         <!-- Auth key flow -->
-        <p class="text-sm text-amber-800 dark:text-amber-300">
+        <p class="mt-2 text-sm text-amber-800 dark:text-amber-300">
           Provide a Tailscale auth key (tskey-auth-...) or Headscale auth key (hskey-...) to authenticate headlessly. Generate a Tailscale auth key at
           <a
             href="https://login.tailscale.com/admin/settings/keys"
             target="_blank"
             rel="noopener noreferrer"
-            class="underline hover:text-amber-900 dark:hover:text-amber-100 inline-flex items-center gap-0.5"
+            class="inline-flex items-center gap-0.5 underline hover:text-amber-900 dark:hover:text-amber-100"
           >https://login.tailscale.com/admin/settings/keys <ExternalLink size={11} /></a>
         </p>
 
-        <div class="space-y-2">
+        <div class="mt-3 space-y-2">
           <div class="flex gap-2">
             <Input
               type="password"
@@ -537,7 +581,7 @@
             </Button>
           </div>
           {#if authKeyError}
-            <p class="text-xs text-destructive flex items-center gap-1">
+            <p class="flex items-center gap-1 text-xs text-destructive">
               <AlertTriangle size={12} />
               {authKeyError}
             </p>
@@ -553,7 +597,7 @@
            authenticated against until logout, so this must never flash
            while actually connected. -->
       {#if status?.BackendState === 'NeedsLogin' || status?.BackendState === 'NoState'}
-        <div class="space-y-1.5 pt-3 border-t border-amber-400/40">
+        <div class="mt-4 space-y-1.5 border-t border-amber-400/40 pt-3">
           <div class="flex items-center gap-1.5">
             <Server size={13} class="text-amber-800 dark:text-amber-400" />
             <span class="text-xs font-medium text-amber-800 dark:text-amber-300">Control Server</span>
@@ -587,7 +631,7 @@
             {/if}
           </div>
           {#if controlServerError}
-            <p class="text-xs text-destructive flex items-center gap-1">
+            <p class="flex items-center gap-1 text-xs text-destructive">
               <AlertTriangle size={12} />
               {controlServerError}
             </p>
@@ -604,100 +648,120 @@
       {/if}
     </div>
   {/if}
+</section>
 
-  <!-- Machines -->
-  <div class="rounded-lg border border-border bg-card p-5 space-y-3">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <Users size={18} class="text-muted-foreground" />
-        <h2 class="font-medium text-foreground">Machines</h2>
-        {#if peers.length > 0}
-          <span class="text-xs text-muted-foreground">({peers.length})</span>
-        {/if}
-      </div>
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        class="text-muted-foreground"
-        onclick={fetchPeers}
-        title="Refresh machines"
-      >
-        <RefreshCw size={14} class={peersLoading ? 'animate-spin' : ''} />
-      </Button>
+<Separator class="my-8" />
+
+<!-- Networking — placed directly next to connection status since these
+     settings are applied via `tailscale set` which requires an active
+     daemon; only rendered once connected. -->
+{#if status?.BackendState === 'Running'}
+  <section id="tailscale-networking" class="scroll-mt-4">
+    <h2 class="mb-4 text-lg font-semibold">Networking</h2>
+    <NetworkingSection {peers} />
+  </section>
+
+  <Separator class="my-8" />
+{/if}
+
+<!-- Machines -->
+<section id="tailscale-machines" class="scroll-mt-4">
+  <div class="mb-4 flex items-center justify-between">
+    <div class="flex items-baseline gap-2">
+      <h2 class="text-lg font-semibold">Machines</h2>
+      {#if peers.length > 0}
+        <span class="text-sm text-muted-foreground">({peers.length})</span>
+      {/if}
     </div>
-
-    {#if peersLoading && peers.length === 0}
-      <p class="text-sm text-muted-foreground">Loading machines…</p>
-    {:else if peers.length === 0}
-      <p class="text-sm text-muted-foreground">
-        {status?.BackendState === 'Running' ? 'No machines found in this tailnet.' : 'Connect to Tailscale to see machines.'}
-      </p>
-    {:else}
-      <div class="overflow-x-auto">
-        <table class="w-full text-xs text-left whitespace-nowrap">
-          <thead>
-            <tr class="border-b border-border text-muted-foreground uppercase tracking-wider text-[11px]">
-              <th class="pb-3 pr-4 font-semibold">Machine</th>
-              <th class="pb-3 pr-4 font-semibold">Addresses</th>
-              <th class="pb-3 pr-4 font-semibold">Version</th>
-              <th class="pb-3 font-semibold">Last Seen</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-border">
-            {#each peers as peer}
-              <tr>
-                <!-- MACHINE -->
-                <td class="py-3 pr-4 align-top">
-                  <div class="flex flex-col gap-1">
-                    <a 
-                      href="https://login.tailscale.com/admin/machines/{peer.IPv4 || peer.IPv6 || ''}"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="font-bold text-foreground text-[13px] hover:text-primary hover:underline transition-colors"
-                    >
-                      {peer.DNSName ? peer.DNSName.split('.')[0] : (peer.Hostname || '—')}
-                    </a>
-                    {#if peer.UserEmail}
-                      <span class="text-muted-foreground text-xs">
-                        {peer.UserEmail}
-                      </span>
-                    {/if}
-                    <div class="flex gap-1.5 mt-0.5">
-                      {#if peer.ExitNode}
-                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
-                          Exit Node
-                        </span>
-                      {/if}
-                    </div>
-                  </div>
-                </td>
-                
-                <!-- ADDRESSES -->
-                <td class="py-3 pr-4 align-top font-mono text-muted-foreground">
-                  <AddressMenu {peer} />
-                </td>
-                
-                <!-- VERSION -->
-                <td class="py-3 pr-4 align-top">
-                  <div class="flex flex-col gap-0.5">
-                    <span class="text-muted-foreground flex items-center gap-1.5">
-                      {peer.OS || '—'}
-                    </span>
-                  </div>
-                </td>
-                
-                <!-- LAST SEEN -->
-                <td class="py-3 align-top">
-                  <span class="inline-flex items-center gap-1.5 {peer.Online ? 'text-foreground' : 'text-muted-foreground'}">
-                    <span class="h-1.5 w-1.5 rounded-full {peer.Online ? 'bg-emerald-500' : 'bg-muted-foreground/50'}"></span>
-                    {peer.Online ? 'Connected' : formatLastSeen(peer.LastSeen)}
-                  </span>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    {/if}
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      class="text-muted-foreground"
+      onclick={fetchPeers}
+      title="Refresh machines"
+    >
+      <RefreshCw size={14} class={peersLoading ? 'animate-spin' : ''} />
+    </Button>
   </div>
-</div>
+
+  {#if peersLoading && peers.length === 0}
+    <p class="text-sm text-muted-foreground">Loading machines…</p>
+  {:else if peers.length === 0}
+    <p class="text-sm text-muted-foreground">
+      {status?.BackendState === 'Running' ? 'No machines found in this tailnet.' : 'Connect to Tailscale to see machines.'}
+    </p>
+  {:else}
+    <table class="w-full">
+      <thead>
+        <tr class="border-b border-border text-left text-xs font-normal text-muted-foreground">
+          <th class="w-[30%] pb-2 pr-4 sm:w-[26%]">Machine</th>
+          <th class="hidden pb-2 pr-4 sm:table-cell">Addresses</th>
+          <th class="hidden pb-2 pr-4 sm:table-cell">OS</th>
+          <th class="pb-2 pr-4 sm:pb-3">Last Seen</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-border">
+        {#each peers as peer}
+          {@const consoleUrl = machineConsoleUrl(peer)}
+          <tr class="transition-colors hover:bg-muted/40">
+            <!-- MACHINE -->
+            <td class="py-3 pr-4 align-top">
+              <div class="flex flex-col gap-0.5">
+                {#if consoleUrl}
+                  <a
+                    href={consoleUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Open in the Tailscale admin console"
+                    class="font-bold text-[13px] text-foreground transition-colors hover:text-primary hover:underline"
+                  >
+                    {peer.DNSName ? peer.DNSName.split('.')[0] : (peer.Hostname || '—')}
+                    <ExternalLink size={11} class="ml-0.5 inline-block align-baseline text-muted-foreground/70" />
+                  </a>
+                {:else}
+                  <span class="font-bold text-[13px] text-foreground">
+                    {peer.DNSName ? peer.DNSName.split('.')[0] : (peer.Hostname || '—')}
+                  </span>
+                {/if}
+                {#if peer.UserEmail}
+                  <span class="text-xs text-muted-foreground">
+                    {peer.UserEmail}
+                  </span>
+                {/if}
+                <div class="mt-0.5 flex gap-1.5">
+                  {#if peer.ExitNode}
+                    <span class="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
+                      Exit Node
+                    </span>
+                  {/if}
+                </div>
+              </div>
+            </td>
+
+            <!-- ADDRESSES -->
+            <td class="hidden py-3 pr-4 align-top font-mono text-xs text-muted-foreground sm:table-cell">
+              <AddressMenu {peer} />
+            </td>
+
+            <!-- OS -->
+            <td class="hidden py-3 pr-4 align-top sm:table-cell">
+              <div class="flex flex-col gap-0.5">
+                <span class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  {peer.OS || '—'}
+                </span>
+              </div>
+            </td>
+
+            <!-- LAST SEEN -->
+            <td class="py-3 align-top">
+              <span class="inline-flex items-center gap-1.5 text-xs {peer.Online ? 'text-foreground' : 'text-muted-foreground'}">
+                <span class="h-1.5 w-1.5 rounded-full {peer.Online ? 'bg-emerald-500' : 'bg-muted-foreground/50'}"></span>
+                {peer.Online ? 'Connected' : formatLastSeen(peer.LastSeen)}
+              </span>
+            </td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  {/if}
+</section>

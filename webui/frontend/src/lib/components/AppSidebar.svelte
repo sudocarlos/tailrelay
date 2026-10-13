@@ -1,8 +1,9 @@
 <script>
   import { Network, Globe, Archive, Sun, Moon, Monitor, RefreshCw, LogOut, KeyRound } from '@lucide/svelte';
   import * as Sidebar from '@/lib/components/ui/sidebar';
+  import { Separator } from '@/lib/components/ui/separator';
   import * as DropdownMenu from '@/lib/components/ui/dropdown-menu';
-  import { currentView, refreshData, logout, tailscaleConnected } from '../stores/app.js';
+  import { currentView, refreshData, logout, tailscaleConnected, tailscaleSection, tailscaleActiveSection } from '../stores/app.js';
   import { theme, resolvedTheme, setTheme, brandIconSrc } from '../stores/theme.js';
   import { showToast } from '../stores/toast.js';
   import ChangePasswordModal from './ChangePasswordModal.svelte';
@@ -19,6 +20,14 @@
     // Block navigation to non-Tailscale views when Tailscale is disconnected.
     if (!tsConnected && view !== 'tailscale') return;
     currentView.set(view);
+  }
+
+  function switchToSection(section) {
+    // Disconnected tailscale only renders the Connection section.
+    if (!tsConnected && section !== 'connection') return;
+    currentView.set('tailscale');
+    // { id, n } nonce so re-clicking the same section scrolls again.
+    tailscaleSection.set({ id: section, n: $tailscaleSection?.n ? $tailscaleSection.n + 1 : 1 });
   }
 
   async function handleRefresh() {
@@ -40,13 +49,18 @@
   ];
 </script>
 
+<!-- Off-canvas collapsible: with no desktop trigger the sidebar stays
+     fixed open on desktop, while mobile still gets the off-canvas sheet
+     (opened from the mobile-only header trigger in App.svelte). -->
 <Sidebar.Root>
   <Sidebar.Header>
     <div class="flex items-center gap-2 px-2 py-1.5">
       <img src={$brandIconSrc} alt="Tailrelay" class="h-7 w-7 shrink-0 rounded-lg object-contain" width="28" height="28" />
-      <span class="text-lg font-semibold tracking-tight">Tail<span class="brand-relay">relay</span></span>
+      <span class="text-lg font-semibold tracking-tight">Tailrelay</span>
     </div>
   </Sidebar.Header>
+
+  <Separator class="bg-sidebar-border" />
 
   <Sidebar.Content>
     <Sidebar.Group>
@@ -56,7 +70,6 @@
             <Sidebar.MenuButton
               isActive={currentViewValue === 'dashboard'}
               disabled={!tsConnected}
-              tooltipContent="Relays"
               onclick={() => switchView('dashboard')}
             >
               <Network />
@@ -69,7 +82,6 @@
           <Sidebar.MenuItem>
             <Sidebar.MenuButton
               isActive={currentViewValue === 'tailscale'}
-              tooltipContent="Tailscale"
               onclick={() => switchView('tailscale')}
             >
               <Globe />
@@ -78,12 +90,41 @@
                 <span class="ml-auto shrink-0 rounded-full bg-amber-500" style="width:6px;height:6px" title="Tailscale not connected"></span>
               {/if}
             </Sidebar.MenuButton>
+            {#if currentViewValue === 'tailscale'}
+              <Sidebar.MenuSub>
+                <Sidebar.MenuSubItem>
+                  <Sidebar.MenuSubButton
+                    isActive={$tailscaleActiveSection === 'connection'}
+                    onclick={() => switchToSection('connection')}
+                  >
+                    Connection
+                  </Sidebar.MenuSubButton>
+                </Sidebar.MenuSubItem>
+                {#if tsConnected}
+                  <Sidebar.MenuSubItem>
+                    <Sidebar.MenuSubButton
+                      isActive={$tailscaleActiveSection === 'networking'}
+                      onclick={() => switchToSection('networking')}
+                    >
+                      Networking
+                    </Sidebar.MenuSubButton>
+                  </Sidebar.MenuSubItem>
+                {/if}
+                <Sidebar.MenuSubItem>
+                  <Sidebar.MenuSubButton
+                    isActive={$tailscaleActiveSection === 'machines'}
+                    onclick={() => switchToSection('machines')}
+                  >
+                    Machines
+                  </Sidebar.MenuSubButton>
+                </Sidebar.MenuSubItem>
+              </Sidebar.MenuSub>
+            {/if}
           </Sidebar.MenuItem>
           <Sidebar.MenuItem>
             <Sidebar.MenuButton
               isActive={currentViewValue === 'backups'}
               disabled={!tsConnected}
-              tooltipContent="Backups"
               onclick={() => switchView('backups')}
             >
               <Archive />
@@ -101,7 +142,7 @@
   <Sidebar.Footer>
     <Sidebar.Menu>
       <Sidebar.MenuItem>
-        <Sidebar.MenuButton tooltipContent="Refresh (r)" onclick={handleRefresh}>
+        <Sidebar.MenuButton onclick={handleRefresh}>
           <RefreshCw />
           <span>Refresh</span>
         </Sidebar.MenuButton>
@@ -110,7 +151,7 @@
         <DropdownMenu.Root>
           <DropdownMenu.Trigger>
             {#snippet child({ props })}
-              <Sidebar.MenuButton {...props} tooltipContent="Theme">
+              <Sidebar.MenuButton {...props}>
                 {#if $resolvedTheme === 'dark'}
                   <Moon />
                 {:else}
@@ -133,13 +174,13 @@
         </DropdownMenu.Root>
       </Sidebar.MenuItem>
       <Sidebar.MenuItem>
-        <Sidebar.MenuButton tooltipContent="Change password" onclick={() => (showChangePassword = true)}>
+        <Sidebar.MenuButton onclick={() => (showChangePassword = true)}>
           <KeyRound />
           <span>Change password</span>
         </Sidebar.MenuButton>
       </Sidebar.MenuItem>
       <Sidebar.MenuItem>
-        <Sidebar.MenuButton tooltipContent="Logout" onclick={logout}>
+        <Sidebar.MenuButton onclick={logout}>
           <LogOut />
           <span>Logout</span>
         </Sidebar.MenuButton>

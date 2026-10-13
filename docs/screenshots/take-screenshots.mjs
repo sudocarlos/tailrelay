@@ -173,11 +173,31 @@ async function setTheme(page, mode) {
 
 // Click a sidebar navigation item by its label text.
 async function gotoView(page, label) {
+  // On mobile the sidebar lives in the off-canvas sheet, which a theme
+  // reload just closed — open it first, and close it again after the
+  // click (Escape, like tapping outside or swipe) so the capture shows
+  // the page, not the sheet. On desktop the trigger is hidden.
+  await page.evaluate(() => {
+    window.__sheetOpened = false;
+    const trigger = document.querySelector('[data-slot="sidebar-trigger"]');
+    if (trigger && trigger.checkVisibility()) {
+      trigger.click();
+      window.__sheetOpened = true;
+    }
+  });
+  await page.waitForTimeout(400);
   await page.evaluate((label) => {
-    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim().startsWith(label));
+    const btn = Array.from(document.querySelectorAll('[data-sidebar="menu-button"]'))
+      .find((b) => b.textContent.trim().startsWith(label));
     if (btn) btn.click();
+    else console.warn(`gotoView: no sidebar button matching "${label}"`);
   }, label);
   await page.waitForTimeout(600);
+  const sheetOpened = await page.evaluate(() => window.__sheetOpened);
+  if (sheetOpened) {
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+  }
 }
 
 async function snap(page, name) {

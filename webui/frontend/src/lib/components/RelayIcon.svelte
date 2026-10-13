@@ -6,12 +6,16 @@
   // with a small corner status dot. The icon keeps using its own
   // transparency/round shape; the square frame is translucent with a
   // 1px border so transparent and round icons still read on light/dark.
+  //
+  // size controls the rendered box: "md" (44px) for detail contexts like
+  // modals, "sm" (28px) for table rows.
   let {
     iconUrl = '',
     toggling = false,
     running = false,
     alt = 'relay icon',
     href = '',
+    size = 'md',
     children,
   } = $props();
 
@@ -33,14 +37,22 @@
     toggling ? 'bg-amber-400' : running ? 'bg-green-700' : 'bg-muted-foreground/50'
   );
   const dotTitle = $derived((toggling ? 'Updating' : running ? 'Running' : 'Stopped') + '…');
-  const cornerRound = $derived(hasIcon ? 'rounded-xl' : 'rounded-full');
+
+  const boxClass = $derived(
+    size === 'sm' ? 'w-7 h-7 rounded-lg' : 'w-11 h-11 rounded-xl'
+  );
+  const dotClass = $derived(
+    size === 'sm' ? '-bottom-0.5 -right-0.5 w-2 h-2' : '-bottom-1 -right-1 w-3.5 h-3.5'
+  );
+
+  const cornerRound = $derived(hasIcon ? 'rounded-lg' : 'rounded-full');
 </script>
 
 {#snippet icon()}
   {#if hasIcon}
-    <span class="relative flex-shrink-0 w-11 h-11" title={dotTitle}>
+    <span class="relative flex-shrink-0 {boxClass}" title={dotTitle}>
       <span
-        class="flex items-center justify-center w-11 h-11 rounded-xl overflow-hidden border border-border bg-muted/60"
+        class="flex items-center justify-center {boxClass} overflow-hidden border border-border bg-muted/60"
       >
         <img
           src={iconUrl}
@@ -54,13 +66,13 @@
       <!-- Corner status dot (bottom-right) keeps state visible without
            recoloring the icon frame. -->
       <span
-        class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full ring-1 ring-background {dotColor}{running ? ' status-dot-running' : ''}"
+        class="absolute ring-1 ring-background {dotClass} {dotColor}{running ? ' status-dot-running' : ''}"
         aria-hidden="true"
       ></span>
     </span>
   {:else}
     <span
-      class="flex items-center justify-center w-11 h-11 rounded-full flex-shrink-0 transition-colors {statusBadgeClass(toggling, running)}"
+      class="flex items-center justify-center {boxClass} flex-shrink-0 transition-colors {statusBadgeClass(toggling, running)}"
       title={toggling ? 'Updating…' : running ? 'Running' : 'Stopped'}
     >
       {@render children?.()}

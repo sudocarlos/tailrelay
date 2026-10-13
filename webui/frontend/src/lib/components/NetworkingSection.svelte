@@ -2,7 +2,8 @@
   import { onMount } from 'svelte';
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
-  import { Network, Route, Terminal, Plus, Trash2, RefreshCw, AlertTriangle } from '@lucide/svelte';
+  import { Route, Terminal, Plus, Trash2, RefreshCw, AlertTriangle } from '@lucide/svelte';
+  import { Separator } from '@/lib/components/ui/separator';
   import { Switch } from '@/lib/components/ui/switch';
   import { Input } from '@/lib/components/ui/input';
   import * as Select from '@/lib/components/ui/select';
@@ -244,12 +245,7 @@
   });
 </script>
 
-<div class="rounded-lg border border-border bg-card p-5 space-y-5">
-  <div class="flex items-center gap-2">
-    <Network size={18} class="text-muted-foreground" />
-    <h2 class="font-medium text-foreground">Networking</h2>
-  </div>
-
+<div class="space-y-5">
   {#if loading}
     <p class="text-sm text-muted-foreground">Loading networking settings…</p>
   {:else if networking}
@@ -299,7 +295,7 @@
       {/if}
     </div>
 
-    <hr class="border-border" />
+    <Separator class="my-5" />
 
     <!-- Advertise routes -->
     <div class="space-y-2">
@@ -368,7 +364,7 @@
       </div>
     </div>
 
-    <hr class="border-border" />
+    <Separator class="my-5" />
 
     <!-- Accept routes -->
     <div class="flex items-center justify-between gap-3">
@@ -382,7 +378,7 @@
       />
     </div>
 
-    <hr class="border-border" />
+    <Separator class="my-5" />
 
     <!-- SSH -->
     <div class="flex items-center justify-between gap-3">

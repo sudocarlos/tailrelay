@@ -8,10 +8,11 @@
 <DropdownMenu>
   <DropdownMenuTrigger
     aria-label="More actions"
-    class="inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground outline-none"
+    title="More actions"
+    class="inline-flex cursor-pointer items-center justify-center rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground outline-none"
     onclick={(e) => e.stopPropagation()}
   >
-    <MoreHorizontal size={11} />
+    <MoreHorizontal size={15} />
   </DropdownMenuTrigger>
   <DropdownMenuContent align="end" class="min-w-52">
     <DropdownMenuItem onclick={() => onEdit?.()}>
