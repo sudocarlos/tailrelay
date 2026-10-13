@@ -22,6 +22,22 @@
   let checkingTailscale = $state(false);
   let interval;
 
+  // The sidebar must stay fixed-open on desktop (no visible restore
+  // trigger once the collapse button was removed), so neutralize the
+  // sidebar component's Ctrl/Cmd+B collapse shortcut there — while on
+  // mobile the same shortcut still opens/closes the off-canvas sheet.
+  // Capture phase so this runs before the provider's bubble listener.
+  function guardSidebarShortcut(e) {
+    if (
+      e.key === 'b' &&
+      (e.metaKey || e.ctrlKey) &&
+      window.matchMedia('(min-width: 768px)').matches
+    ) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }
+  }
+
   authenticated.subscribe((v) => (isAuthenticated = v));
   needsSetup.subscribe((v) => (isNeedsSetup = v));
 
@@ -99,11 +115,14 @@
 
     // Keyboard shortcuts
     window.addEventListener('keydown', handleKeyboard);
+    // Capture phase precedes the sidebar provider's bubble-phase listener
+    window.addEventListener('keydown', guardSidebarShortcut, true);
   });
 
   onDestroy(() => {
     if (interval) clearInterval(interval);
     window.removeEventListener('keydown', handleKeyboard);
+    window.removeEventListener('keydown', guardSidebarShortcut, true);
   });
 
   function handleKeyboard(e) {
