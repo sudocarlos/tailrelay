@@ -7,6 +7,7 @@
     ChevronDown,
     ChevronUp,
     Copy,
+    CopyCheck,
     Trash2,
     Terminal,
   } from '@lucide/svelte';
@@ -37,6 +38,7 @@
 
   onDestroy(() => {
     disconnectSSE();
+    clearTimeout(copiedTimer);
   });
 
   async function fetchInitialLogs() {
@@ -116,11 +118,25 @@
     }
   }
 
+  // Flashing CopyCheck on success matches the row copy buttons
+  // (CopyButton) so all copy affordances give the same feedback.
+  let logsCopied = $state(false);
+  let copiedTimer;
+
+  function flashCopied() {
+    logsCopied = true;
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => { logsCopied = false; }, 1500);
+  }
+
   function copyLogs() {
     const text = logEntries.map((e) => e.raw).join('\n');
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(text).then(
-        () => showToast('success', 'Logs copied to clipboard'),
+        () => {
+          flashCopied();
+          showToast('success', 'Logs copied to clipboard');
+        },
         () => showToast('danger', 'Failed to copy logs'),
       );
     } else {
@@ -134,6 +150,7 @@
         el.select();
         document.execCommand('copy');
         document.body.removeChild(el);
+        flashCopied();
         showToast('success', 'Logs copied to clipboard');
       } catch {
         showToast('danger', 'Failed to copy logs');
@@ -206,8 +223,18 @@
 
       <div class="flex-1"></div>
 
-      <Button variant="ghost" size="icon-xs" class="text-muted-foreground" onclick={copyLogs} title="Copy logs">
-        <Copy size={14} />
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        class="text-muted-foreground {logsCopied ? 'text-green-600' : ''}"
+        onclick={copyLogs}
+        title={logsCopied ? 'Copied' : 'Copy logs'}
+      >
+        {#if logsCopied}
+          <CopyCheck size={14} />
+        {:else}
+          <Copy size={14} />
+        {/if}
       </Button>
       <Button variant="ghost" size="icon-xs" class="text-muted-foreground" onclick={clearLogs} title="Clear logs">
         <Trash2 size={14} />

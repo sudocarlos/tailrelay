@@ -1,6 +1,6 @@
 <script>
   import { onDestroy } from 'svelte';
-  import { Copy } from '@lucide/svelte';
+  import { Copy, CopyCheck } from '@lucide/svelte';
   import { showToast } from '../stores/toast.js';
 
   let { text, label = 'Copy address', size = 13, class: className = '' } = $props();
@@ -38,12 +38,12 @@
 </script>
 
 <button
-  class="text-muted-foreground hover:text-foreground flex-shrink-0 transition-colors {className}"
+  class="text-muted-foreground hover:text-foreground flex-shrink-0 transition-colors {copied ? 'text-green-600' : ''} {className}"
   onclick={handleCopy}
   title={copied ? 'Copied' : label}
 >
   {#if copied}
-    <span class="text-green-600 font-medium" style="font-size: {size}px">Copied</span>
+    <CopyCheck size={size} />
   {:else}
     <Copy size={size} />
   {/if}
