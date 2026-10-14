@@ -79,6 +79,10 @@
           {@const funnel = funnelsByPort.get(port)}
           {@const usedBy = usedFunnelPorts.get(port)}
 
+          <!-- Availability rows must be 4-cell rows (no colspan): a colspan
+               row drags the mobile-hidden Target column back into the
+               table-fixed layout, splitting its leftover width and
+               misaligning the toggle/menu columns on small screens. -->
           {#if funnel}
             {@const running = funnel.running}
             {@const autostart = funnel.autostart ?? false}
@@ -133,16 +137,19 @@
             </tr>
           {:else if usedBy}
             <tr>
-              <td class="py-3 pr-4" colspan="4">
+              <td class="py-3 pr-4">
                 <div class="flex items-center gap-2 text-sm text-muted-foreground/70" title="Port {port} is in use by a serve relay">
                   <Ban size={15} class="shrink-0" />
                   <span>Port {port} is in use by a serve relay</span>
                 </div>
               </td>
+              <td class="hidden sm:table-cell"></td>
+              <td class="w-12"></td>
+              <td class="w-8"></td>
             </tr>
           {:else}
             <tr class="transition-colors hover:bg-muted/40">
-              <td class="py-3" colspan="4">
+              <td class="py-3">
                 <button
                   type="button"
                   class="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -152,6 +159,9 @@
                   <span>Configure funnel on port {port}</span>
                 </button>
               </td>
+              <td class="hidden sm:table-cell"></td>
+              <td class="w-12"></td>
+              <td class="w-8"></td>
             </tr>
           {/if}
         {/each}
