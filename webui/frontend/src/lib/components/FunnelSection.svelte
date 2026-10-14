@@ -1,9 +1,8 @@
 <script>
-  import { untrack } from 'svelte';
-  import { Globe, Ban, Plus, ChevronDown, ChevronUp } from '@lucide/svelte';
+  import { Globe, Ban, Plus } from '@lucide/svelte';
   import RelayIcon from './RelayIcon.svelte';
   import { FUNNEL_PORTS } from '../stores/app.js';
-  import Toggle from './Toggle.svelte';
+  import { Switch } from '@/lib/components/ui/switch';
   import ItemMenu from './ItemMenu.svelte';
   import CopyButton from './CopyButton.svelte';
   import { statusIconClass } from '../utils/statusBadge.js';
@@ -21,13 +20,6 @@
     onDelete,
   } = $props();
 
-  // Start expanded if any funnel is already configured (data is loaded
-  // before this component first mounts — see App.svelte's initial
-  // refreshData() gate), otherwise start collapsed. Subsequent prop
-  // updates don't re-trigger this; the user's manual toggle takes over.
-  // untrack() reads the initial value only, avoiding a state_referenced_locally warning.
-  let expanded = $state(untrack(() => funnels.length > 0));
-
   // Memoized port → funnel lookup, recomputed only when the funnels list
   // changes (rather than a linear .find() per port on every render).
   const funnelsByPort = $derived(new Map(funnels.map((f) => [f.listen_port, f])));
@@ -41,110 +33,139 @@
   function formatFunnelTarget(funnel) {
     return `${funnel.target_host}:${funnel.target_port}`;
   }
-
-
 </script>
 
-<!-- Header -->
-<button
-  type="button"
-  class="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 text-left"
-  onclick={() => (expanded = !expanded)}
->
-  <div>
-    <h2 class="text-xl font-semibold">Funnel</h2>
-    <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-      {funnels.length} of {FUNNEL_PORTS.length} configured &middot; expose services to the public internet
-    </p>
+<!-- Section header -->
+<div class="mb-3">
+  <h2 class="text-lg font-semibold">Funnel</h2>
+  <p class="text-sm text-muted-foreground mt-0.5">
+    {funnels.length} of {FUNNEL_PORTS.length} configured &middot; expose services to the public internet
+  </p>
+</div>
+
+{#if funnels.length === 0 && usedFunnelPorts.size === 0}
+  <!-- No funnels at all: single configure prompt -->
+  <div class="mb-6">
+    <table class="w-full">
+      <tbody>
+        <tr class="transition-colors hover:bg-muted/40">
+          <td class="py-3">
+            <button
+              type="button"
+              class="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              onclick={() => onConfigure(FUNNEL_PORTS[0])}
+            >
+              <Plus size={16} class="flex-shrink-0" />
+              <span>Configure funnel on port {FUNNEL_PORTS[0]}</span>
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
-  {#if expanded}
-    <ChevronUp size={18} class="text-gray-400 flex-shrink-0" />
-  {:else}
-    <ChevronDown size={18} class="text-gray-400 flex-shrink-0" />
-  {/if}
-</button>
+{:else}
+  <div class="mb-6">
+    <table class="w-full table-fixed">
+      <thead>
+        <tr class="border-b border-border text-left">
+          <th class="w-auto pb-2 text-xs font-normal text-muted-foreground sm:w-[55%]">Address</th>
+          <th class="hidden pb-2 pr-4 text-xs font-normal text-muted-foreground sm:table-cell">Target</th>
+          <th class="w-12 pb-2" aria-hidden="true"></th>
+          <th class="w-8 pb-2" aria-hidden="true"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-border">
+        {#each FUNNEL_PORTS as port (port)}
+          {@const funnel = funnelsByPort.get(port)}
+          {@const usedBy = usedFunnelPorts.get(port)}
 
-{#if expanded}
-  <div class="flex flex-col gap-3 mb-6">
-    {#each FUNNEL_PORTS as port (port)}
-      {@const funnel = funnelsByPort.get(port)}
-      {@const usedBy = usedFunnelPorts.get(port)}
-
-      {#if funnel}
-        {@const running = funnel.running}
-        {@const autostart = funnel.autostart ?? false}
-        {@const toggling = togglingId === `funnel:${funnel.id}`}
-        {@const funnelUrl = formatFunnelUrl(funnel)}
-        {@const scheme = funnel.funnel_transport === 'tcp' ? 'tcp' : 'https'}
-        {@const portLabel = scheme === 'https' && funnel.listen_port === 443 ? '' : `:${funnel.listen_port}`}
-        {@const host = splitHost(funnel.hostname || fqdn)}
-
-        <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-3">
-          <div class="flex items-center gap-3">
-            <!-- Info -->
-            <div class="flex-1 min-w-0">
-              <div class="flex items-start gap-2">
-                <RelayIcon iconUrl={funnel.icon_url} {toggling} {running} alt={funnelUrl} href={funnelUrl}>
-                  <Globe size={26} strokeWidth={2.5} class={statusIconClass(toggling, running)} />
-                </RelayIcon>
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2 min-w-0">
-                    <a
-                      href={funnelUrl}
-                      target="_blank"
-                      rel="noopener"
-                      class="flex min-w-0 items-baseline text-sm hover:underline"
-                    >
-                      <span class="flex-shrink-0 font-normal text-gray-400 dark:text-gray-500">{scheme}://</span>
-                      <span class="min-w-0 truncate font-normal text-gray-400 dark:text-gray-500">{host.short}{#if host.suffix}<span class="hidden sm:inline">{host.suffix}</span>{/if}</span>
-                      <span class="flex-shrink-0 font-medium">{portLabel}</span>
-                    </a>
-                    <CopyButton text={funnelUrl} />
+          <!-- Availability rows must be 4-cell rows (no colspan): a colspan
+               row drags the mobile-hidden Target column back into the
+               table-fixed layout, splitting its leftover width and
+               misaligning the toggle/menu columns on small screens. -->
+          {#if funnel}
+            {@const running = funnel.running}
+            {@const autostart = funnel.autostart ?? false}
+            {@const toggling = togglingId === `funnel:${funnel.id}`}
+            {@const funnelUrl = formatFunnelUrl(funnel)}
+            {@const scheme = funnel.funnel_transport === 'tcp' ? 'tcp' : 'https'}
+            {@const portLabel = scheme === 'https' && funnel.listen_port === 443 ? '' : `:${funnel.listen_port}`}
+            {@const host = splitHost(funnel.hostname || fqdn)}
+            <tr class="transition-colors hover:bg-muted/40">
+              <td class="py-3 pr-4">
+                <div class="flex min-w-0 items-center gap-3">
+                  <RelayIcon size="sm" iconUrl={funnel.icon_url} {toggling} {running} alt={funnelUrl}>
+                    <Globe size={18} strokeWidth={2.5} class={statusIconClass(toggling, running)} />
+                  </RelayIcon>
+                  <div class="min-w-0">
+                    <div class="flex min-w-0 items-center gap-0.5">
+                      <a
+                        href={funnelUrl}
+                        target="_blank"
+                        rel="noopener"
+                        class="flex min-w-0 items-baseline text-sm hover:underline"
+                      >
+                        <span class="shrink-0 font-normal text-muted-foreground">{scheme}://</span>
+                        <span class="min-w-0 truncate font-normal text-muted-foreground">{host.short}{#if host.suffix}<span class="hidden sm:inline">{host.suffix}</span>{/if}</span>
+                        <span class="shrink-0 font-medium">{portLabel}</span>
+                      </a>
+                      <CopyButton text={funnelUrl} size={14} />
+                    </div>
+                    <p class="text-xs text-muted-foreground truncate sm:hidden">&rarr; {formatFunnelTarget(funnel)}</p>
                   </div>
-                  <p class="font-medium text-sm mt-1 truncate">
-                    &rarr; {formatFunnelTarget(funnel)}
-                  </p>
                 </div>
-              </div>
-            </div>
-
-            <!-- Actions -->
-            <div class="flex flex-shrink-0 items-center gap-1">
-              <Toggle
-                checked={running}
-                disabled={toggling}
-                onChange={() => onToggle(funnel.id, running)}
-                label={running ? 'Stop funnel' : 'Start funnel'}
-                size="md"
-              />
-              <ItemMenu
-                {autostart}
-                onAutostartChange={(v) => onAutostart(funnel.id, v)}
-                onEdit={() => onEdit(funnel)}
-                onDelete={() => onDelete(funnel.id, funnelUrl, formatFunnelTarget(funnel), funnel.icon_url, running)}
-              />
-            </div>
-          </div>
-        </div>
-      {:else if usedBy}
-        <div class="rounded-lg border border-dashed border-gray-200 dark:border-gray-800 px-4 py-3 opacity-40 cursor-not-allowed" title="Port {port} is in use by a serve relay">
-          <div class="flex items-center gap-2 text-sm">
-            <Ban size={16} class="text-gray-400 flex-shrink-0" />
-            <span>Port {port} is in use by a serve relay</span>
-          </div>
-        </div>
-      {:else}
-        <button
-          type="button"
-          class="rounded-lg border border-dashed border-gray-300 dark:border-gray-700 px-4 py-3 text-left hover:border-blue-400 dark:hover:border-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors"
-          onclick={() => onConfigure(port)}
-        >
-          <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-            <Plus size={16} class="flex-shrink-0" />
-            <span>Configure funnel on port {port}</span>
-          </div>
-        </button>
-      {/if}
-    {/each}
+              </td>
+              <td class="hidden py-3 pr-4 sm:table-cell">
+                <p class="truncate text-sm">&rarr; {formatFunnelTarget(funnel)}</p>
+              </td>
+              <td class="w-12 py-2.5 pr-2 align-middle">
+                <Switch
+                  checked={running}
+                  disabled={toggling}
+                  onCheckedChange={() => onToggle(funnel.id, running)}
+                  aria-label={running ? 'Stop funnel' : 'Start funnel'}
+                />
+              </td>
+              <td class="w-8 py-2 pr-1 align-middle">
+                <ItemMenu
+                  {autostart}
+                  onAutostartChange={(v) => onAutostart(funnel.id, v)}
+                  onEdit={() => onEdit(funnel)}
+                  onDelete={() => onDelete(funnel.id, funnelUrl, formatFunnelTarget(funnel), funnel.icon_url, running)}
+                />
+              </td>
+            </tr>
+          {:else if usedBy}
+            <tr>
+              <td class="py-3 pr-4">
+                <div class="flex items-center gap-2 text-sm text-muted-foreground/70" title="Port {port} is in use by a serve relay">
+                  <Ban size={15} class="shrink-0" />
+                  <span>Port {port} is in use by a serve relay</span>
+                </div>
+              </td>
+              <td class="hidden sm:table-cell"></td>
+              <td class="w-12"></td>
+              <td class="w-8"></td>
+            </tr>
+          {:else}
+            <tr class="transition-colors hover:bg-muted/40">
+              <td class="py-3">
+                <button
+                  type="button"
+                  class="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  onclick={() => onConfigure(port)}
+                >
+                  <Plus size={16} class="flex-shrink-0" />
+                  <span>Configure funnel on port {port}</span>
+                </button>
+              </td>
+              <td class="hidden sm:table-cell"></td>
+              <td class="w-12"></td>
+              <td class="w-8"></td>
+            </tr>
+          {/if}
+        {/each}
+      </tbody>
+    </table>
   </div>
 {/if}

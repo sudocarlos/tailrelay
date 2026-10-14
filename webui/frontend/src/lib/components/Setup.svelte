@@ -2,6 +2,12 @@
   import { brandIconSrc } from '../stores/theme.js';
   import { authenticated, needsSetup } from '../stores/app.js';
   import { fetchJSON } from '../api.js';
+  import * as Card from '@/lib/components/ui/card';
+  import { Input } from '@/lib/components/ui/input';
+  import { Label } from '@/lib/components/ui/label';
+  import { Button } from '@/lib/components/ui/button';
+  import { Alert, AlertDescription } from '@/lib/components/ui/alert';
+  import { TriangleAlert, LoaderCircle } from '@lucide/svelte';
 
   let password = $state('');
   let confirmPassword = $state('');
@@ -40,65 +46,62 @@
   }
 </script>
 
-<div class="flex-1 flex flex-col items-center justify-center p-4">
+<div class="flex flex-1 flex-col items-center justify-center p-4">
   <div class="w-full max-w-md">
-    <div class="text-center mb-8">
-      <img src={$brandIconSrc} alt="Tailrelay" class="w-16 h-16 rounded-2xl mb-4 mx-auto" />
-      <h1 class="text-2xl font-bold mb-2">Initial Setup</h1>
-      <p class="text-gray-500 dark:text-gray-400">
+    <div class="mb-8 text-center">
+      <img src={$brandIconSrc} alt="Tailrelay" class="mx-auto mb-4 h-16 w-16 rounded-2xl" />
+      <h1 class="mb-2 text-2xl font-bold">Initial Setup</h1>
+      <p class="text-muted-foreground">
         Welcome to Tailrelay. Please set an administrator password to secure the dashboard.
       </p>
     </div>
 
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 overflow-hidden">
-      <form onsubmit={handleSubmit} class="space-y-4">
-        {#if error}
-          <div class="p-3 text-sm rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
-            {error}
+    <Card.Root class="overflow-hidden rounded-xl">
+      <Card.Content class="p-6">
+        <form onsubmit={handleSubmit} class="space-y-4">
+          {#if error}
+            <Alert variant="destructive">
+              <TriangleAlert />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          {/if}
+
+          <div class="grid gap-2">
+            <Label for="password">New Password</Label>
+            <Input
+              id="password"
+              type="password"
+              bind:value={password}
+              required
+              autocomplete="new-password"
+              disabled={loading}
+            />
           </div>
-        {/if}
 
-        <div>
-          <label for="password" class="block text-sm font-medium mb-1.5">New Password</label>
-          <input
-            id="password"
-            type="password"
-            bind:value={password}
-            class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-shadow"
-            required
-            autocomplete="new-password"
-            disabled={loading}
-          />
-        </div>
+          <div class="grid gap-2">
+            <Label for="confirm_password">Confirm Password</Label>
+            <Input
+              id="confirm_password"
+              type="password"
+              bind:value={confirmPassword}
+              required
+              autocomplete="new-password"
+              disabled={loading}
+            />
+          </div>
 
-        <div>
-          <label for="confirm_password" class="block text-sm font-medium mb-1.5">Confirm Password</label>
-          <input
-            id="confirm_password"
-            type="password"
-            bind:value={confirmPassword}
-            class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-shadow"
-            required
-            autocomplete="new-password"
-            disabled={loading}
-          />
-        </div>
-
-        <div class="pt-2">
-          <button
-            type="submit"
-            disabled={loading}
-            class="w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/50 disabled:cursor-not-allowed rounded-lg transition-colors"
-          >
-            {#if loading}
-              <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-              Saving...
-            {:else}
-              Save Password & Continue
-            {/if}
-          </button>
-        </div>
-      </form>
-    </div>
+          <div class="pt-2">
+            <Button type="submit" class="w-full" disabled={loading}>
+              {#if loading}
+                <LoaderCircle class="animate-spin" />
+                Saving...
+              {:else}
+                Save Password & Continue
+              {/if}
+            </Button>
+          </div>
+        </form>
+      </Card.Content>
+    </Card.Root>
   </div>
 </div>

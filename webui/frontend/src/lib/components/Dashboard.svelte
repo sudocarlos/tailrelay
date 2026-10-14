@@ -17,15 +17,17 @@
   import { get } from 'svelte/store';
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
-  import ItemCard from './ItemCard.svelte';
+  import ItemRow from './ItemRow.svelte';
   import FunnelSection from './FunnelSection.svelte';
   import AddModal from './AddModal.svelte';
   import DeleteModal from './DeleteModal.svelte';
   import LogConsole from './LogConsole.svelte';
   import {
     Plus,
-    HelpCircle,
+    Search,
   } from '@lucide/svelte';
+  import { Input } from '@/lib/components/ui/input';
+  import { Button } from '@/lib/components/ui/button';
 
   // Endpoints and item lookups keyed by relay type, shared by the toggle
   // and autostart handlers below so relay/proxy/funnel share one code path.
@@ -207,42 +209,41 @@
   });
 </script>
 
-<!-- Header -->
-<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-  <div>
-    <h1 class="text-xl font-semibold">Relays</h1>
-    <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-      {displayedItems.length} item{displayedItems.length === 1 ? '' : 's'}
-      {#if updated}
-        <span class="mx-1">&middot;</span> updated {updated}
-      {/if}
-    </p>
-  </div>
+<!-- Page title (toolbar below, search left / add right like the console) -->
+<div class="mb-5">
+  <h1 class="text-2xl font-semibold tracking-tight">Relays</h1>
+  <p class="text-sm text-muted-foreground mt-0.5">
+    {displayedItems.length} item{displayedItems.length === 1 ? '' : 's'}
+    {#if updated}
+      <span class="mx-1">·</span> updated {updated}
+    {/if}
+  </p>
+</div>
 
-  <div class="flex items-center gap-2">
-    <!-- Search -->
-    <input
+<!-- Toolbar: search left, Add right -->
+<div class="mb-4 flex items-center justify-between gap-3">
+  <!-- Search -->
+  <div class="relative w-full max-w-sm">
+    <Search size={15} class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+    <Input
       type="search"
       bind:value={searchQuery}
       placeholder="Search relays…"
-      class="w-48 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400 dark:placeholder-gray-500"
+      class="h-9 pl-8"
     />
-
-    <button
-      class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
-      onclick={() => openAdd()}
-    >
-      <Plus size={15} />
-      Add
-    </button>
   </div>
+
+  <Button class="gap-1.5" onclick={() => openAdd()}>
+    <Plus size={15} />
+    Add
+  </Button>
 </div>
 
-<!-- Items -->
-<div class="flex flex-col gap-3 mb-6">
+<!-- Items as flat rows (no cards), like the console machines list -->
+<div class="mb-6">
   {#if displayedItems.length === 0}
     <div class="text-center py-16 px-6">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-20 h-20 mx-auto mb-4 text-gray-300 dark:text-gray-600">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-20 h-20 mx-auto mb-4 text-muted-foreground/60">
         <rect x="10" y="20" width="60" height="40" rx="4" />
         <line x1="10" y1="32" x2="70" y2="32" />
         <circle cx="18" cy="26" r="2" fill="currentColor" />
@@ -251,7 +252,7 @@
         <line x1="30" y1="44" x2="50" y2="44" />
         <line x1="25" y1="50" x2="55" y2="50" />
       </svg>
-      <p class="text-gray-500 dark:text-gray-400 mb-4">
+      <p class="text-muted-foreground mb-4">
         {#if searchQuery.trim()}
           No relays match "{searchQuery.trim()}".
         {:else}
@@ -259,29 +260,38 @@
         {/if}
       </p>
       {#if !searchQuery.trim()}
-        <button
-          class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
-          onclick={() => openAdd()}
-        >
+        <Button size="sm" class="gap-1.5" onclick={() => openAdd()}>
           <Plus size={15} />
           Add a Relay
-        </button>
+        </Button>
       {/if}
     </div>
   {:else}
-    {#each displayedItems as item (item.type === 'relay' ? `relay-${item.relay.id}` : `proxy-${item.proxy.id}`)}
-      <ItemCard
-        {item}
-        {fqdn}
-        toggling={item.type === 'relay'
-          ? togglingId === `relay:${item.relay.id}`
-          : togglingId === `proxy:${item.proxy.id}`}
-        onToggle={handleToggleAction}
-        onAutostart={handleAutostartToggle}
-        onEdit={(type, data) => openEdit(type, data)}
-        onDelete={(type, id, name, target, iconUrl, running) => openDelete(type, id, name, target, iconUrl, running)}
-      />
-    {/each}
+    <table class="w-full table-fixed">
+      <thead>
+        <tr class="border-b border-border text-left">
+          <th class="w-auto pb-2 text-xs font-normal text-muted-foreground sm:w-[55%]">Address</th>
+          <th class="hidden pb-2 pr-4 text-xs font-normal text-muted-foreground sm:table-cell">Target</th>
+          <th class="w-12 pb-2" aria-hidden="true"></th>
+          <th class="w-8 pb-2" aria-hidden="true"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-border">
+        {#each displayedItems as item (item.type === 'relay' ? `relay-${item.relay.id}` : `proxy-${item.proxy.id}`)}
+          <ItemRow
+            {item}
+            {fqdn}
+            toggling={item.type === 'relay'
+              ? togglingId === `relay:${item.relay.id}`
+              : togglingId === `proxy:${item.proxy.id}`}
+            onToggle={handleToggleAction}
+            onAutostart={handleAutostartToggle}
+            onEdit={(type, data) => openEdit(type, data)}
+            onDelete={(type, id, name, target, iconUrl, running) => openDelete(type, id, name, target, iconUrl, running)}
+          />
+        {/each}
+      </tbody>
+    </table>
   {/if}
 </div>
 
@@ -307,12 +317,9 @@
 
 <!-- FAB (mobile) -->
 <div class="sm:hidden fixed bottom-6 right-6 z-30">
-  <button
-    class="w-14 h-14 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all active:scale-95"
-    onclick={() => openAdd()}
-  >
+  <Button class="size-14 rounded-full shadow-lg" onclick={() => openAdd()}>
     <Plus size={24} />
-  </button>
+  </Button>
 </div>
 
 <!-- Modals -->

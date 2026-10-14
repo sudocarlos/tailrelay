@@ -44,6 +44,17 @@ export const usedFunnelPorts = derived(
   },
 );
 
+// ── Tailscale page section ───────────────────────────────────────
+// Which section (connection | networking | machines) the sidebar sub-items
+// should scroll to. Holds { id, n } — n increments per click so re-clicking
+// the same section scrolls again; reset to null once the target is scrolled.
+export const tailscaleSection = writable(null);
+
+// The section currently in view (connection | networking | machines),
+// maintained by a scroll listener in Tailscale.svelte and used by the
+// sidebar sub-items for the active highlight.
+export const tailscaleActiveSection = writable('connection');
+
 // ── Logs ──────────────────────────────────────────────────────────
 export const logs = writable([]);
 export const logLevel = writable('INFO');
