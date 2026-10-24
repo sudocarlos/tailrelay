@@ -26,6 +26,10 @@ The Web UI supports light and dark themes and is fully responsive on mobile.
 
 ![Dashboard with log console expanded](img/screenshots/dashboard-logs-dark-desktop.png)
 
+**Log level menu open (dark):**
+
+![Dashboard with log level menu open](img/screenshots/dashboard-logs-menu-dark-desktop.png)
+
 **Mobile navigation menu open:**
 
 | | |

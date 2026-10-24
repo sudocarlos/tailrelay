@@ -1,21 +1,28 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { logs, logLevel } from '../stores/app.js';
+  import { logs } from '../stores/app.js';
   import { fetchJSON } from '../api.js';
   import { showToast } from '../stores/toast.js';
   import {
     ChevronDown,
     ChevronUp,
     Copy,
+    CopyCheck,
+    ListFilter,
     Trash2,
     Terminal,
   } from '@lucide/svelte';
+  import { Button } from '@/lib/components/ui/button';
+  import {
+    DropdownMenu,
+    DropdownMenuCheckboxItem,
+    DropdownMenuContent,
+    DropdownMenuLabel,
+    DropdownMenuTrigger,
+  } from '@/lib/components/ui/dropdown-menu';
 
   let expanded = $state(false);
-  let logEntries = $state([]);
-  let currentLevel = $state('INFO');
   let autoScroll = $state(true);
-  let changingLevel = $state(false);
 
   let logContainer = $state(null);
   let eventSource;
@@ -23,9 +30,54 @@
   const MAX_LOG_ENTRIES = 500;
 
   const LEVELS = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
+  const DEFAULT_VISIBLE = ['INFO', 'WARN', 'ERROR'];
+  const LEVELS_STORAGE_KEY = 'logLevels';
+
+  // Which levels the console shows. The backend captures and streams every
+  // level; this is a purely client-side view filter, persisted like the
+  // theme preference so the choice survives reloads.
+  function loadVisibleLevels() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(LEVELS_STORAGE_KEY));
+      const valid = Array.isArray(parsed) ? parsed.filter((l) => LEVELS.includes(l)) : [];
+      if (valid.length > 0) return valid;
+    } catch {
+      // Fall through to the default set
+    }
+    return [...DEFAULT_VISIBLE];
+  }
+
+  let logEntries = $state([]);
+  let visibleLevels = $state(loadVisibleLevels());
 
   logs.subscribe((v) => (logEntries = v));
-  logLevel.subscribe((v) => (currentLevel = v));
+
+  let visibleEntries = $derived(
+    logEntries.filter((entry) => visibleLevels.includes(entry.level?.toUpperCase())),
+  );
+  let levelCounts = $derived.by(() => {
+    const counts = {};
+    for (const entry of logEntries) {
+      const level = entry.level?.toUpperCase();
+      if (level) counts[level] = (counts[level] ?? 0) + 1;
+    }
+    return counts;
+  });
+
+  function persistVisibleLevels() {
+    try {
+      localStorage.setItem(LEVELS_STORAGE_KEY, JSON.stringify(visibleLevels));
+    } catch {
+      // Storage unavailable — the filter is session-only
+    }
+  }
+
+  function toggleLevel(level, checked) {
+    visibleLevels = checked
+      ? [...visibleLevels, level]
+      : visibleLevels.filter((l) => l !== level);
+    persistVisibleLevels();
+  }
 
   onMount(() => {
     fetchInitialLogs();
@@ -34,6 +86,7 @@
 
   onDestroy(() => {
     disconnectSSE();
+    clearTimeout(copiedTimer);
   });
 
   async function fetchInitialLogs() {
@@ -41,7 +94,6 @@
       const data = await fetchJSON('/api/logs');
       const entries = (data.logs || []).map(formatLogEntry);
       logs.set(entries.slice(-MAX_LOG_ENTRIES));
-      logLevel.set(data.level || 'INFO');
     } catch {
       // Silently fail — logs are non-critical
     }
@@ -97,27 +149,25 @@
     return { time, level, component, message, raw: `${time} [${level}] [${component}] ${message}` };
   }
 
-  async function changeLevel(newLevel) {
-    changingLevel = true;
-    try {
-      await fetchJSON('/api/logs/level', {
-        method: 'POST',
-        body: JSON.stringify({ level: newLevel }),
-      });
-      logLevel.set(newLevel);
-      showToast('success', `Log level set to ${newLevel}`);
-    } catch (err) {
-      showToast('danger', err.message);
-    } finally {
-      changingLevel = false;
-    }
+  // Flashing CopyCheck on success matches the row copy buttons
+  // (CopyButton) so all copy affordances give the same feedback.
+  let logsCopied = $state(false);
+  let copiedTimer;
+
+  function flashCopied() {
+    logsCopied = true;
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => { logsCopied = false; }, 1500);
   }
 
   function copyLogs() {
-    const text = logEntries.map((e) => e.raw).join('\n');
+    const text = visibleEntries.map((e) => e.raw).join('\n');
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(text).then(
-        () => showToast('success', 'Logs copied to clipboard'),
+        () => {
+          flashCopied();
+          showToast('success', 'Logs copied to clipboard');
+        },
         () => showToast('danger', 'Failed to copy logs'),
       );
     } else {
@@ -131,6 +181,7 @@
         el.select();
         document.execCommand('copy');
         document.body.removeChild(el);
+        flashCopied();
         showToast('success', 'Logs copied to clipboard');
       } catch {
         showToast('danger', 'Failed to copy logs');
@@ -152,64 +203,79 @@
     switch (level?.toUpperCase()) {
       case 'ERROR': return 'text-red-400';
       case 'WARN': return 'text-amber-400';
-      case 'INFO': return 'text-blue-400';
-      case 'DEBUG': return 'text-gray-500';
-      default: return 'text-gray-400';
+      case 'INFO': return 'text-cyan-400';
+      case 'DEBUG': return 'text-zinc-500';
+      default: return 'text-zinc-400';
     }
   }
 </script>
 
-<div class="rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
+<!-- Terminal-style log panel (port of shadcn.io/ai/terminal): fixed dark
+     terminal surface in both themes, mono output, copy + clear actions. -->
+<div class="overflow-hidden rounded-lg border border-border">
   <!-- Header / Toggle -->
   <button
-    class="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800/80 transition-colors text-left"
+    type="button"
+    class="flex w-full items-center justify-between bg-muted px-4 py-2.5 text-left transition-colors hover:bg-accent"
     onclick={() => (expanded = !expanded)}
   >
     <div class="flex items-center gap-2">
-      <Terminal size={15} class="text-gray-500 dark:text-gray-400" />
+      <Terminal size={15} class="text-muted-foreground" />
       <span class="text-sm font-medium">Logs</span>
-      {#if logEntries.length > 0}
-        <span class="text-xs text-gray-400 dark:text-gray-500">{logEntries.length}</span>
+      {#if visibleEntries.length > 0}
+        <span class="text-xs text-muted-foreground">{visibleEntries.length}</span>
       {/if}
     </div>
     {#if expanded}
-      <ChevronDown size={15} class="text-gray-400" />
+      <ChevronDown size={15} class="text-muted-foreground" />
     {:else}
-      <ChevronUp size={15} class="text-gray-400" />
+      <ChevronUp size={15} class="text-muted-foreground" />
     {/if}
   </button>
 
   {#if expanded}
     <!-- Controls -->
-    <div class="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
-      <!-- Level selector -->
-      <select
-        value={currentLevel}
-        onchange={(e) => changeLevel(e.target.value)}
-        disabled={changingLevel}
-        class="text-xs rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 focus:ring-1 focus:ring-blue-500"
-      >
-        {#each LEVELS as level}
-          <option value={level}>{level}</option>
-        {/each}
-      </select>
+    <div class="flex items-center gap-2 border-t border-border bg-muted px-4 py-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger>
+          <Button variant="outline" size="xs">
+            <ListFilter size={13} />
+            Levels
+            <span class="tabular-nums text-muted-foreground">{visibleLevels.length}/{LEVELS.length}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" class="min-w-44">
+          <DropdownMenuLabel>Visible levels</DropdownMenuLabel>
+          {#each LEVELS as level (level)}
+            <DropdownMenuCheckboxItem
+              checked={visibleLevels.includes(level)}
+              onCheckedChange={(checked) => toggleLevel(level, checked)}
+            >
+              {level}
+              <span class="ml-1.5 tabular-nums text-muted-foreground">({levelCounts[level] ?? 0})</span>
+            </DropdownMenuCheckboxItem>
+          {/each}
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <div class="flex-1"></div>
 
-      <button
-        class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        class="text-muted-foreground {logsCopied ? 'text-green-600' : ''}"
         onclick={copyLogs}
-        title="Copy logs"
+        title={logsCopied ? 'Copied' : 'Copy visible logs'}
       >
-        <Copy size={14} />
-      </button>
-      <button
-        class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
-        onclick={clearLogs}
-        title="Clear logs"
-      >
+        {#if logsCopied}
+          <CopyCheck size={14} />
+        {:else}
+          <Copy size={14} />
+        {/if}
+      </Button>
+      <Button variant="ghost" size="icon-xs" class="text-muted-foreground" onclick={clearLogs} title="Clear logs">
         <Trash2 size={14} />
-      </button>
+      </Button>
     </div>
 
     <!-- Log output -->
@@ -218,18 +284,22 @@
       onscroll={handleScroll}
       class="log-console h-64 overflow-y-auto px-4 py-3"
     >
-      {#if logEntries.length === 0}
-        <p class="text-gray-500 text-xs italic">No log entries yet...</p>
+      {#if visibleEntries.length === 0}
+        <p class="text-xs text-zinc-500 italic">
+          {visibleLevels.length === 0
+            ? 'All levels hidden — enable one from the Levels menu.'
+            : 'No log entries yet...'}
+        </p>
       {:else}
-        {#each logEntries as entry}
+        {#each visibleEntries as entry}
           <div class="whitespace-pre-wrap break-all leading-relaxed">
-            <span class="text-gray-500">{entry.time}</span>
+            <span class="text-zinc-500">{entry.time}</span>
             {' '}
             <span class={levelColor(entry.level)}>[{entry.level}]</span>
             {' '}
             <span class="text-cyan-400">[{entry.component}]</span>
             {' '}
-            <span>{entry.message}</span>
+            <span class="text-zinc-200">{entry.message}</span>
           </div>
         {/each}
       {/if}

@@ -25,7 +25,7 @@ var (
 func main() {
 	// Parse command line flags
 	configFile := flag.String("config", "/var/lib/tailscale/webui.yaml", "Path to configuration file")
-	logLevel := flag.String("log-level", "ERROR", "Log level (DEBUG, INFO, WARN, ERROR)")
+	logLevel := flag.String("log-level", "INFO", "Log level (DEBUG, INFO, WARN, ERROR)")
 	version := flag.Bool("version", false, "Show version information")
 	flag.Parse()
 
@@ -34,21 +34,24 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Initialize logger with level from flag or environment
-	level, err := logger.ParseLevel(*logLevel)
-	if err != nil {
-		// Try environment variable
+	// Initialize logger. Level precedence: -log-level flag > LOG_LEVEL env > INFO.
+	// Nothing may log before Init: the first Get() call initializes the global
+	// logger through sync.Once, permanently fixing its level.
+	levelStr := *logLevel
+	if !flagPassed("log-level") {
 		if envLevel := os.Getenv("LOG_LEVEL"); envLevel != "" {
-			level, err = logger.ParseLevel(envLevel)
-			if err != nil {
-				level = logger.ERROR // Default to ERROR
-			}
-		} else {
-			level = logger.ERROR
+			levelStr = envLevel
 		}
+	}
+	level, err := logger.ParseLevel(levelStr)
+	if err != nil {
+		level = logger.INFO
 	}
 	logger.Init(level)
 	logger.SetupStdLogger()
+	if err != nil {
+		logger.Warn("main", "Invalid log level %q, falling back to INFO", levelStr)
+	}
 
 	logger.Info("main", "Starting Tailrelay Web UI %s (log level: %s)", Version, logger.Get().GetLevelName())
 
@@ -112,6 +115,18 @@ func main() {
 		logger.Error("main", "Server error: %v", err)
 		os.Exit(1)
 	}
+}
+
+// flagPassed reports whether the named flag was set on the command line
+// (as opposed to carrying its default value).
+func flagPassed(name string) bool {
+	found := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			found = true
+		}
+	})
+	return found
 }
 
 func resolveWebFS() (fs.FS, fs.FS, fs.FS, string, error) {

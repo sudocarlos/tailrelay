@@ -7,12 +7,18 @@
  * Each capture is written here and mirrored into the MkDocs site's docs dir
  * so the published docs site never drifts from the sources committed under docs/.
  */
-import { chromium } from 'playwright';
+import { createRequire } from 'module';
 import { copyFile, mkdir } from 'fs/promises';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
+
+// Resolve playwright from webui/frontend — the script lives outside any
+// package with its own node_modules.
+const { chromium } = createRequire(import.meta.url)(
+  resolve(__dir, '../../webui/frontend/node_modules/playwright')
+);
 const OUT = __dir;
 const SITE_OUT = resolve(__dir, '../../website/docs/img/screenshots');
 const BASE = 'http://localhost:5173';
@@ -149,27 +155,49 @@ async function setupMocks(page, { authenticated = true } = {}) {
 /**
  * Switch the app between light and dark.
  *
- * Poking localStorage and the `dark` class directly is not enough: the brand
- * icon is a derived store off `theme` (see stores/theme.js), so bypassing the
- * store leaves the logo on the previous theme's PNG — invisible against the
- * new background. Drive the real toggle where one exists (the navbar), and
- * fall back to a reload for views that have no toggle (login, setup).
+ * Sets the stored theme preference and reloads. The store resolves the
+ * preference on load (system/light/dark — see stores/theme.js), which also
+ * drives the brand icon swap, so no separate class poking is needed.
  */
 async function setTheme(page, mode) {
-  const current = await page.evaluate(() => (document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
-  if (current === mode) return;
+  const current = await page.evaluate(() => localStorage.getItem('theme') || 'system');
+  const resolved = current === 'system'
+    ? await page.evaluate(() => (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
+    : current;
+  if (resolved === mode) return;
 
-  const toggle = page.locator('button[title="Toggle theme"]').first();
-  if (await toggle.isVisible().catch(() => false)) {
-    await toggle.click();
-    // Drop the focus ring and hover highlight the click leaves behind.
-    await page.evaluate(() => document.activeElement?.blur());
-    await page.mouse.move(0, 0);
-  } else {
-    await page.evaluate((m) => localStorage.setItem('theme', m), mode);
-    await page.reload({ waitUntil: 'networkidle' });
+  await page.evaluate((m) => localStorage.setItem('theme', m), mode);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(600);
+}
+
+// Click a sidebar navigation item by its label text.
+async function gotoView(page, label) {
+  // On mobile the sidebar lives in the off-canvas sheet, which a theme
+  // reload just closed — open it first, and close it again after the
+  // click (Escape, like tapping outside or swipe) so the capture shows
+  // the page, not the sheet. On desktop the trigger is hidden.
+  await page.evaluate(() => {
+    window.__sheetOpened = false;
+    const trigger = document.querySelector('[data-slot="sidebar-trigger"]');
+    if (trigger && trigger.checkVisibility()) {
+      trigger.click();
+      window.__sheetOpened = true;
+    }
+  });
+  await page.waitForTimeout(400);
+  await page.evaluate((label) => {
+    const btn = Array.from(document.querySelectorAll('[data-sidebar="menu-button"]'))
+      .find((b) => b.textContent.trim().startsWith(label));
+    if (btn) btn.click();
+    else console.warn(`gotoView: no sidebar button matching "${label}"`);
+  }, label);
+  await page.waitForTimeout(600);
+  const sheetOpened = await page.evaluate(() => window.__sheetOpened);
+  if (sheetOpened) {
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
   }
-  await page.waitForTimeout(300);
 }
 
 async function snap(page, name) {
@@ -250,6 +278,11 @@ console.log('\n[2/4] Dashboard');
   await page.waitForTimeout(300);
   await snap(page, 'dashboard-logs-dark-desktop');
 
+  // Log level menu open — per-level visibility counts
+  await page.locator('[data-dropdown-menu-trigger]').filter({ hasText: /Levels/ }).click();
+  await page.waitForTimeout(400);
+  await snap(page, 'dashboard-logs-menu-dark-desktop');
+
   await page.close();
 
   // Mobile
@@ -268,8 +301,8 @@ console.log('\n[2/4] Dashboard');
   // Mobile menu open (light)
   await setTheme(page2, 'light');
   await page2.evaluate(() => {
-    const hamburger = Array.from(document.querySelectorAll('nav button')).find(b => b.className.includes('sm:hidden'));
-    if (hamburger) hamburger.click();
+    const trigger = Array.from(document.querySelectorAll('[data-slot="sidebar-trigger"] button, [data-slot="sidebar-trigger"]')).find(Boolean);
+    if (trigger) trigger.click();
   });
   await page2.waitForTimeout(300);
   await snap(page2, 'dashboard-mobile-menu-light');
@@ -292,26 +325,22 @@ console.log('\n[3/4] Tailscale tab');
   await page.goto(BASE, { waitUntil: 'networkidle' });
   await page.waitForTimeout(800);
 
-  await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('nav button')).find(b => b.textContent.trim().startsWith('Tailscale'));
-    if (btn) btn.click();
-  });
-  await page.waitForTimeout(600);
-
   await setTheme(page, 'light');
+  await gotoView(page, 'Tailscale');
   await snap(page, 'tailscale-light-desktop');
 
   await setTheme(page, 'dark');
+  await gotoView(page, 'Tailscale');
   await snap(page, 'tailscale-dark-desktop');
 
-  // Mobile
+  // Mobile (setTheme reloads, so re-enter the view first)
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.waitForTimeout(300);
-
   await setTheme(page, 'light');
+  await gotoView(page, 'Tailscale');
   await snap(page, 'tailscale-light-mobile');
 
   await setTheme(page, 'dark');
+  await gotoView(page, 'Tailscale');
   await snap(page, 'tailscale-dark-mobile');
 
   await page.close();
@@ -328,21 +357,18 @@ console.log('\n[4/4] Backups tab');
   await page.goto(BASE, { waitUntil: 'networkidle' });
   await page.waitForTimeout(800);
 
-  await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('nav button')).find(b => b.textContent.trim().startsWith('Backups'));
-    if (btn) btn.click();
-  });
-  await page.waitForTimeout(600);
-
   await setTheme(page, 'light');
+  await gotoView(page, 'Backups');
   await snap(page, 'backups-light-desktop');
 
   await setTheme(page, 'dark');
+  await gotoView(page, 'Backups');
   await snap(page, 'backups-dark-desktop');
 
   // Mobile
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.waitForTimeout(300);
+  await setTheme(page, 'dark');
+  await gotoView(page, 'Backups');
   await snap(page, 'backups-dark-mobile');
 
   await page.close();

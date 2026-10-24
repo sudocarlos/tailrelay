@@ -55,8 +55,8 @@ bundled locally for zero external CDN requests at runtime.
 - **Funnel Configuration** — dedicated dashboard section for the three
   funnel-eligible ports (443, 8443, 10000), showing each as configured,
   in-use-by-a-relay, or available to configure.
-- **Live Log Viewer** — streaming container logs (SSE) with live log-level
-  control.
+- **Live Log Viewer** — streaming container logs (SSE) with a per-level
+  visibility filter and counts (INFO (12), DEBUG (5), …).
 - **UX Conveniences** — keyboard shortcuts (`n` for new relay, `r` to
   refresh, `b` for backups, `l` for logs, `t` for theme), local-storage
   persisted dark mode.

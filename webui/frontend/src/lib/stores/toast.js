@@ -1,21 +1,11 @@
-import { writable, get } from 'svelte/store';
+import { toast as sonner } from 'svelte-sonner';
 
 /**
- * Simple toast notification store.
- * Each toast: { id, type ('success'|'danger'|'warning'|'info'), message }
+ * Notification store backed by svelte-sonner (Sonner Toaster).
+ * Keeps the legacy showToast(type, message) signature so call sites
+ * stay untouched; types map to Sonner's own feedback kinds.
  */
-let nextId = 0;
-
-export const toasts = writable([]);
-
 export function showToast(type, message) {
-  const id = nextId++;
-  toasts.update((t) => [...t, { id, type, message }]);
-
-  // Auto-dismiss after 5 seconds
-  setTimeout(() => dismissToast(id), 5000);
-}
-
-export function dismissToast(id) {
-  toasts.update((t) => t.filter((toast) => toast.id !== id));
+  const notify = { success: sonner.success, danger: sonner.error, warning: sonner.warning, info: sonner.info }[type] || sonner.message;
+  notify(message);
 }

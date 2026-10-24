@@ -154,7 +154,7 @@ func TestUpdateNetworking_AllowsExitNodeOperationsUnderUserspaceNetworking(t *te
 			body: map[string]interface{}{"exit_node": ""},
 			want: "--exit-node=",
 		},
-			{
+		{
 			name: "run as exit node",
 			body: map[string]interface{}{"advertise_exit_node": true, "exit_node": ""},
 			want: "--advertise-exit-node=true",

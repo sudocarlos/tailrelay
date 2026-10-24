@@ -285,8 +285,8 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.Handle("/api/backup/upload", s.authMW.RequireAuth(http.HandlerFunc(s.backupH.Upload)))
 	mux.Handle("/api/backup/list", s.authMW.RequireAuth(http.HandlerFunc(s.backupH.APIList)))
 
-	// Logs routes
-	mux.Handle("/logs", s.authMW.RequireAuth(http.HandlerFunc(s.logsH.LogsPageHandler)))
+	// Logs routes (/logs redirects to the SPA; the API endpoints serve it)
+	mux.Handle("/logs", s.authMW.RequireAuth(http.HandlerFunc(s.handleSPARedirect)))
 	mux.Handle("/api/logs", s.authMW.RequireAuth(http.HandlerFunc(s.logsH.LogsAPIHandler)))
 	mux.Handle("/api/logs/stream", s.authMW.RequireAuth(http.HandlerFunc(s.logsH.LogsStreamHandler)))
 	mux.Handle("/api/logs/level", s.authMW.RequireAuth(http.HandlerFunc(s.logsH.LogsLevelHandler)))

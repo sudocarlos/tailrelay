@@ -22,19 +22,6 @@ func NewHandler(templates *template.Template) *Handler {
 	}
 }
 
-// LogsPageHandler serves the logs viewing page
-func (h *Handler) LogsPageHandler(w http.ResponseWriter, r *http.Request) {
-	data := map[string]interface{}{
-		"Title":       "Logs",
-		"CurrentPage": "logs",
-		"LogLevel":    logger.Get().GetLevelName(),
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "logs.html", data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
 // LogsAPIHandler returns historical logs as JSON
 func (h *Handler) LogsAPIHandler(w http.ResponseWriter, r *http.Request) {
 	logs := logger.Get().GetHistory()

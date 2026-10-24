@@ -111,3 +111,45 @@ func TestStaticFileHandler_BootstrapIcons(t *testing.T) {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
 }
+
+func TestSPARedirect(t *testing.T) {
+	// handleSPARedirect needs no collaborators, so a zero Server is enough.
+	server := &Server{}
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"Legacy logs page", "/logs"},
+		{"Legacy tailscale page", "/tailscale"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			w := httptest.NewRecorder()
+
+			server.handleSPARedirect(w, req)
+
+			if w.Code != http.StatusSeeOther {
+				t.Errorf("Expected status 303, got %d", w.Code)
+			}
+			if loc := w.Header().Get("Location"); loc != "/" {
+				t.Errorf("Expected redirect to /, got %q", loc)
+			}
+		})
+	}
+}
+
+func TestSPARedirect_RejectsNonGet(t *testing.T) {
+	server := &Server{}
+
+	req := httptest.NewRequest(http.MethodPost, "/logs", nil)
+	w := httptest.NewRecorder()
+
+	server.handleSPARedirect(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("Expected status 405, got %d", w.Code)
+	}
+}

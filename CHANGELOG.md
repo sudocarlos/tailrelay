@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Web UI** (#151) — the UI has been rebuilt on [shadcn-svelte](https://shadcn-svelte.com) using the create-preset `b144` (nova style, neutral base, Roboto). All custom components were replaced with their standard shadcn implementations: toasts → Sonner, tooltip/portal → Tooltip, toggle → Switch, add/password modals → Dialog, delete confirmation → AlertDialog, overflow menu → DropdownMenu, exit-node picker → Select, and the top navbar → a Sidebar layout with a standard system/light/dark theme preference. The Relays and Tailscale pages adopt a flat console-style layout: plain text brand, non-collapsible sidebar with a header separator, a two-column (Address/Target) list with row separators instead of cards, section sub-items in the sidebar (Connection/Networking/Machines) that scroll to them, and machine names linking to the matching admin-console page. The log panel adopts the terminal component look. Previously saved theme preferences (binary values) fall back to `light`/`dark`; `system` behavior now follows the OS theme
+- **Web UI** (#151) — the log console's single-level selector was replaced with a per-level visibility filter: a dropdown where each level (DEBUG, INFO, WARN, ERROR) is independently toggleable with a live entry count (INFO (12), DEBUG (5), …), any combination viewable, and the choice persisted in `localStorage`. All levels are now captured into the console's history and SSE stream regardless of the stdout log level, so enabling a level also reveals its past entries
+
+### Fixed
+- **Web UI** — the Logs console now receives log entries by default: the logger started at level `ERROR`, which filtered out all `INFO`/`DEBUG` activity before it reached the ring buffer and SSE stream, leaving the panel empty until a hard error occurred. The default is now `INFO`; the `-log-level` flag still overrides it, and the `LOG_LEVEL` environment variable now applies when the flag is unset (previously it was only consulted when the flag value was invalid)
+- **Web UI** — visiting `/logs`, a leftover page route from the pre-SPA UI, failed with a missing-template error; it now redirects to the web UI like the other legacy pages
+- **Web UI** (#151) — relay create/toggle/delete operations now log at `INFO` instead of `DEBUG`, so they appear in the Logs console and the log file at the default level; the control-server live-check fallback logs at `WARN`
+
 ## [0.11.4] - 2026-10-09
 
 ### Changed
