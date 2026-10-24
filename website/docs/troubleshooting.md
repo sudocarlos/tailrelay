@@ -19,11 +19,14 @@ Verify port mapping:
 docker port tailrelay
 ```
 
-Check logs:
+Check logs (the Web UI writes to its own file, so `docker logs` only
+shows Tailscale output):
 
 ```bash
-docker logs tailrelay | grep -i webui
+docker exec tailrelay tail -50 /var/log/tailrelay-webui.log
 ```
+
+You can also use the **Logs** console on the Web UI's Dashboard page.
 
 Verify listening port:
 
