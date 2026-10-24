@@ -111,32 +111,7 @@ jobs:
             sed -i "s/${PINNED}/${LATEST}/g" "$f"
           done
           export CHANGELOG_ENTRY="- **Go** bumped from \`${PINNED}\` to \`${LATEST}\` in Dockerfile, \`go.mod\`, and CI"
-          python3 - <<'PY'
-            import os
-            from pathlib import Path
-            p = Path('CHANGELOG.md')
-            lines = p.read_text().splitlines(keepends=True)
-            entry = os.environ['CHANGELOG_ENTRY'] + '\n'
-            unre = next(i for i, l in enumerate(lines) if l.rstrip() == '## [Unreleased]')
-            changed = None
-            for i in range(unre + 1, len(lines)):
-                if lines[i].startswith('## '):
-                    break
-                if lines[i].strip() == '### Changed':
-                    changed = i
-                    break
-            if changed is not None:
-                lines.insert(changed + 1, entry)
-            else:
-                pos = unre + 1
-                if pos < len(lines) and not lines[pos].strip():
-                    pos += 1
-                blocked = '### Changed\n' + entry
-                if pos == len(lines) or lines[pos].startswith('## '):
-                    blocked += '\n'
-                lines.insert(pos, blocked)
-            p.write_text(''.join(lines))
-          PY
+          python3 .github/scripts/insert-changelog-entry.py "$CHANGELOG_ENTRY"
 
           git add Dockerfile webui/go.mod .agents/skills CHANGELOG.md
           git commit -m "chore: update Go from ${PINNED} to ${LATEST}" -m "$(printf '%s\n' \
@@ -394,32 +369,7 @@ jobs:
             sed -i "s/${PINNED}/${LATEST}/g" "$f"
           done
           export CHANGELOG_ENTRY="- **Tailscale** bumped from \`${PINNED}\` to \`${LATEST}\` in Dockerfile"
-          python3 - <<'PY'
-            import os
-            from pathlib import Path
-            p = Path('CHANGELOG.md')
-            lines = p.read_text().splitlines(keepends=True)
-            entry = os.environ['CHANGELOG_ENTRY'] + '\n'
-            unre = next(i for i, l in enumerate(lines) if l.rstrip() == '## [Unreleased]')
-            changed = None
-            for i in range(unre + 1, len(lines)):
-                if lines[i].startswith('## '):
-                    break
-                if lines[i].strip() == '### Changed':
-                    changed = i
-                    break
-            if changed is not None:
-                lines.insert(changed + 1, entry)
-            else:
-                pos = unre + 1
-                if pos < len(lines) and not lines[pos].strip():
-                    pos += 1
-                blocked = '### Changed\n' + entry
-                if pos == len(lines) or lines[pos].startswith('## '):
-                    blocked += '\n'
-                lines.insert(pos, blocked)
-            p.write_text(''.join(lines))
-          PY
+          python3 .github/scripts/insert-changelog-entry.py "$CHANGELOG_ENTRY"
 
           git add Dockerfile .agents/skills CHANGELOG.md
           git commit -m "chore: update Tailscale from ${PINNED} to ${LATEST}" -m "$(printf '%s\n' \
@@ -595,32 +545,7 @@ jobs:
             sed -i "s/${PINNED}/${LATEST}/g" "$f"
           done
           export CHANGELOG_ENTRY="- **Node.js** bumped from \`${PINNED}\` to \`${LATEST}\` in Dockerfile and CI"
-          python3 - <<'PY'
-            import os
-            from pathlib import Path
-            p = Path('CHANGELOG.md')
-            lines = p.read_text().splitlines(keepends=True)
-            entry = os.environ['CHANGELOG_ENTRY'] + '\n'
-            unre = next(i for i, l in enumerate(lines) if l.rstrip() == '## [Unreleased]')
-            changed = None
-            for i in range(unre + 1, len(lines)):
-                if lines[i].startswith('## '):
-                    break
-                if lines[i].strip() == '### Changed':
-                    changed = i
-                    break
-            if changed is not None:
-                lines.insert(changed + 1, entry)
-            else:
-                pos = unre + 1
-                if pos < len(lines) and not lines[pos].strip():
-                    pos += 1
-                blocked = '### Changed\n' + entry
-                if pos == len(lines) or lines[pos].startswith('## '):
-                    blocked += '\n'
-                lines.insert(pos, blocked)
-            p.write_text(''.join(lines))
-          PY
+          python3 .github/scripts/insert-changelog-entry.py "$CHANGELOG_ENTRY"
 
           git add Dockerfile .agents/skills CHANGELOG.md
           git commit -m "chore: update Node from ${PINNED} to ${LATEST}" -m "$(printf '%s\n' \
@@ -845,32 +770,7 @@ jobs:
           npm install --no-fund --no-audit --save-dev "vite@^${LATEST}"
           cd ../..
           export CHANGELOG_ENTRY="- **Vite** bumped from \`${PINNED}\` to \`${LATEST}\` in \`webui/frontend/package.json\`"
-          python3 - <<'PY'
-            import os
-            from pathlib import Path
-            p = Path('CHANGELOG.md')
-            lines = p.read_text().splitlines(keepends=True)
-            entry = os.environ['CHANGELOG_ENTRY'] + '\n'
-            unre = next(i for i, l in enumerate(lines) if l.rstrip() == '## [Unreleased]')
-            changed = None
-            for i in range(unre + 1, len(lines)):
-                if lines[i].startswith('## '):
-                    break
-                if lines[i].strip() == '### Changed':
-                    changed = i
-                    break
-            if changed is not None:
-                lines.insert(changed + 1, entry)
-            else:
-                pos = unre + 1
-                if pos < len(lines) and not lines[pos].strip():
-                    pos += 1
-                blocked = '### Changed\n' + entry
-                if pos == len(lines) or lines[pos].startswith('## '):
-                    blocked += '\n'
-                lines.insert(pos, blocked)
-            p.write_text(''.join(lines))
-          PY
+          python3 .github/scripts/insert-changelog-entry.py "$CHANGELOG_ENTRY"
 
           git add webui/frontend/package.json webui/frontend/package-lock.json CHANGELOG.md
           git commit -m "chore: update Vite from ${PINNED} to ${LATEST}" -m "$(printf '%s\n' \
