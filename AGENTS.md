@@ -91,6 +91,7 @@ curl -sSL http://localhost:8021                   # Web UI
 | `TS_AUTH_ONCE` | `true` | Authenticate once |
 | `TS_ENABLE_METRICS` | `true` | Enable `:9002/metrics` |
 | `TS_ENABLE_HEALTH_CHECK` | `true` | Enable `:9002/healthz` |
+| `LOG_LEVEL` | `INFO` | Web UI log verbosity (`DEBUG`, `INFO`, `WARN`, `ERROR`); `-log-level` flag takes precedence |
 
 ## File Map
 

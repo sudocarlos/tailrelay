@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Web UI** (#151) — the UI has been rebuilt on [shadcn-svelte](https://shadcn-svelte.com) using the create-preset `b144` (nova style, neutral base, Roboto). All custom components were replaced with their standard shadcn implementations: toasts → Sonner, tooltip/portal → Tooltip, toggle → Switch, add/password modals → Dialog, delete confirmation → AlertDialog, overflow menu → DropdownMenu, exit-node picker → Select, and the top navbar → a Sidebar layout with a standard system/light/dark theme preference. The Relays and Tailscale pages adopt a flat console-style layout: plain text brand, non-collapsible sidebar with a header separator, a two-column (Address/Target) list with row separators instead of cards, section sub-items in the sidebar (Connection/Networking/Machines) that scroll to them, and machine names linking to the matching admin-console page. The log panel adopts the terminal component look. Previously saved theme preferences (binary values) fall back to `light`/`dark`; `system` behavior now follows the OS theme
 
+### Fixed
+- **Web UI** — the Logs console now receives log entries by default: the logger started at level `ERROR`, which filtered out all `INFO`/`DEBUG` activity before it reached the ring buffer and SSE stream, leaving the panel empty until a hard error occurred. The default is now `INFO`; the `-log-level` flag still overrides it, and the `LOG_LEVEL` environment variable now applies when the flag is unset (previously it was only consulted when the flag value was invalid)
+
 ## [0.11.4] - 2026-10-09
 
 ### Changed
