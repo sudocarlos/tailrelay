@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Tailscale** bumped from `v1.102.5` to `v1.104.2` in Dockerfile
 - **Vite** bumped from `8.3.4` to `8.3.5` in `webui/frontend/package.json`
 - **Go** bumped from `1.27.2` to `1.27.3` in Dockerfile, `go.mod`, and CI
 - **Node.js** bumped from `24.21.0` to `24.22.1` in Dockerfile and CI
