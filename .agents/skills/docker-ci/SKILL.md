@@ -26,7 +26,7 @@ docker buildx build -t sudocarlos/tailrelay:latest --load .
 
 Key build args:
 - `TAILSCALE_VERSION` (default: `v1.102.5`) — image tag for `ghcr.io/tailscale/tailscale`
-- `GO_VERSION` (default: `1.27.2`)
+- `GO_VERSION` (default: `1.27.3`)
 - `NODE_VERSION` (default: `24.22.1`)
 - `ALPINE_VERSION` (default: `3.22`)
 - `WEBUI_SOURCE` (default: `webui-builder`; set to `binary-dev` for dev builds)
@@ -90,7 +90,7 @@ Copy `.env.example` to `.env` and edit before running tests.
 ### Jobs
 
 1. **frontend** — `npm install` + `npm run build` in `webui/frontend/` (Node.js 24.22.1 in CI)
-2. **backend** — installs Node.js, runs `npm install` + `npm run build` (required for `//go:embed all:web/dist`), then `go vet`, `go test -v`, `go build` in `webui/` (Go 1.27.2 in CI)
+2. **backend** — installs Node.js, runs `npm install` + `npm run build` (required for `//go:embed all:web/dist`), then `go vet`, `go test -v`, `go build` in `webui/` (Go 1.27.3 in CI)
 3. **integration** — Full Docker build + `pytest tests/integration/ -v`
 4. **release** — Runs only on `v*.*.*` tag pushes, after all three above pass; extracts changelog notes, logs in to Docker Hub + GHCR, builds multi-platform image (`linux/amd64`, `linux/arm64`) and pushes `vX.Y.Z` + `latest` tags to both registries, and creates a GitHub Release
 
@@ -191,5 +191,5 @@ The `frontend`, `backend`, `integration`, and `release` CI jobs read `GO_VERSION
 |-----------|---------|
 | Container | `v0.10.0` (see `start.sh`) |
 | Tailscale | `v1.102.5` (`ghcr.io/tailscale/tailscale` base image) |
-| Go | `1.27.2` (Dockerfile ARG) |
+| Go | `1.27.3` (Dockerfile ARG) |
 | Node.js (CI) | `24.22.1` (GitHub Actions + Dockerfile ARG) |
