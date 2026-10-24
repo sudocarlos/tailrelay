@@ -16,7 +16,7 @@ def main() -> None:
     entry = sys.argv[1] + "\n"
 
     changelog = Path("CHANGELOG.md")
-    lines = changelog.read_text().splitlines(keepends=True)
+    lines = changelog.read_text(encoding="utf-8").splitlines(keepends=True)
 
     unre = next(
         (i for i, line in enumerate(lines) if line.rstrip() == "## [Unreleased]"),
@@ -44,7 +44,7 @@ def main() -> None:
             blocked += "\n"
         lines.insert(pos, blocked)
 
-    changelog.write_text("".join(lines))
+    changelog.write_text("".join(lines), encoding="utf-8")
 
 
 if __name__ == "__main__":
