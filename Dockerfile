@@ -2,7 +2,7 @@
 # check=skip=SecretsUsedInArgOrEnv
 ARG TAILSCALE_VERSION=v1.102.5
 ARG GO_VERSION=1.27.2
-ARG NODE_VERSION=24.21.0
+ARG NODE_VERSION=24.22.1
 ARG WEBUI_SOURCE=webui-builder
 
 # Frontend build stage — Vite + Svelte + Tailwind
