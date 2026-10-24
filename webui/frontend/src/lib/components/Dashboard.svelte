@@ -11,7 +11,6 @@
     lastUpdated,
     refreshData,
     logs,
-    logLevel,
     hideFunnel,
   } from '../stores/app.js';
   import { get } from 'svelte/store';

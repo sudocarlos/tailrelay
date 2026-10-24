@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 )
 
 // newTestLogger builds a fresh Logger so tests do not depend on the
@@ -43,7 +44,7 @@ func TestInfoDefaultCapturesRuntimeLogs(t *testing.T) {
 	}
 }
 
-func TestDebugFilteredAtInfo(t *testing.T) {
+func TestDebugCapturedButFilteredFromOutputAtInfo(t *testing.T) {
 	var buf bytes.Buffer
 	l := newTestLogger(INFO, &buf)
 
@@ -51,14 +52,41 @@ func TestDebugFilteredAtInfo(t *testing.T) {
 	l.Info("serve", "visible")
 
 	entries := l.GetHistory()
-	if len(entries) != 1 {
-		t.Fatalf("expected only the INFO entry in history, got %d", len(entries))
+	if len(entries) != 2 {
+		t.Fatalf("expected both entries in history, got %d", len(entries))
 	}
-	if entries[0].Message != "visible" {
-		t.Errorf("unexpected entry: %+v", entries[0])
+	if entries[0].Level != "DEBUG" {
+		t.Errorf("expected DEBUG entry first, got %s", entries[0].Level)
 	}
 	if out := buf.String(); strings.Contains(out, "Executing") {
 		t.Errorf("DEBUG entry leaked to output at INFO level: %q", out)
+	}
+	if out := buf.String(); !strings.Contains(out, "visible") {
+		t.Error("INFO entry missing from output at INFO level")
+	}
+}
+
+func TestSubscribersReceiveAllLevels(t *testing.T) {
+	var buf bytes.Buffer
+	l := newTestLogger(ERROR, &buf)
+
+	ch := l.Subscribe()
+	defer l.Unsubscribe(ch)
+
+	l.Debug("serve", "debug line")
+	l.Error("serve", "error line")
+
+	// The subscriber channel is fed synchronously inside log(); entries must
+	// arrive even though the logger level (ERROR) filters stdout.
+	for _, want := range []string{"debug line", "error line"} {
+		select {
+		case entry := <-ch:
+			if entry.Message != want {
+				t.Errorf("expected %q, got %q", want, entry.Message)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("timed out waiting for %q", want)
+		}
 	}
 }
 

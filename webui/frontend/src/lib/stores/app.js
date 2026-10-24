@@ -57,7 +57,6 @@ export const tailscaleActiveSection = writable('connection');
 
 // ── Logs ──────────────────────────────────────────────────────────
 export const logs = writable([]);
-export const logLevel = writable('INFO');
 
 // ── Derived: is Tailscale connected? ─────────────────────────────
 // True only when BackendState is "Running"; false for NeedsLogin,

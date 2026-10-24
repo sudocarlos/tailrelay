@@ -278,6 +278,11 @@ console.log('\n[2/4] Dashboard');
   await page.waitForTimeout(300);
   await snap(page, 'dashboard-logs-dark-desktop');
 
+  // Log level menu open — per-level visibility counts
+  await page.locator('[data-dropdown-menu-trigger]').filter({ hasText: /Levels/ }).click();
+  await page.waitForTimeout(400);
+  await snap(page, 'dashboard-logs-menu-dark-desktop');
+
   await page.close();
 
   // Mobile
