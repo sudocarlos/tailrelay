@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-24
+
 ### Changed
 - **Web UI** (#151) — rebuilt on shadcn-svelte (nova style, neutral base, Roboto); custom components replaced with their standard shadcn implementations (Sonner toasts, Tooltip, Switch, Dialog/AlertDialog, DropdownMenu, Select, Sidebar). Relays and Tailscale pages adopt a flat console-style layout with a non-collapsible sidebar, and the log panel adopts the terminal look. Previously saved theme preferences fall back to `light`/`dark`; `system` follows the OS theme
 - **Web UI** (#151) — the log console replaces its single-level selector with a per-level filter: DEBUG, INFO, WARN, and ERROR toggle independently with a live entry count, the choice persists in `localStorage`, and all levels are captured regardless of the stdout log level so enabling one reveals its past entries
@@ -14,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Vite** (#162) — bumped from `8.3.4` to `8.3.5` in `webui/frontend/package.json`, collecting fixes to chunk import-map hashing for preload dependencies, a more resilient bundled-dev server (asset URLs, error-stack source maps, HMR propagation), and assorted optimizer/resolve/CSS fixes
 - **Go** (#160) — bumped from `1.27.2` to `1.27.3` in Dockerfile, `go.mod`, and CI, taking in a security fix to the `crypto/x509` package
 - **Node.js** (#159) — bumped from `24.21.0` to `24.22.1` in Dockerfile and CI, taking in the v24.22.1 security release (http, dns, tls, permission, and crypto fixes; root certificates refreshed to NSS 3.131.1, OpenSSL to 3.5.9) and the v24.22.0 API additions across crypto, perf_hooks, util, and sqlite
+
+### Docker
+```
+docker pull sudocarlos/tailrelay:v0.12.0
+docker pull ghcr.io/sudocarlos/tailrelay:v0.12.0
+```
 
 ## [0.11.4] - 2026-10-09
 
