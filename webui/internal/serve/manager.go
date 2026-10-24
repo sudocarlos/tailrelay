@@ -97,7 +97,7 @@ func (m *Manager) WebListenerScheme() string {
 		if live, err := checker.IsCustomControlServer(); err == nil {
 			custom = live
 		} else {
-			logger.Debug("serve", "Falling back to persisted control server setting, live check failed: %v", err)
+			logger.Warn("serve", "Falling back to persisted control server setting, live check failed: %v", err)
 		}
 	}
 	if custom {
@@ -386,7 +386,7 @@ func isTailscaleNotReady(err error) bool {
 // with a warning — relay config is already persisted and will be applied on
 // the next successful reconcile (e.g. after Tailscale authenticates).
 func (m *Manager) Reconcile() error {
-	logger.Debug("serve", "Starting serve reconcile process")
+	logger.Info("serve", "Starting serve reconcile process")
 	list, err := config.LoadServeRelays(m.relayFile)
 	if err != nil {
 		logger.Error("serve", "Failed to load serve relays: %v", err)
@@ -410,7 +410,7 @@ func (m *Manager) Reconcile() error {
 // relay config is already persisted and will be applied on the next successful
 // reconcile (e.g. after Tailscale authenticates).
 func (m *Manager) ReconcileAutostart() error {
-	logger.Debug("serve", "Starting autostart reconcile process")
+	logger.Info("serve", "Starting autostart reconcile process")
 	list, err := config.LoadServeRelays(m.relayFile)
 	if err != nil {
 		logger.Error("serve", "Failed to load serve relays: %v", err)
@@ -428,10 +428,10 @@ func (m *Manager) ReconcileAutostart() error {
 
 // resetAndApply resets the tailscale serve config and applies the given relays.
 func (m *Manager) resetAndApply(relays []config.ServeRelay) error {
-	logger.Debug("serve", "Resetting tailscale serve config")
+	logger.Info("serve", "Resetting tailscale serve config")
 	if err := m.run("serve", "reset"); err != nil {
 		if isTailscaleNotReady(err) {
-			logger.Debug("serve", "Tailscale not ready, deferring reconcile: %v", err)
+			logger.Info("serve", "Tailscale not ready, deferring reconcile: %v", err)
 			return ErrTailscaleNotReady
 		}
 		logger.Error("serve", "tailscale serve reset failed: %v", err)
@@ -450,10 +450,10 @@ func (m *Manager) resetAndApply(relays []config.ServeRelay) error {
 	webScheme := m.WebListenerScheme()
 
 	for _, relay := range relays {
-		logger.Debug("serve", "Applying relay %s (type: %s, port: %d)", relay.ID, relay.Type, relay.ListenPort)
+		logger.Info("serve", "Applying relay %s (type: %s, port: %d)", relay.ID, relay.Type, relay.ListenPort)
 		if err := m.applyRelay(relay, webScheme); err != nil {
 			if isTailscaleNotReady(err) {
-				logger.Debug("serve", "Tailscale not ready, deferring reconcile: %v", err)
+				logger.Info("serve", "Tailscale not ready, deferring reconcile: %v", err)
 				return ErrTailscaleNotReady
 			}
 			if relay.Type == "funnel" && isFunnelNotAllowed(err) {
@@ -464,7 +464,7 @@ func (m *Manager) resetAndApply(relays []config.ServeRelay) error {
 			return err
 		}
 	}
-	logger.Debug("serve", "Finished reconcile process")
+	logger.Info("serve", "Finished reconcile process")
 	return nil
 }
 
@@ -512,7 +512,7 @@ func (m *Manager) applyFunnel(relay config.ServeRelay) error {
 
 func (m *Manager) run(args ...string) error {
 	cmdStr := fmt.Sprintf("%s %s", m.binaryPath, strings.Join(args, " "))
-	logger.Debug("serve", "Executing: %s", cmdStr)
+	logger.Info("serve", "Executing: %s", cmdStr)
 
 	cmd := exec.Command(m.binaryPath, args...)
 	output, err := cmd.CombinedOutput()
@@ -525,6 +525,6 @@ func (m *Manager) run(args ...string) error {
 		}
 		return fmt.Errorf("%s", errStr)
 	}
-	logger.Debug("serve", "Execution successful: %s", cmdStr)
+	logger.Info("serve", "Execution successful: %s", cmdStr)
 	return nil
 }
