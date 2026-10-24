@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Web UI** — the Logs console now receives log entries by default: the logger started at level `ERROR`, which filtered out all `INFO`/`DEBUG` activity before it reached the ring buffer and SSE stream, leaving the panel empty until a hard error occurred. The default is now `INFO`; the `-log-level` flag still overrides it, and the `LOG_LEVEL` environment variable now applies when the flag is unset (previously it was only consulted when the flag value was invalid)
+- **Web UI** — visiting `/logs`, a leftover page route from the pre-SPA UI, failed with a missing-template error; it now redirects to the web UI like the other legacy pages
 
 ## [0.11.4] - 2026-10-09
 
