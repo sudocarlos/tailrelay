@@ -19,7 +19,7 @@
     "shadcn-svelte": "^1.7.0",
     "svelte": "^5.53.7",
     "tailwindcss": "^4.2.1",
-    "vite": "^8.3.4"
+    "vite": "^8.3.5"
   },
   "dependencies": {
     "bits-ui": "^2.19.5",
