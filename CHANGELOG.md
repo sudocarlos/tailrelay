@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Vite** (#162) — bumped from `8.3.4` to `8.3.5` in `webui/frontend/package.json`, collecting fixes to chunk import-map hashing for preload dependencies, a more resilient bundled-dev server (asset URLs, error-stack source maps, HMR propagation), and assorted optimizer/resolve/CSS fixes
 - **Go** (#160) — bumped from `1.27.2` to `1.27.3` in Dockerfile, `go.mod`, and CI, taking in a security fix to the `crypto/x509` package
 - **Node.js** (#159) — bumped from `24.21.0` to `24.22.1` in Dockerfile and CI, taking in the v24.22.1 security release (http, dns, tls, permission, and crypto fixes; root certificates refreshed to NSS 3.131.1, OpenSSL to 3.5.9) and the v24.22.0 API additions across crypto, perf_hooks, util, and sqlite
+- **Frontend deps** (#163) — bumped `undici` from `7.30.0` to `7.30.1` in `webui/frontend/package.json`
 
 ### Docker
 ```
