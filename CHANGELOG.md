@@ -8,8 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- **Tailscale** bumped from `v1.104.2` to `v1.104.4` in Dockerfile
-- **Node.js** bumped from `24.22.1` to `24.22.2` in Dockerfile and CI
+- **Tailscale** (#166) — bumped from `v1.104.2` to `v1.104.4` in Dockerfile, collecting the v1.104.4 security release (v1.104.3 was an internal-only release): Tailscale SSH runs Unix-socket forwarding as the authenticated user instead of `root`, so authorized peers can no longer reach root-only sockets such as the Docker socket or the `tailscaled` local API (TS-2026-014); Tailscale SSH bounds per-session memory and releases it on disconnect, preventing denial of service from continuous window-change messages and environment appends (TS-2026-015); Tailscale Serve restricts TCP forwards to Unix socket backends and revalidates backend paths on each connection, blocking access to privileged sockets (TS-2026-016); and Serve derives per-request capabilities from the request context instead of one shared across all HTTP/2 streams, so `Tailscale-App-Capabilities` no longer leak between mounts (TS-2026-017)
+- **Node.js** (#164) — bumped from `24.22.1` to `24.22.2` in Dockerfile and CI, taking in the v24.22.2 patch release: the upstream V8 stack-trace work (cheaper summarization of optimized frames, deferred CallSiteInfo creation, a Wasm call-site fix, and an integer overflow in `Error.stackTraceLimit` trimming that crashed or silently dropped frames with `--trace-uncaught` or an attached debugger) and a stream fix that keeps the async context of parked writes until they execute
 
 ## [0.12.0] - 2026-10-24
 
