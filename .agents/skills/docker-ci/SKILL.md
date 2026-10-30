@@ -189,7 +189,7 @@ The `frontend`, `backend`, `integration`, and `release` CI jobs read `GO_VERSION
 
 | Component | Version |
 |-----------|---------|
-| Container | `v0.10.0` (see `start.sh`) |
+| Container | `v0.12.1` (see `start.sh`) |
 | Tailscale | `v1.104.4` (`ghcr.io/tailscale/tailscale` base image) |
 | Go | `1.27.3` (Dockerfile ARG) |
 | Node.js (CI) | `24.22.2` (GitHub Actions + Dockerfile ARG) |
