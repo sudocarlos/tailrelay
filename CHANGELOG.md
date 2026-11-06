@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Vite** bumped from `8.3.5` to `8.3.6` in `webui/frontend/package.json`
+
 ## [0.12.1] - 2026-10-30
 
 ### Changed
