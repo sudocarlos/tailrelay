@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Node.js** bumped from `24.22.2` to `24.22.3` in Dockerfile and CI
+
 ## [0.12.1] - 2026-10-30
 
 ### Changed
