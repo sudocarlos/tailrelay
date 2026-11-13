@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Tailscale** bumped from `v1.104.4` to `v1.104.7` in Dockerfile
+
 ## [0.12.1] - 2026-10-30
 
 ### Changed
